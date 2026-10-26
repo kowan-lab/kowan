@@ -95,6 +95,7 @@ export function stateColor(state: string | undefined): string {
     case "dead":
     case "down":
     case "stopped":
+    case "degraded":
     case "error":
     case "failed":
       return "red";

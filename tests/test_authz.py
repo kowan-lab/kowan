@@ -73,6 +73,9 @@ class TestAuthorizeMatrix(unittest.TestCase):
             (G(az.SCOPE_STACK, "read", "h1", "web"), C(**{az.COMPOSE_PROJECT_LABEL: "web"}), True),
             (G(az.SCOPE_STACK, "read", "h1", "web"), C("h2", **{az.COMPOSE_PROJECT_LABEL: "web"}), False),
             (G(az.SCOPE_STACK, "read", "h1", "web"), C(**{az.COMPOSE_PROJECT_LABEL: "api"}), False),
+            # A swarm service outside any stack is its own stack; inside one, the stack wins.
+            (G(az.SCOPE_STACK, "read", "h1", "web"), C(**{az.SWARM_SERVICE_LABEL: "web"}), True),
+            (G(az.SCOPE_STACK, "read", "h1", "web"), C(**{az.SWARM_STACK_LABEL: "mon", az.SWARM_SERVICE_LABEL: "web"}), False),
             (G(az.SCOPE_STACK, "read", "h1", "web"), az.Resource(az.KIND_IMAGE, host_id="h1"), False),
             (G(az.SCOPE_STACK, "read", "h1", "web"), az.Resource(az.KIND_HOST, host_id="h1"), False),
             (G(az.SCOPE_LABELS, "read", "", "team=blue"), C("h9", team="blue"), True),

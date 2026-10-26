@@ -58,6 +58,9 @@ class TestHelpers(unittest.TestCase):
         swarm = {"com.docker.stack.namespace": "mon", "com.docker.swarm.service.name": "mon_grafana"}
         self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {}), ("stack~h~mon", "mon", ""))
         self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {("h", "mon"): "d3"}), ("dep~d3", "mon", "d3"))
+        # A swarm service outside any stack groups its tasks as its own stack.
+        lone = {"com.docker.swarm.service.name": "wrapper"}
+        self.assertEqual(workload_of(lone, "h", "wrapper.1.x", {}), ("stack~h~wrapper", "wrapper", ""))
         self.assertEqual(parse_workload("stack~h~shop"), ("stack", "h", "shop"))
         self.assertEqual(parse_workload("dep~d1"), ("dep", "", "d1"))
 

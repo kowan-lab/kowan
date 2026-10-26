@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { CircleAlert, ExternalLink, HeartPulse, MoreHorizontal, Play, RotateCcw, ScrollText, Square, SquareTerminal, WifiOff } from "lucide-react";
+import { ChevronRight, CircleAlert, ExternalLink, HeartPulse, MoreHorizontal, Play, RotateCcw, ScrollText, Square, SquareTerminal, WifiOff } from "lucide-react";
 import { Menu, Skeleton } from "@/ui/kit";
 import {
   containerAction,
@@ -15,11 +15,11 @@ import {
 } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useHost } from "../HostContext";
-import { appHref, appIdForContainer, buildApps, KIND_LABEL, parseAppId, type App, type AppContainer } from "../lib/apps";
+import { appHref, appIdForContainer, buildApps, containerCount, isReplaced, isSwarm, liveFirst, KIND_LABEL, parseAppId, servicesOf, composeServices, type App, type AppContainer } from "../lib/apps";
 import { errorStatus, LIVE_REFETCH_MS, liveUnlessGone } from "../lib/live";
 import { updateKey, useContainerUpdates } from "../lib/updates";
 import { notify } from "../ui/toast";
-import { errorMessage, formatDate, timeAgo } from "../utils";
+import { errorMessage, formatDate, sortPorts, timeAgo } from "../utils";
 import type { DockerEvent } from "../types";
 import DeploymentActions from "../components/deployment/DeploymentActions";
 import DeploymentActivity from "../components/deployment/DeploymentActivity";
@@ -37,7 +37,8 @@ import { usePolicyControls } from "../components/apps/policies";
 import { PoliciesTab, PolicyStrip } from "../components/apps/PolicyPanels";
 import WorkloadResources from "../components/apps/WorkloadResources";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
-import { Band, Btn, BtnLink, CalloutBar, Crumbs, Dot, Fact, LBL, Pill, Tag, btnClass } from "../components/apps/ui";
+import ScaleControl from "../components/apps/ScaleControl";
+import { Band, Btn, BtnLink, CalloutBar, Crumbs, Dot, Fact, LBL, Pill, StateSquares, Tag, btnClass } from "../components/apps/ui";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -241,7 +242,7 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
             <Dot tone={hostOnline ? "g" : "r"} />
             <Link to={`/hosts/${encodeURIComponent(host)}`} className="text-foreground no-underline hover:underline">{hostName}</Link>
           </Fact>
-          <Fact label="Kind">{d ? (d.type === "compose" ? "Compose deployment" : "Container deployment") : KIND_LABEL[app.kind]}</Fact>
+          <Fact label="Kind">{d ? (d.type === "compose" ? (d.strategy === "swarm" ? "Swarm deployment" : "Compose deployment") : "Container deployment") : app.kind === "stack" && isSwarm(app) ? "Swarm stack" : KIND_LABEL[app.kind]}</Fact>
           <Fact label="Source">{d ? (d.git?.repoUrl ? "Git repository" : "Kowan deployment") : app.kind === "stack" ? "Discovered from labels" : "Standalone"}</Fact>
           <Fact label="Exposed" mono>{pub.length ? pub.map((p) => `:${p.publicPort}`).join(" ") : "internal only"}</Fact>
           <Fact label="Created">
@@ -322,7 +323,8 @@ function useContainerAction() {
 function ContainerActions({ app, canOperate }: { app: App; canOperate: boolean }) {
   const act = useContainerAction();
   const running = app.containers.filter((c) => c.container.state === "running");
-  const idle = app.containers.filter((c) => c.container.state !== "running");
+  // Old Swarm tasks are history: Swarm runs their replacement, never start them.
+  const idle = app.containers.filter((c) => c.container.state !== "running" && !isReplaced(c));
   const busy = (a: string) => act.isPending && act.variables?.action === a;
   const off = !canOperate || app.stale || act.isPending;
   const single = app.kind === "container" ? app.containers[0] : undefined;
@@ -377,8 +379,6 @@ function MenuLink({ to, children }: { to: string; children: ReactNode }) {
 // ---------------------------------------------------------------------------
 // Overview
 // ---------------------------------------------------------------------------
-
-const SRC_COLORS = ["var(--signal)", "var(--tone-green-solid)", "var(--tone-blue-solid)", "var(--tone-amber-solid)", "var(--tone-purple-solid)", "var(--tone-red-solid)"];
 
 function ctrHref(c: AppContainer, tab?: string) {
   return `/containers/${c.container.id}?host=${encodeURIComponent(c.hostId)}${tab ? `&tab=${tab}` : ""}`;
@@ -445,11 +445,87 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
   // generic container banner.
   const deployProblem = d && !app.stale && (d.status === "error" || d.status === "pending");
   const canOperate = useCanOperate();
+  // Containers grouped by service, current ones before old Swarm tasks; a lone
+  // container or a container deployment is one unnamed group.
+  const groups = (servicesOf(app) ?? [{ name: "", containers: app.containers, tone: app.tone, label: app.label }]).map((g) => ({
+    ...g,
+    containers: liveFirst(g.containers),
+  }));
+  // Services of the compose file with no container at all still get a row.
+  if (d?.type === "compose" && d.strategy !== "swarm" && !app.stale) {
+    const have = new Set(groups.map((g) => g.name));
+    for (const name of composeServices(d.compose)) {
+      if (!have.has(name)) groups.push({ name, containers: [], tone: "r", label: "Missing" });
+    }
+  }
+  // Groups fold to their header; one in trouble starts open so the problem
+  // shows. What the viewer opened or closed is kept per workload across reloads.
+  const foldKey = `kowan-groups:${app.id}`;
+  const [folds, setFolds] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(foldKey) || "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  const isOpen = (g: { name: string; tone: string }) => folds[g.name] ?? (g.tone === "r" || g.tone === "a");
+  const toggle = (name: string) => {
+    const g = groups.find((x) => x.name === name);
+    const next = { ...folds, [name]: !(g && isOpen(g)) };
+    setFolds(next);
+    try {
+      localStorage.setItem(foldKey, JSON.stringify(next));
+    } catch {
+      // Private window or blocked storage: the fold lasts until the page reloads.
+    }
+  };
+  const row = (c: AppContainer, nested: boolean) => {
+    const ports = sortPorts(c.container.ports)
+      .map((p) => (p.publicPort ? `${p.publicPort} → ${p.privatePort}` : `${p.privatePort}`))
+      .filter((v, j, s) => s.indexOf(v) === j);
+    const running = c.container.state === "running";
+    return (
+      <tr key={c.container.id} className="cursor-pointer hover:[&>td]:bg-[var(--popover)]" onClick={() => navigate(ctrHref(c))}>
+        {/* Inside a service group the name lines up under the service's, past the chevron. */}
+        <td className={cn(TD, nested && "first:pl-[42px]")}>
+          <span aria-hidden className="mr-[8px] inline-block align-[0px]"><StateSquares tones={[c.tone]} size={8} /></span>
+          <Link to={ctrHref(c)} onClick={(e) => e.stopPropagation()} className={cn("no-underline hover:underline", isReplaced(c) ? "text-muted-foreground opacity-70" : "font-semibold text-foreground")}>{c.name}</Link>
+        </td>
+        <td className={TD}><Pill tone={c.tone}>{c.label}</Pill>{c.update?.updateAvailable && <Pill tone="a" className="ml-[6px]">Update</Pill>}</td>
+        <td className={cn(TD, "font-mono max-sm:hidden", isReplaced(c) && "text-muted-foreground opacity-70")}>{c.container.image}</td>
+        <td className={cn(TD, "font-mono max-sm:hidden")}>{ports.join(", ") || "—"}</td>
+        <td className={cn(TD, "text-right")}>
+          <span className="inline-flex justify-end gap-[2px]" onClick={(e) => e.stopPropagation()}>
+            <Link to={ctrHref(c, "logs")} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Logs of ${c.name}`} title="Logs">
+              <ScrollText className={ICON} strokeWidth={1.5} aria-hidden />
+            </Link>
+            {running ? (
+              <Link to={ctrHref(c, "console")} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Console of ${c.name}`} title="Console">
+                <SquareTerminal className={ICON} strokeWidth={1.5} aria-hidden />
+              </Link>
+            ) : (
+              <span className={cn(btnClass({ icon: true, size: "sm", ghost: true }), "cursor-not-allowed opacity-40")} aria-disabled title="Console needs a running container">
+                <SquareTerminal className={ICON} strokeWidth={1.5} aria-hidden />
+              </span>
+            )}
+            <Link to={ctrHref(c)} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Open ${c.name}`} title="Open container">
+              <ExternalLink className={ICON} strokeWidth={1.5} aria-hidden />
+            </Link>
+            {!app.stale && <ContainerActionsMenu container={c.container} hostId={c.hostId} name={c.name} managed={app.kind !== "container"} />}
+          </span>
+        </td>
+      </tr>
+    );
+  };
   return (
     <>
       {d?.preview && <PreviewBanner deployment={d} />}
       {deployProblem ? <DeploymentHealth deployment={d} onShowLogs={onLogs} /> : <ProblemBanner app={app} onLogs={onLogs} />}
-      <Band title="Containers" count={app.total}>
+      <Band
+        title="Containers"
+        count={app.total}
+        right={d?.type === "container" && d.strategy === "swarm" && !app.stale ? <ScaleControl deployment={d} service={d.name} canOperate={canOperate} /> : undefined}
+      >
         {app.total === 0 ? (
           <div className="flex max-w-[680px] flex-col items-start gap-[10px] px-[16px] py-[24px]">
             <p className="m-0 text-muted-foreground">
@@ -470,43 +546,36 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
                 </tr>
               </thead>
               <tbody>
-                {app.containers.map((c, i) => {
-                  const ports = (c.container.ports ?? [])
-                    .map((p) => (p.publicPort ? `${p.publicPort} → ${p.privatePort}` : `${p.privatePort}`))
-                    .filter((v, j, s) => s.indexOf(v) === j);
-                  const running = c.container.state === "running";
-                  return (
-                    <tr key={c.container.id} className="cursor-pointer hover:[&>td]:bg-[var(--popover)]" onClick={() => navigate(ctrHref(c))}>
-                      <td className={TD}>
-                        <span aria-hidden className="mr-[8px] inline-block size-[8px] align-[0px]" style={{ background: SRC_COLORS[i % SRC_COLORS.length] }} />
-                        <Link to={ctrHref(c)} onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground no-underline hover:underline">{c.name}</Link>
-                      </td>
-                      <td className={TD}><Pill tone={c.tone}>{c.label}</Pill>{c.update?.updateAvailable && <Pill tone="a" className="ml-[6px]">Update</Pill>}</td>
-                      <td className={cn(TD, "font-mono max-sm:hidden")}>{c.container.image}</td>
-                      <td className={cn(TD, "font-mono max-sm:hidden")}>{ports.join(", ") || "—"}</td>
-                      <td className={cn(TD, "text-right")}>
-                        <span className="inline-flex justify-end gap-[2px]" onClick={(e) => e.stopPropagation()}>
-                          <Link to={ctrHref(c, "logs")} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Logs of ${c.name}`} title="Logs">
-                            <ScrollText className={ICON} strokeWidth={1.5} aria-hidden />
-                          </Link>
-                          {running ? (
-                            <Link to={ctrHref(c, "console")} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Console of ${c.name}`} title="Console">
-                              <SquareTerminal className={ICON} strokeWidth={1.5} aria-hidden />
-                            </Link>
-                          ) : (
-                            <span className={cn(btnClass({ icon: true, size: "sm", ghost: true }), "cursor-not-allowed opacity-40")} aria-disabled title="Console needs a running container">
-                              <SquareTerminal className={ICON} strokeWidth={1.5} aria-hidden />
-                            </span>
+                {groups.map((g) => (
+                  <Fragment key={g.name || "_"}>
+                    {g.name && (
+                      <tr className="cursor-pointer hover:[&>td]:bg-[var(--popover)] [&>td]:bg-[var(--muted)]" onClick={() => toggle(g.name)}>
+                        <td className={TD}>
+                          <button
+                            type="button"
+                            aria-expanded={isOpen(g)}
+                            aria-label={`${isOpen(g) ? "Collapse" : "Expand"} ${g.name}`}
+                            onClick={(e) => { e.stopPropagation(); toggle(g.name); }}
+                            className="mr-[6px] inline-flex size-[20px] items-center justify-center rounded-sm align-middle outline-none focus-visible:outline-2 focus-visible:outline-[var(--signal)]"
+                          >
+                            <ChevronRight className={cn(ICON, "transition-transform", isOpen(g) && "rotate-90")} strokeWidth={1.5} aria-hidden />
+                          </button>
+                          <span className="font-semibold">{g.name}</span>
+                          {g.containers.length > 0 && (
+                            <span className="ml-[10px] font-mono text-[12px] text-muted-foreground">{containerCount(g.containers)}</span>
                           )}
-                          <Link to={ctrHref(c)} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Open ${c.name}`} title="Open container">
-                            <ExternalLink className={ICON} strokeWidth={1.5} aria-hidden />
-                          </Link>
-                          {!app.stale && <ContainerActionsMenu container={c.container} hostId={c.hostId} name={c.name} managed={app.kind !== "container"} />}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        {/* The service's state sits in the State column, under its containers' own. */}
+                        <td className={TD}><Pill tone={g.tone}>{g.label}</Pill></td>
+                        <td colSpan={2} className={cn(TD, "max-sm:hidden")} />
+                        <td className={cn(TD, "text-right")}>
+                          {d && !app.stale && <ScaleControl deployment={d} service={g.name} canOperate={canOperate} />}
+                        </td>
+                      </tr>
+                    )}
+                    {(!g.name || isOpen(g)) && g.containers.map((c) => row(c, !!g.name))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
@@ -562,7 +631,7 @@ function ComposeView({ app }: { app: App }) {
   const yaml = [
     "services:",
     ...app.containers.flatMap((c) => {
-      const ports = (c.container.ports ?? [])
+      const ports = sortPorts(c.container.ports)
         .filter((p) => p.publicPort)
         .map((p) => `"${p.publicPort}:${p.privatePort}${p.type && p.type !== "tcp" ? `/${p.type}` : ""}"`)
         .filter((v, i, s) => s.indexOf(v) === i);

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { Alert, ContainerUpdateStatus, Deployment, Host } from "../../types";
+import { composeServices, resourceName } from "../../lib/apps";
 import { containerName } from "../../utils";
 import {
   age, appHref, appIdFor, containerHref, containerLabel, exitCode, statusAge, trouble,
@@ -78,7 +79,7 @@ export function buildNeeds(i: NeedsInput): Need[] {
     i.alerts.find((a) => a.hostId === c._host && a.resource === containerName(c.names));
   const folded = new Set<string>();
   for (const c of i.containers) {
-    const t = trouble(c);
+    const t = trouble(c, i.containers);
     if (!t) continue;
     const { app, part } = containerLabel(c);
     const label = app ? (part ? `${app}: ${part}` : app) : part;
@@ -152,6 +153,28 @@ export function buildNeeds(i: NeedsInput): Need[] {
       context: `The last ${d.type === "compose" ? "compose" : "container"} deploy ended in an error. Its logs say why; redeploy from the workload once fixed.`,
       when: age(d.updatedAt),
       acts: [{ label: "Open logs", to: `/workloads/dep~${d.id}?tab=logs` }, { label: "Open workload", to: appHref(`dep~${d.id}`) }],
+    });
+  }
+
+  // 3b. Compose workloads with a declared service that has no container at all
+  // (removed by hand, or never created): no container card can show it.
+  for (const d of i.deployments.filter((x) => x.type === "compose" && x.strategy !== "swarm" && x.status.toLowerCase() === "deployed")) {
+    const h = host(d.targets[0] ?? "");
+    if (!h?.online) continue;
+    const project = i.containers.filter((c) => c._host === h.id && c.labels?.["com.docker.compose.project"] === resourceName(d));
+    if (!project.some((c) => c.state.toLowerCase() === "running")) continue;
+    const present = new Set(project.map((c) => c.labels?.["com.docker.compose.service"] ?? ""));
+    const missing = composeServices(d.compose).filter((s) => !present.has(s));
+    if (!missing.length) continue;
+    out.push({
+      key: `missing:${d.id}`,
+      sev: "critical",
+      rank: 2,
+      host: h,
+      title: `${d.name}: ${missing.join(", ")} missing`,
+      context: `${plural(missing.length, "service")} of the compose file ${missing.length === 1 ? "has" : "have"} no container.${d.enabled ? " Auto-heal redeploys it within seconds." : " Auto-heal is paused: redeploy to bring them back."}`,
+      when: "",
+      acts: [{ label: "Open workload", to: appHref(`dep~${d.id}`) }],
     });
   }
 

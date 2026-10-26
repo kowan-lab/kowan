@@ -86,6 +86,7 @@ _LABELLED = (KIND_CONTAINER, KIND_VOLUME, KIND_NETWORK)
 
 COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 SWARM_STACK_LABEL = "com.docker.stack.namespace"
+SWARM_SERVICE_LABEL = "com.docker.swarm.service.name"
 DEPLOYMENT_ID_LABEL = "kowan.deployment.id"
 
 
@@ -169,7 +170,8 @@ class Resource:
         if self.stack:
             return self.stack
         labels = self.labels or {}
-        return labels.get(COMPOSE_PROJECT_LABEL) or labels.get(SWARM_STACK_LABEL) or ""
+        return (labels.get(COMPOSE_PROJECT_LABEL) or labels.get(SWARM_STACK_LABEL)
+                or labels.get(SWARM_SERVICE_LABEL) or "")
 
 
 def _grant_matches(g: Grant, r: Resource) -> bool:

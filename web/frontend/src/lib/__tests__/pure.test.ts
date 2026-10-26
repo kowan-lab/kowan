@@ -1,7 +1,10 @@
 // Pure helpers: workload grouping, ids and status text; log filters and
 // highlighting; formatting; safe redirects; container origin; small maps.
 import { describe, expect, it } from "vitest";
-import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge } from "../apps";
+import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge, superseded, composeServices } from "../apps";
+import { buildNeeds } from "../../components/overview/NeedsYou";
+import { trouble } from "../../components/overview/model";
+import { MAX_REPLICAS, scaledInput, scaleRule } from "../scale";
 import { containerOrigin, isManaged, originBadge, serviceOf, stackOf } from "../containerOrigin";
 import { realTags, truncate } from "../images";
 import { errorStatus, liveUnlessGone, setEventsLive, LIVE_REFETCH_MS } from "../live";
@@ -164,6 +167,7 @@ describe("formatting and misc", () => {
     expect(stackOf(swarm("a", "web").labels)).toBe("mon");
     expect(serviceOf(swarm("a", "web").labels)).toBe("web");
     expect(serviceOf({ "com.docker.swarm.service.name": "solo" })).toBe("solo");
+    expect(stackOf({ "com.docker.swarm.service.name": "solo" })).toBe("solo"); // a lone service is its own stack
     expect(stackOf({})).toBe("");
     expect(containerOrigin(swarm("a", "web").labels)).toMatchObject({ kind: "stack", name: "mon", service: "web" });
     expect(appIdForContainer(swarm("a", "web"), "local")).toBe("stack~local~mon");
@@ -183,6 +187,95 @@ describe("formatting and misc", () => {
     ]);
     const [lone] = buildApps({ containers: [c({ names: ["/solo"] })], fallbackHost: "local", deployments: [], scopeHosts: null });
     expect(servicesOf(lone)).toBeNull();
+  });
+
+  it("an old swarm task whose slot runs again is history, not a crash", () => {
+    const task = (name: string, svcId: string, state: string, status: string) =>
+      c({ id: name.padEnd(64, "0"), names: [`/${name}`], state, status, labels: {
+        "com.docker.stack.namespace": "dl", "com.docker.swarm.service.name": "dl_tools", "com.docker.swarm.service.id": svcId, "com.docker.swarm.task.name": name } });
+    const now = task("dl_tools.1.new", "s1", "running", "Up 2 days");
+    const old = task("dl_tools.1.old", "s1", "exited", "Exited (143) 2 months ago");
+    const killed = task("dl_tools.1.older", "s1", "exited", "Exited (137) 3 months ago");
+    const other = task("dl_tools.2.gone", "s1", "exited", "Exited (1) 1 hour ago");
+    const all = [now, old, killed, other];
+    expect(superseded(old, all)).toBe(true);
+    expect(superseded(killed, all)).toBe(true);
+    expect(superseded(other, all)).toBe(false); // nothing runs in slot 2
+    expect(superseded(old, [old, killed])).toBe(false); // the slot has nothing running
+    expect(superseded(c({ state: "exited", status: "Exited (1) now" }), all)).toBe(false); // not swarm
+    expect(trouble(old, all)).toBeNull();
+    expect(trouble(old)).toBe("exited");
+    expect(trouble(other, all)).toBe("exited");
+    const [app] = buildApps({ containers: [now, old, killed], fallbackHost: "local", deployments: [], scopeHosts: null });
+    expect(app.tone).toBe("g");
+    // Without a stack namespace the service's tasks still make one workload.
+    const lone = (name: string, state: string, status: string) =>
+      c({ id: name.padEnd(64, "0"), names: [`/${name}`], state, status, labels: {
+        "com.docker.swarm.service.name": "wrapper", "com.docker.swarm.service.id": "w1", "com.docker.swarm.task.name": name } });
+    const loneApps = buildApps({ containers: [lone("wrapper.1.a", "running", "Up 3 days"), lone("wrapper.1.b", "exited", "Exited (137) 3 days ago")],
+      fallbackHost: "local", deployments: [], scopeHosts: null });
+    expect(loneApps.map((a) => [a.name, a.kind, a.total, a.tone])).toEqual([["wrapper", "stack", 2, "g"]]);
+    expect(kindShort(loneApps[0])).toBe("Swarm · 1"); // one slot requested
+    expect([loneApps[0].up, loneApps[0].desired, loneApps[0].total]).toEqual([1, 1, 2]);
+    expect(app.containers.find((x) => x.name === "dl_tools.1.old")!.label).toMatch(/^Replaced/);
+  });
+
+  it("a compose workload with a declared service that has no container is degraded", () => {
+    expect(composeServices("services:\n  a: {}\n  b: {profiles: [x]}\n  c: {scale: 0}\n  d: {deploy: {replicas: 0}}\n  e:\n")).toEqual(["a", "e"]);
+    for (const bad of ["", undefined, "services: [", "services: [1]", "plain"]) expect(composeServices(bad)).toEqual([]);
+
+    const shop = { ...deployments[0], compose: deployments[0].compose + "  cache:\n    image: redis\n  debug:\n    image: busybox\n    profiles: [debug]\n" };
+    const app = buildApps({ containers, fallbackHost: "local", deployments: [shop], scopeHosts: hosts }).find((a) => a.name === "shop")!;
+    expect(app.tone).toBe("r");
+    expect(app.label).toBe("Degraded · 2/3"); // web, db up of web, db, cache
+    expect(app.attention?.text).toBe("cache is missing");
+    // Replicas come from the compose file; a one-shot that exited 0 is up.
+    const job = { ...deployments[0], compose: "services:\n  web: {image: nginx, deploy: {replicas: 2}}\n  db: {image: postgres}\n  migrate: {image: app}\n" };
+    const done = { ...containers[1], id: "c-mig".padEnd(64, "0"), names: ["/shop-migrate-1"], state: "exited", status: "Exited (0) 1 minute ago",
+      labels: { "com.docker.compose.project": "shop", "com.docker.compose.service": "migrate" } };
+    const withJob = buildApps({ containers: [...containers, done], fallbackHost: "local", deployments: [job], scopeHosts: hosts }).find((a) => a.name === "shop")!;
+    expect([withJob.up, withJob.desired, withJob.label]).toEqual([3, 4, "Running · 3/4"]); // web 1/2, db, migrate done
+    // A swarm deployment's containers carry swarm labels, not compose ones: never "missing".
+    const onSwarm = buildApps({ containers, fallbackHost: "local", deployments: [{ ...shop, strategy: "swarm" }], scopeHosts: hosts }).find((a) => a.name === "shop")!;
+    expect(onSwarm.attention).toBeNull();
+    const whole = buildApps({ containers, fallbackHost: "local", deployments, scopeHosts: hosts }).find((a) => a.name === "shop")!;
+    expect(whole.tone).toBe("g");
+
+    const needs = buildNeeds({
+      hosts, containers: containers.map((c) => ({ ...c, _host: "local" })), deployments: [shop], allDeployments: [shop],
+      alerts: [], updates: [], canOperate: true, restarting: null, resolving: null, onRestart: () => {}, onResolve: () => {},
+    });
+    expect(needs.find((n) => n.key === "missing:d-shop")).toMatchObject({ sev: "critical", title: "shop: cache missing" });
+  });
+
+  it("scale rules and the scaled update", () => {
+    const shop = deployments[0];
+    expect(scaleRule(shop, "web")).toEqual({ replicas: 1, max: MAX_REPLICAS, locked: "", limit: "" });
+    expect(scaleRule(shop, "nope")).toBeNull();
+    expect(scaleRule({ ...shop, compose: "services: [" }, "web")).toBeNull();
+    expect(scaleRule({ ...shop, git: { repoUrl: "https://x/y.git" } as never }, "web")?.locked).toMatch(/repository/);
+    const ports = (p: unknown) => scaleRule({ ...shop, compose: `services:\n  web:\n    image: x\n    ports: ${JSON.stringify(p)}\n` }, "web")!.max;
+    expect(ports(["8080:80"])).toBe(1);
+    expect(ports(["127.0.0.1:8080:80"])).toBe(1);
+    expect(ports([{ target: 80, published: 8080 }])).toBe(1);
+    expect(ports(["80"])).toBe(MAX_REPLICAS);
+    expect(ports([{ target: 80 }])).toBe(MAX_REPLICAS);
+    expect(scaleRule({ ...shop, strategy: "swarm", compose: "services:\n  web:\n    image: x\n    container_name: a\n    deploy: {replicas: 3}\n" }, "web"))
+      .toMatchObject({ replicas: 3, max: MAX_REPLICAS });
+    expect(scaleRule({ ...shop, compose: "services:\n  web: {image: x, scale: 2}\n" }, "web")?.replicas).toBe(2);
+    const single = { ...deployments[1], strategy: "swarm" as const, replicas: 4 };
+    expect(scaleRule(single, single.name)?.replicas).toBe(4);
+    expect(scaleRule(deployments[1], deployments[1].name)).toBeNull();
+    expect(scaledInput(single, single.name, 2)?.replicas).toBe(2);
+    expect(scaledInput({ ...shop, compose: "services:\n  web: {image: x, scale: 2}\n" }, "web", 3)?.compose).not.toMatch(/scale/);
+    expect(scaledInput({ ...shop, compose: "services: [" }, "web", 3)).toBeNull();
+  });
+
+  it("sorts ports the same way every time", () => {
+    const p = (privatePort: number, type: string, publicPort: number, ip: string) => ({ privatePort, type, publicPort, ip });
+    expect(u.sortPorts([p(443, "tcp", 8443, "::"), p(80, "udp", 0, ""), p(80, "tcp", 8080, "::"), p(80, "tcp", 8080, "0.0.0.0")]))
+      .toEqual([p(80, "tcp", 8080, "0.0.0.0"), p(80, "tcp", 8080, "::"), p(80, "udp", 0, ""), p(443, "tcp", 8443, "::")]);
+    expect(u.sortPorts(undefined)).toEqual([]);
   });
 
   it("container origins", () => {

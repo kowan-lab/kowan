@@ -9,7 +9,7 @@ import { formatBytes } from "../utils";
 import { notify } from "../ui/toast";
 import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
-import { appHref, kindShort, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
+import { appHref, containerCount, isReplaced, kindShort, liveFirst, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import { useFeatures } from "../lib/features";
@@ -354,6 +354,8 @@ function Empty({ title, text, children }: { title: string; text: string; childre
 function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
   const ports = a.ports.filter((p) => p.public);
   const att = a.attention;
+  // Old Swarm tasks are history: the squares show what runs now.
+  const current = a.containers.filter((c) => !isReplaced(c));
   return (
     <Link
       to={appHref(a)}
@@ -361,7 +363,16 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
       className="flex min-w-0 flex-col bg-card text-foreground no-underline shadow-[inset_0_0_0_1px_var(--border)] outline-none hover:bg-[var(--popover)] hover:shadow-[inset_0_0_0_1px_var(--input)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--signal)]"
     >
       <div className="flex items-center gap-[10px] px-[16px] pt-[14px]">
-        <span className="min-w-0 flex-1 truncate text-[16px] leading-[20px] font-[650]">{a.name}</span>
+        {/* A name cut by the ellipsis shows whole on hover; a short one gets no tooltip. */}
+        <span
+          className="min-w-0 flex-1 truncate text-[16px] leading-[20px] font-[650]"
+          onMouseEnter={(e) => {
+            const el = e.currentTarget;
+            el.title = el.scrollWidth > el.clientWidth ? a.name : "";
+          }}
+        >
+          {a.name}
+        </span>
         <Pill tone={a.tone}>{a.label}</Pill>
       </div>
       <div className="truncate px-[16px] pt-[4px] font-mono text-[12px] leading-[16px] font-medium tracking-[0.04em] text-muted-foreground uppercase">
@@ -372,9 +383,9 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
           <span className="font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">no data</span>
         ) : (
           <>
-            <StateSquares tones={a.containers.map((c) => c.tone)} titles={a.containers.map((c) => `${c.name}: ${c.label}`)} />
+            <StateSquares tones={current.map((c) => c.tone)} titles={current.map((c) => `${c.name}: ${c.label}`)} />
             <span className="ml-[6px] font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">
-              {a.total ? `${a.running}/${a.total} up` : "no containers"}
+              {a.desired ? `${a.up}/${a.desired} up` : "no containers"}
             </span>
           </>
         )}
@@ -437,11 +448,15 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
         onClick={() => go(to)}
         onKeyDown={(e) => onRowKey(e, to)}
       >
-        <td className={cn(TD, "font-mono", depth === 1 ? "first:pl-[44px]" : "first:pl-[70px]")}>{c.name}</td>
+        {/* An old Swarm task is history: its name and image fade so the live ones stand out. */}
+        <td className={cn(TD, "font-mono", depth === 1 ? "first:pl-[44px]" : "first:pl-[70px]", isReplaced(c) && "text-muted-foreground opacity-70")}>
+          <span aria-hidden className="mr-[8px] inline-block align-[0px]"><StateSquares tones={[c.tone]} size={8} /></span>
+          {c.name}
+        </td>
         <td className={TD}><Pill tone={c.tone}>{c.label}</Pill></td>
         <td className={TD} />
         {showHost && <td className={TD} />}
-        <td className={cn(TD, "font-mono text-muted-foreground")}>{c.container.image}</td>
+        <td className={cn(TD, "font-mono text-muted-foreground", isReplaced(c) && "opacity-70")}>{c.container.image}</td>
         <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts([c])}</td>
         <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
         <td className={cn(TD, "text-right")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -496,7 +511,7 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                   </td>
                   <td className={TD}><Pill tone={a.tone}>{a.label}</Pill></td>
                   <td className={TD}>
-                    <span className="inline-flex flex-nowrap"><StateSquares tones={a.containers.map((c) => c.tone)} /></span>
+                    <span className="inline-flex flex-nowrap"><StateSquares tones={a.containers.filter((c) => !isReplaced(c)).map((c) => c.tone)} /></span>
                   </td>
                   {showHost && <td className={TD}><HostChip name={hostName(host)} online={hostOnline(host)} /></td>}
                   <td className={cn(TD, "font-mono")}>{kindShort(a)}</td>
@@ -515,7 +530,7 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                     its services, each opening onto its containers. */}
                 {(() => {
                   const services = servicesOf(a);
-                  if (!services) return a.containers.map((c) => containerRow(c, isOpen, 1));
+                  if (!services) return liveFirst(a.containers).map((c) => containerRow(c, isOpen, 1));
                   return services.map((svc) => {
                     const key = `${a.id}::${svc.name}`;
                     const svcOpen = isOpen && !!open[key];
@@ -545,13 +560,14 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                               <ChevronRight className={cn("size-[16px] transition-transform duration-[120ms] motion-reduce:transition-none", svcOpen && "rotate-90")} strokeWidth={1.5} aria-hidden />
                             </button>
                             {svc.name}
+                            <span className="ml-[10px] text-[12px] text-muted-foreground">{containerCount(svc.containers)}</span>
                           </td>
                           <td className={TD}><Pill tone={svc.tone}>{svc.label}</Pill></td>
                           <td className={TD}>
-                            <span className="inline-flex flex-nowrap"><StateSquares tones={svc.containers.map((c) => c.tone)} /></span>
+                            <span className="inline-flex flex-nowrap"><StateSquares tones={svc.containers.filter((c) => !isReplaced(c)).map((c) => c.tone)} /></span>
                           </td>
                           {showHost && <td className={TD} />}
-                          <td className={cn(TD, "font-mono text-muted-foreground")}>{svc.containers[0]?.container.image}</td>
+                          <td className={cn(TD, "font-mono text-muted-foreground")}>{(svc.containers.find((c) => !isReplaced(c)) ?? svc.containers[0])?.container.image}</td>
                           <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts(svc.containers)}</td>
                           <td className={TD}>{svc.containers.some((c) => c.update?.updateAvailable) ? <Pill tone="a">Update</Pill> : null}</td>
                           <td className={TD} />
@@ -572,6 +588,6 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
 
 /** ":80 :443": the distinct public ports of some containers, or "—". */
 function publicPorts(cs: AppContainer[]): string {
-  const ports = cs.flatMap((c) => (c.container.ports ?? []).filter((p) => p.publicPort).map((p) => `:${p.publicPort}`));
-  return [...new Set(ports)].join(" ") || "—";
+  const ports = cs.flatMap((c) => (c.container.ports ?? []).filter((p) => p.publicPort).map((p) => p.publicPort));
+  return [...new Set(ports)].sort((a, b) => a - b).map((p) => `:${p}`).join(" ") || "—";
 }

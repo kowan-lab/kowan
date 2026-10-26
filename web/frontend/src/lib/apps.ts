@@ -16,6 +16,7 @@
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { parse as parseYaml } from "yaml";
 
 import { listContainers, listDeployments, listHosts } from "../api/client";
 import { isAllHosts } from "../HostContext";
@@ -68,8 +69,14 @@ export interface App {
   /** Hosts the app runs on (one today; an array so the shape survives swarm). */
   hostIds: string[];
   containers: AppContainer[];
+  /** Containers that run (all of them, old Swarm tasks included). */
   running: number;
   total: number;
+  /** Replicas up out of those requested: every service's replicas from the
+   *  compose file, or one per Swarm slot; a one-shot service that exited 0
+   *  counts as up. The "x/y" the app shows. */
+  up: number;
+  desired: number;
   tone: AppTone;
   /** App pill text: "Running · 13m", "Degraded · 5/6", "Stopped". */
   label: string;
@@ -219,7 +226,42 @@ function exitCodeOf(status: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-function describeContainer(c: Container): Pick<AppContainer, "tone" | "label" | "health" | "exitCode"> {
+/** A Swarm task's slot: its service plus the slot number (the node id for a
+ *  global service), from the task name "service.slot.taskid". "" off Swarm. */
+function swarmSlot(c: Container): string {
+  const l = c.labels ?? {};
+  const svc = l["com.docker.swarm.service.id"];
+  const task = l["com.docker.swarm.task.name"];
+  if (!svc || !task || !task.includes(".")) return "";
+  return `${svc}/${task.slice(0, task.lastIndexOf("."))}`;
+}
+
+/** An old Swarm task: a newer task runs in its slot. Swarm stops the old one on
+ *  every update or reschedule (143 on SIGTERM, 137 past the grace period) and
+ *  keeps it as task history, so its exit code is not a crash. */
+export function superseded(c: Container, all: Container[]): boolean {
+  const slot = swarmSlot(c);
+  return !!slot && all.some((x) => x !== c && (x.state || "").toLowerCase() === "running" && swarmSlot(x) === slot);
+}
+
+/** An old Swarm task kept as history (see {@link superseded}). */
+export function isReplaced(c: AppContainer): boolean {
+  return c.label.startsWith("Replaced");
+}
+
+/** "1 container", or "1 + 4 replaced" when old Swarm tasks are kept. */
+export function containerCount(cs: AppContainer[]): string {
+  const old = cs.filter(isReplaced).length;
+  const now = cs.length - old;
+  return old ? `${now} + ${old} replaced` : `${now} container${now === 1 ? "" : "s"}`;
+}
+
+/** Live containers first, old Swarm tasks after, each keeping its order. */
+export function liveFirst(cs: AppContainer[]): AppContainer[] {
+  return [...cs].sort((a, b) => Number(isReplaced(a)) - Number(isReplaced(b)));
+}
+
+function describeContainer(c: Container, all: Container[]): Pick<AppContainer, "tone" | "label" | "health" | "exitCode"> {
   const state = (c.state || "").toLowerCase();
   const health = healthOf(c.status || "");
   const exitCode = exitCodeOf(c.status || "");
@@ -234,11 +276,87 @@ function describeContainer(c: Container): Pick<AppContainer, "tone" | "label" | 
   if (state === "paused") return { tone: "a", label: "Paused", health, exitCode };
   if (state === "dead") return { tone: "r", label: "Dead", health, exitCode };
   if (state === "exited") {
+    if (superseded(c, all)) return { tone: "n", label: `Replaced${dur}`, health, exitCode };
     if (exitCode && exitCode !== 0) return { tone: "r", label: `Exited ${exitCode}${dur}`, health, exitCode };
     return { tone: "n", label: `Stopped${dur}`, health, exitCode };
   }
   if (state === "created") return { tone: "n", label: "Created", health, exitCode };
   return { tone: "n", label: state ? state[0].toUpperCase() + state.slice(1) : "Unknown", health, exitCode };
+}
+
+export interface ComposeService {
+  name: string;
+  /** deploy.replicas, else scale, else 1. */
+  replicas: number;
+  /** Restart "no" (the default) or "on-failure": done once it exits 0. */
+  oneShot: boolean;
+}
+
+const composeCache = new Map<string, ComposeService[]>();
+
+/** The services a compose file starts by default (not behind a profile, not
+ *  scaled to 0), as the server judges a compose target. [] when it does not parse. */
+export function composeSpec(text: string | undefined): ComposeService[] {
+  if (!text) return [];
+  const hit = composeCache.get(text);
+  if (hit) return hit;
+  let out: ComposeService[] = [];
+  try {
+    const doc = parseYaml(text) as { services?: Record<string, unknown> } | null;
+    const services = doc && typeof doc === "object" && doc.services && typeof doc.services === "object" && !Array.isArray(doc.services) ? doc.services : {};
+    out = Object.entries(services)
+      .map(([name, v]) => {
+        const svc = (v && typeof v === "object" ? v : {}) as { profiles?: unknown[]; scale?: unknown; restart?: unknown; deploy?: { replicas?: unknown } };
+        const n = typeof svc.deploy?.replicas === "number" ? svc.deploy.replicas : typeof svc.scale === "number" ? svc.scale : 1;
+        const restart = String(svc.restart ?? "no").split(":")[0];
+        return { name, replicas: svc.profiles && Array.isArray(svc.profiles) && svc.profiles.length ? 0 : n, oneShot: restart === "no" || restart === "on-failure" };
+      })
+      .filter((x) => x.replicas > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    out = [];
+  }
+  if (composeCache.size > 200) composeCache.clear();
+  composeCache.set(text, out);
+  return out;
+}
+
+/** Names of {@link composeSpec}'s services. */
+export function composeServices(text: string | undefined): string[] {
+  return composeSpec(text).map((x) => x.name);
+}
+
+/** Replicas up out of those requested. A compose file gives each service's
+ *  replicas; Swarm tasks give one per slot (old tasks of a slot are history);
+ *  otherwise every container is one. */
+function replicas(cs: AppContainer[], spec: ComposeService[]): { up: number; desired: number } {
+  const isUp = (c: Container) => (c.state || "").toLowerCase() === "running";
+  if (spec.length) {
+    let up = 0;
+    for (const svc of spec) {
+      const mine = cs.filter((c) => c.container.labels?.["com.docker.compose.service"] === svc.name).map((c) => c.container);
+      const running = mine.filter(isUp).length;
+      const done = svc.oneShot && !running && mine.length > 0 && mine.every((c) => exitCodeOf(c.status || "") === 0) ? svc.replicas : 0;
+      up += Math.min(svc.replicas, running + done);
+    }
+    return { up, desired: spec.reduce((n, x) => n + x.replicas, 0) };
+  }
+  const slots = new Map<string, boolean>();
+  let up = 0, desired = 0;
+  for (const { container: c } of cs) {
+    const slot = swarmSlot(c);
+    if (!slot) {
+      desired += 1;
+      if (isUp(c)) up += 1;
+      continue;
+    }
+    slots.set(slot, (slots.get(slot) ?? false) || isUp(c));
+  }
+  for (const on of slots.values()) {
+    desired += 1;
+    if (on) up += 1;
+  }
+  return { up, desired };
 }
 
 const TONE_RANK: Record<AppTone, number> = { r: 3, a: 2, n: 1, g: 0 };
@@ -262,7 +380,7 @@ function portsOf(cs: AppContainer[]): AppPort[] {
   return [...seen.values()].sort((a, b) => a.publicPort - b.publicPort);
 }
 
-function summarize(base: Omit<App, "running" | "total" | "tone" | "label" | "health" | "ports" | "updates" | "attention" | "createdAt">, createdFallback: number | null): App {
+function summarize(base: Omit<App, "running" | "total" | "up" | "desired" | "tone" | "label" | "health" | "ports" | "updates" | "attention" | "createdAt">, createdFallback: number | null): App {
   const cs = base.containers;
   const total = cs.length;
   const running = cs.filter((c) => c.container.state === "running").length;
@@ -278,6 +396,10 @@ function summarize(base: Omit<App, "running" | "total" | "tone" | "label" | "hea
   let label: string;
   let attention: AppAttention | null = null;
   const dep = base.deployment;
+  const present = new Set(cs.map((c) => c.container.labels?.["com.docker.compose.service"] ?? ""));
+  const spec = dep?.type === "compose" && dep.strategy !== "swarm" ? composeSpec(dep.compose) : [];
+  const missing = base.stale ? [] : spec.map((x) => x.name).filter((s) => !present.has(s));
+  const { up, desired } = replicas(cs, spec);
 
   if (base.stale) {
     tone = "n";
@@ -287,9 +409,14 @@ function summarize(base: Omit<App, "running" | "total" | "tone" | "label" | "hea
     tone = dep && (dep.status === "failed" || dep.status === "error") ? "r" : dep && (dep.status === "pending" || dep.status === "deploying") ? "a" : "n";
     label = dep ? (dep.status ? (tone === "a" ? "Deploying" : tone === "r" ? "Deploy failed" : "No containers") : "Not deployed") : "Unknown";
     if (tone === "r") attention = { tone: "r", text: "The last deploy failed" };
+  } else if (missing.length && running > 0) {
+    // A compose service with no container at all: nothing above sees it.
+    tone = "r";
+    label = `Degraded · ${up}/${desired}`;
+    attention = { tone: "r", text: `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} missing` };
   } else if (worst === "r") {
     tone = "r";
-    label = `Degraded · ${running}/${total}`;
+    label = `Degraded · ${up}/${desired}`;
     const bad = cs.find((c) => c.tone === "r")!;
     attention = {
       tone: "r",
@@ -299,15 +426,15 @@ function summarize(base: Omit<App, "running" | "total" | "tone" | "label" | "hea
   } else if (worst === "a") {
     tone = "a";
     const w = cs.find((c) => c.tone === "a")!;
-    label = health.unhealthy ? `Unhealthy · ${total - health.unhealthy}/${total}` : `${w.label.split(" · ")[0]} · ${running}/${total}`;
+    label = health.unhealthy ? `Unhealthy · ${total - health.unhealthy}/${total}` : `${w.label.split(" · ")[0]} · ${up}/${desired}`;
     attention = { tone: "a", text: w.health === "unhealthy" ? `${w.service} is unhealthy` : `${w.service} is ${w.label.split(" · ")[0].toLowerCase()}`, container: w.name };
   } else if (running === 0) {
     tone = "n";
     label = "Stopped";
-  } else if (running < total) {
-    // Some containers stopped cleanly (exit 0): one-shot jobs, or stopped by hand.
+  } else if (up < desired) {
+    // Some replicas stopped cleanly (exit 0) by hand: nothing failed.
     tone = "g";
-    label = `Running · ${running}/${total}`;
+    label = `Running · ${up}/${desired}`;
   } else {
     tone = "g";
     const age = statusAge(cs[0].container.status || "");
@@ -326,6 +453,8 @@ function summarize(base: Omit<App, "running" | "total" | "tone" | "label" | "hea
     ...base,
     running,
     total,
+    up,
+    desired,
     tone,
     label,
     health,
@@ -364,7 +493,7 @@ export function buildApps(opts: {
       hostId,
       name,
       service: serviceOf(labels) || name,
-      ...describeContainer(c),
+      ...describeContainer(c, containers),
       update: updates?.(hostId, c.id),
     };
     const owner = ownerDeployment(c, hostId, deployments);
@@ -461,17 +590,21 @@ export function servicesOf(app: App): AppService[] | null {
   if (app.kind === "container" || app.deployment?.type === "container") return null;
   const groups = new Map<string, AppContainer[]>();
   for (const c of app.containers) groups.set(c.service, [...(groups.get(c.service) ?? []), c]);
-  return [...groups].map(([name, cs]) => {
+  return [...groups].map(([name, unsorted]) => {
+    const cs = liveFirst(unsorted);
     if (cs.length === 1) return { name, containers: cs, tone: cs[0].tone, label: cs[0].label };
-    const running = cs.filter((c) => c.container.state === "running").length;
-    const worst = cs.reduce<AppTone>((w, c) => (TONE_RANK[c.tone] > TONE_RANK[w] ? c.tone : w), "g");
-    const of = `${running}/${cs.length}`;
+    const dep = app.deployment;
+    const spec = dep?.type === "compose" && dep.strategy !== "swarm" ? composeSpec(dep.compose).filter((x) => x.name === name) : [];
+    const { up, desired } = replicas(cs, spec);
+    // Old Swarm tasks are history: they neither degrade nor grey the service.
+    const worst = cs.filter((c) => !isReplaced(c)).reduce<AppTone>((w, c) => (TONE_RANK[c.tone] > TONE_RANK[w] ? c.tone : w), "g");
+    const of = `${up}/${desired}`;
     const label =
       worst === "r" ? `Degraded · ${of}`
         : worst === "a" ? `${cs.find((c) => c.tone === "a")!.label.split(" · ")[0]} · ${of}`
-          : running === 0 ? "Stopped"
+          : up === 0 ? "Stopped"
             : `Running · ${of}`;
-    return { name, containers: cs, tone: running === 0 && worst === "g" ? "n" : worst, label };
+    return { name, containers: cs, tone: up === 0 && worst === "g" ? "n" : worst, label };
   });
 }
 
@@ -485,10 +618,15 @@ export const KIND_LABEL: Record<AppKind, string> = {
   container: "Single container",
 };
 
-/** Short kind for card meta lines: "Compose · 6", "Container". */
+/** Runs on Swarm: a swarm deployment, or a stack of swarm tasks. */
+export function isSwarm(a: App): boolean {
+  return a.deployment ? a.deployment.strategy === "swarm" : a.containers.some((c) => c.container.labels?.["com.docker.swarm.service.name"]);
+}
+
+/** Short kind for card meta lines: "Compose · 6", "Swarm · 5", "Container". */
 export function kindShort(a: App): string {
   if (a.kind === "container" || a.deployment?.type === "container") return "Container";
-  return `Compose · ${a.total}`;
+  return `${isSwarm(a) ? "Swarm" : "Compose"} · ${a.desired}`;
 }
 
 /** Apps in a host scope (a host id, or ALL_HOSTS to fan out over online hosts). */

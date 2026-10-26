@@ -10,13 +10,15 @@ from typing import Any, Dict, Tuple
 LABEL_DEPLOYMENT = "kowan.deployment.id"
 LABEL_PROJECT = "com.docker.compose.project"
 LABEL_SWARM_STACK = "com.docker.stack.namespace"
+LABEL_SWARM_SERVICE = "com.docker.swarm.service.name"
 
 
 def stack_of(labels: Dict[str, str]) -> str:
     """The compose project or swarm stack a container belongs to, or ""
-    (the same rule authorization uses)."""
+    (the same rule authorization uses). A swarm service outside any stack is
+    its own stack, so its tasks group into one workload."""
     labels = labels or {}
-    return labels.get(LABEL_PROJECT) or labels.get(LABEL_SWARM_STACK) or ""
+    return labels.get(LABEL_PROJECT) or labels.get(LABEL_SWARM_STACK) or labels.get(LABEL_SWARM_SERVICE) or ""
 
 
 def compose_deployments(store: Any) -> Dict[Tuple[str, str], str]:

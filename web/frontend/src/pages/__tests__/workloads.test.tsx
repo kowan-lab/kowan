@@ -178,3 +178,42 @@ describe("workloads list", () => {
     toast;
   });
 });
+
+describe("workload: services", () => {
+  it("folds each service, and remembers it across reloads", async () => {
+    const { user, unmount } = await open(SHOP, "shop");
+    expect(screen.queryByRole("link", { name: "shop-web-1" })).toBeNull(); // folded at first
+    await user.click(screen.getByRole("button", { name: "Expand web" }));
+    expect(screen.getByRole("link", { name: "shop-web-1" })).toBeInTheDocument();
+    unmount();
+    await open(SHOP, "shop");
+    expect(await screen.findByRole("link", { name: "shop-web-1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse web" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("scales a service in place: a new revision with deploy.replicas", async () => {
+    const { user } = await open(SHOP, "shop", { "PUT /deployments/:id": (r: { body: unknown }) => ({ ...deployments[0], ...(r.body as object) }) });
+    await user.click(screen.getByRole("button", { name: "More replicas of web" }));
+    await user.click(screen.getByRole("button", { name: "More replicas of web" }));
+    await user.click(screen.getByRole("button", { name: "Fewer replicas of web" }));
+    await press(user, /^apply$/i);
+    await toast(/web: 2 replicas/i);
+    const body = requests("PUT", "/deployments/d-shop")[0].body;
+    expect(body.compose).toMatch(/web:\n\s+image: nginx:1.27\n\s+deploy:\n\s+replicas: 2/);
+    expect(body.name).toBe("shop");
+  });
+
+  it("caps a service with a fixed name at one replica", async () => {
+    const fixed = { ...deployments[0], compose: "services:\n  web:\n    image: nginx\n    container_name: shop-web\n  db:\n    image: postgres\n    ports: [\"5432:5432\"]\n" };
+    await open(SHOP, "shop", { "GET /deployments": [fixed, ...deployments.slice(1)], "GET /deployments/:id": fixed });
+    expect(screen.getByRole("button", { name: "More replicas of web" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "More replicas of db" })).toBeDisabled();
+  });
+
+  it("lists a compose service with no container as missing", async () => {
+    const more = { ...deployments[0], compose: deployments[0].compose + "  cache:\n    image: redis\n" };
+    await open(SHOP, "shop", { "GET /deployments": [more, ...deployments.slice(1)], "GET /deployments/:id": more });
+    expect(within(pageRoot()).getAllByText(/cache is missing/i).length).toBeGreaterThan(0);
+    expect(within(screen.getByText("cache").closest("tr")!).getByText("Missing")).toBeInTheDocument();
+  });
+});

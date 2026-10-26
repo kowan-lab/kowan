@@ -5,8 +5,9 @@ import type { Color } from "@/ui/kit";
  * backend stamps these; compose stamps its own). No server round-trip needed.
  *
  *  - "deployment" — created by a Kowan deployment (label `kowan.deployment.id`).
- *  - "stack"      — part of a docker-compose project (`com.docker.compose.project`)
- *    or a swarm stack (`com.docker.stack.namespace`), even if created outside Kowan.
+ *  - "stack"      — part of a docker-compose project (`com.docker.compose.project`),
+ *    a swarm stack (`com.docker.stack.namespace`) or a swarm service outside any
+ *    stack (`com.docker.swarm.service.name`), even if created outside Kowan.
  *  - "plain"      — a standalone container, ours to edit/recreate freely.
  */
 export type ContainerOriginKind = "deployment" | "stack" | "plain";
@@ -28,10 +29,12 @@ export const LABEL_COMPOSE_SERVICE = "com.docker.compose.service";
 export const LABEL_SWARM_STACK = "com.docker.stack.namespace";
 export const LABEL_SWARM_SERVICE = "com.docker.swarm.service.name";
 
-/** The compose project or swarm stack of a container, or "" (same rule as the server). */
+/** The compose project or swarm stack of a container, or "" (same rule as the
+ *  server). A swarm service outside any stack is its own stack, so its tasks,
+ *  old ones included, group into one workload. */
 export function stackOf(labels: Record<string, string> | undefined): string {
   const l = labels ?? {};
-  return l[LABEL_COMPOSE_PROJECT] || l[LABEL_SWARM_STACK] || "";
+  return l[LABEL_COMPOSE_PROJECT] || l[LABEL_SWARM_STACK] || l[LABEL_SWARM_SERVICE] || "";
 }
 
 /**

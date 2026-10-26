@@ -20,7 +20,7 @@ function attention(r: HostRow): { text: string; tone: "red" | "amber" | "muted" 
   if (!r.host.online) return { text: "Unreachable", tone: "red" };
   let crashed = 0, unhealthy = 0;
   for (const c of r.containers) {
-    const t = trouble(c);
+    const t = trouble(c, r.containers);
     if (t === "exited" || t === "dead") crashed += 1;
     else if (t) unhealthy += 1;
   }
@@ -73,7 +73,7 @@ export function HostsTable({ rows, scopeId, onPick }: { rows: HostRow[]; scopeId
               const rule = i < sorted.length - 1 ? RULE_B : "shadow-none";
               const run = r.system?.containersRunning ?? r.containers.filter((c) => c.state.toLowerCase() === "running").length;
               const total = r.system?.containers ?? r.containers.length;
-              const ticks = off ? Array.from({ length: Math.min(total, MAX_TICKS) }, () => "gray" as const) : r.containers.slice(0, MAX_TICKS).map(containerTone);
+              const ticks = off ? Array.from({ length: Math.min(total, MAX_TICKS) }, () => "gray" as const) : r.containers.slice(0, MAX_TICKS).map((c) => containerTone(c, r.containers));
               const memPct = r.last && r.last.memTotal ? (r.last.memUsed / r.last.memTotal) * 100 : null;
               const att = attention(r);
               return (

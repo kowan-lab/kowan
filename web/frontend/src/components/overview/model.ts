@@ -1,5 +1,5 @@
 import type { Container, Deployment, Host } from "../../types";
-import { appHref, appIdForContainer } from "../../lib/apps";
+import { appHref, appIdForContainer, superseded } from "../../lib/apps";
 import { containerOrigin } from "../../lib/containerOrigin";
 import { containerName } from "../../utils";
 import type { Tone } from "./ui";
@@ -43,21 +43,23 @@ export function exitCode(status: string): number | null {
 
 export type Trouble = "exited" | "dead" | "unhealthy" | "restarting";
 
-export function trouble(c: Container): Trouble | null {
+/** What is wrong with a container, if anything. ``all`` is the list it came
+ *  from, so an old Swarm task whose slot has moved on does not count. */
+export function trouble(c: Container, all: Container[] = []): Trouble | null {
   const s = c.state.toLowerCase();
   if (s === "dead") return "dead";
   if (s === "restarting") return "restarting";
   if (/\(unhealthy\)/i.test(c.status)) return "unhealthy";
   if (s === "exited") {
     const code = exitCode(c.status);
-    return code !== null && code !== 0 ? "exited" : null;
+    return code !== null && code !== 0 && !superseded(c, all) ? "exited" : null;
   }
   return null;
 }
 
 /** Tick colour for the hosts table's container meter. */
-export function containerTone(c: Container): Tone {
-  const t = trouble(c);
+export function containerTone(c: Container, all: Container[] = []): Tone {
+  const t = trouble(c, all);
   if (t === "exited" || t === "dead") return "red";
   if (t === "unhealthy" || t === "restarting") return "amber";
   return c.state.toLowerCase() === "running" ? "green" : "gray";
