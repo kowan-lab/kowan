@@ -7,7 +7,7 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Callout, Checkbox, Icon, InputToggle, Select, Tabs, Text, TextInput } from "@/ui/kit";
+import { Badge, Button, Callout, Checkbox, Code, Icon, InputToggle, Select, Tabs, Text, TextInput } from "@/ui/kit";
 import { applyImport, listHosts, scanComposeFolder, scanPortainer } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
@@ -53,7 +53,7 @@ export default function Import() {
 
   const apply = useMutation({
     mutationFn: (items: Row[]) =>
-      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose }) }))),
+      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose, ...(r.env ? { env: r.env } : {}) }) }))),
     onSuccess: (res) => {
       setResults(res);
       qc.invalidateQueries({ queryKey: ["deployments"] });
@@ -109,8 +109,13 @@ export default function Import() {
                     <TextInput size="sm" aria-label={`Name of ${r.found}`} value={r.name} disabled={!r.importable} onChange={(e) => set(r.key, { name: e.target.value })} />
                     <Text size="xs" color="muted">
                       {r.source === "portainer" ? `Portainer · ${r.endpoint}` : r.endpoint} · {r.git ? `git ${r.git.repoUrl} @ ${r.git.ref}` : "compose file"}
-                      {r.envCount > 0 && !r.git ? ` · ${r.envCount} variables applied` : ""}
+                      {r.envCount > 0 && !r.git ? ` · ${r.envCount} variables` : ""}
                     </Text>
+                    {r.env && (
+                      <Text size="xs" color="muted">
+                        Stored encrypted in the secret <Code>{r.env.secret}</Code>: {Object.keys(r.env.values).join(", ")}
+                      </Text>
+                    )}
                     <div className="flex flex-wrap gap-[6px]">
                       <Badge color={r.kind === "kubernetes" ? "gray" : "blue"} size="sm">{r.kind}</Badge>
                       {!r.active && <Badge color="gray" size="sm">stopped in Portainer</Badge>}

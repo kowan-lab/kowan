@@ -1927,7 +1927,7 @@ export async function scanPortainer(body: { url: string; apiKey?: string; userna
 export async function scanComposeFolder(files: Record<string, string>): Promise<import("../types").ImportCandidate[]> {
   return (await api.post<import("../types").ImportCandidate[]>("/import/compose/scan", { files })).data;
 }
-export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"] }[]): Promise<import("../types").ImportResult[]> {
+export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; env?: import("../types").ImportCandidate["env"] }[]): Promise<import("../types").ImportResult[]> {
   return (await api.post<import("../types").ImportResult[]>("/import/apply", { items })).data;
 }
 

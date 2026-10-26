@@ -1669,8 +1669,11 @@ export interface ImportCandidate {
   /** Suggested Kowan host. */
   host: string;
   strategy: "standalone" | "swarm";
-  /** Compose text with the stack's variables applied ("" for git stacks). */
+  /** Compose text with the stack's plain variables applied and its sensitive
+   *  ones as [[secret.VAR]] references ("" for git stacks). */
   compose: string;
+  /** Sensitive variables stored as one encrypted secret on import (admin only). */
+  env?: { secret: string; values: Record<string, string> };
   git: { repoUrl: string; ref: string; path: string } | null;
   importable: boolean;
   warnings: string[];

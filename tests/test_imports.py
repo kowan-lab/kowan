@@ -19,14 +19,16 @@ class FakePortainer:
     def __init__(self):
         self.stacks = [
             {"Id": 1, "Name": "shop", "Type": 2, "EndpointId": 1, "Status": 1,
-             "Env": [{"name": "TAG", "value": "1.27"}]},
+             "Env": [{"name": "TAG", "value": "1.27"}, {"name": "DB_PASSWORD", "value": "s3cret"},
+                     {"name": "DATABASE_URL", "value": "postgres://shop:s3cret@db/shop"}]},
             {"Id": 2, "Name": "blog", "Type": 2, "EndpointId": 2, "Status": 2, "Env": [{"name": "X", "value": "1"}],
              "GitConfig": {"URL": "https://github.com/acme/blog.git", "ReferenceName": "refs/heads/prod",
                            "ConfigFilePath": "deploy/compose.yml", "Authentication": {"Username": "bot"}}},
             {"Id": 3, "Name": "metrics", "Type": 1, "EndpointId": 1, "Status": 1},
             {"Id": 4, "Name": "k8s-app", "Type": 3, "EndpointId": 1},
         ]
-        self.files = {1: "services:\n  web:\n    image: nginx:${TAG}\n", 3: "services:\n  prom:\n    image: prom/prometheus\n"}
+        self.files = {1: "services:\n  web:\n    image: nginx:${TAG}\n    environment:\n"
+                         "      - PASSWORD=${DB_PASSWORD}\n      - URL=${DATABASE_URL}\n", 3: "services:\n  prom:\n    image: prom/prometheus\n"}
         self.not_json = False
 
     def _authed(self, request):
@@ -111,7 +113,7 @@ class TestPortainerClient(unittest.IsolatedAsyncioTestCase):
         stacks = await Client(self.p.url, api_key=TOKEN).stacks()
         self.assertEqual([s.name for s in stacks], ["shop", "blog", "metrics", "k8s-app"])
         shop, blog, metrics, k8s = stacks
-        self.assertEqual((shop.kind, shop.endpoint, shop.env, shop.active), ("compose", "local", {"TAG": "1.27"}, True))
+        self.assertEqual((shop.kind, shop.endpoint, shop.env["TAG"], shop.active), ("compose", "local", "1.27", True))
         self.assertIn("nginx:${TAG}", shop.compose)
         self.assertEqual(blog.git, {"repoUrl": "https://github.com/acme/blog.git", "ref": "prod", "path": "deploy/compose.yml"})
         self.assertTrue(blog.git_auth)
@@ -159,9 +161,15 @@ class TestImportAPI(ServerCase):
         _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
         by = {i["name"]: i for i in items}
         shop = by["shop"]
-        self.assertEqual((shop["source"], shop["host"], shop["strategy"], shop["envCount"]), ("portainer", "local", "standalone", 1))
-        self.assertIn("nginx:1.27", shop["compose"])  # the stack's env is applied
+        self.assertEqual((shop["source"], shop["host"], shop["strategy"], shop["envCount"]), ("portainer", "local", "standalone", 3))
+        # Plain variables are written in; sensitive ones become secret references.
+        self.assertIn("nginx:1.27", shop["compose"])
+        self.assertIn("PASSWORD=[[shop-env.DB_PASSWORD]]", shop["compose"])
+        self.assertIn("URL=[[shop-env.DATABASE_URL]]", shop["compose"])
+        self.assertNotIn("s3cret", shop["compose"])
+        self.assertEqual(shop["env"], {"secret": "shop-env", "values": {"DB_PASSWORD": "s3cret", "DATABASE_URL": "postgres://shop:s3cret@db/shop"}})
         self.assertEqual(shop["warnings"], [])
+        self.assertNotIn("env", by["metrics"])
         blog = by["blog"]
         self.assertEqual(blog["git"]["ref"], "prod")
         self.assertEqual(len(blog["warnings"]), 2)
@@ -174,6 +182,39 @@ class TestImportAPI(ServerCase):
             _, err = await self.call("POST", "/import/portainer/scan", json=body, expect=400)
             self.assertIn(msg, err["error"])
         await self.call("POST", "/import/portainer/scan", data=b"[1]", expect=400)
+
+    async def test_portainer_variables_become_a_secret(self):
+        _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
+        shop = next(i for i in items if i["name"] == "shop")
+        item = {"name": "shop", "host": "local", "compose": shop["compose"], "env": shop["env"]}
+        # Secrets are admin-only: an operator's import of this stack is refused.
+        _, res = await self.call("POST", "/import/apply", "operator", json={"items": [item]}, expect=200)
+        self.assertIn("only an admin", res[0]["error"])
+        _, res = await self.call("POST", "/import/apply", json={"items": [
+            item,
+            {**item, "name": "shop2"},  # the secret exists by now
+            {**item, "name": "bad", "env": {"secret": "a.b", "values": {"X": "1"}}},
+            {**item, "name": "bad2", "env": {"secret": "ok", "values": {"1X": "1"}}},
+            {**item, "name": "bad3", "env": {"secret": "ok", "values": {}, "x": 1}},
+        ]}, expect=200)
+        self.assertEqual([r["ok"] for r in res], [True, False, False, False, False])
+        self.assertIn('secret named "shop-env" exists', res[1]["error"])
+        self.assertIn("env.secret", res[2]["error"])
+        self.assertIn("env.values", res[3]["error"])
+        self.assertIn("env must be", res[4]["error"])
+        dep = self.svc.store.get_deployment(res[0]["id"])
+        self.assertNotIn("s3cret", dep.compose)
+        self.assertIn("PASSWORD=s3cret", self.svc.store.resolve_secrets(dep.compose))
+        self.assertIn("URL=postgres://shop:s3cret@db/shop", self.svc.store.resolve_secrets(dep.compose))
+        # A rescan numbers the next secret; a refused deployment leaves no secret behind.
+        _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
+        again = next(i for i in items if i["name"] == "shop")
+        self.assertEqual(again["env"]["secret"], "shop-env-2")
+        _, res = await self.call("POST", "/import/apply", json={"items": [
+            {"name": "shop", "host": "local", "compose": again["compose"], "env": again["env"]}]}, expect=200)
+        self.assertIn("already exists", res[0]["error"])
+        names = [c.name for c in self.svc.store.list_credentials("secret")]
+        self.assertEqual(names, ["shop-env"])
 
     async def test_compose_scan_and_apply(self):
         await self.roles("POST", "/import/compose/scan", "operator", json={"files": {"a/compose.yml": "services: {}"}})

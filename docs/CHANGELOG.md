@@ -3,6 +3,7 @@
 ## Non rilasciato
 
 - **Rinomina degli host**, compreso il local: dalla pagina dell'host, dalla lista Hosts (solo admin) o con `kowanctl hosts rename <id-o-nome> <nuovo-nome>`; API `PATCH /api/v1/hosts/{id}`. Cambia solo il nome mostrato: id, deployment, permessi e storico restano gli stessi. Un nome non può ripetere il nome o l'id di un altro host (i file GitOps li usano entrambi), vale anche alla creazione.
+- **Import da Portainer, variabili sensibili cifrate**: password, token, chiavi e URL con credenziali non vengono più scritti nel compose. Finiscono in un secret Kowan cifrato `<stack>-env` (un campo per variabile) e il compose li richiama come `[[<stack>-env.VAR]]`; le altre variabili (tag delle immagini, porte, fuso orario) restano nel compose. Riservato agli admin, come ogni secret.
 - **Stack su due livelli** in Workloads: i container non gestiti si raggruppano per stack anche quando vengono da uno stack Swarm (`com.docker.stack.namespace`), non solo da un progetto compose; aprendo uno stack compaiono i servizi, e ogni servizio mostra i propri container (le repliche, per Swarm) con uno stato riassuntivo. Log conservati, storico risorse e pulizia del disco usano la stessa regola.
 - CI: `coverage` 7.16.2 su Python 3.10 (la 7.17 richiede 3.11) e test end-to-end con Docker allineato alla scheda Overview.
 

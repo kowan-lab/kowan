@@ -14,7 +14,15 @@ Import stacks).
 `POST /api/v1/import/portainer/scan {url, apiKey | username+password, verifyTls}`
 reads `/api/endpoints`, `/api/stacks` and each stack's file through
 Portainer's API. The token or password is used for this read and not kept.
-Compose stacks come back with their variables applied; git stacks come back
+Compose stacks come back with their plain variables applied (image tags,
+ports, time zones), so their images stay readable. Sensitive variables (a name
+with PASS, PWD, SECRET, TOKEN, KEY, CREDENTIAL, AUTH, SALT, PRIVATE, DSN or
+CONNECTION_STRING, or a URL with a user and password in it) stay out of the
+compose: it references them as `[[<stack>-env.VAR]]`, and importing stores
+them in one encrypted Kowan secret, `<stack>-env`, with a field per variable
+(numbered when that name is taken). Storing a secret needs an admin, as
+elsewhere; if creating the deployment fails, the secret is removed again. Git
+stacks come back
 as git sources (a private repository needs a credential after importing, and
 their Portainer variables belong in the repository's `.env`); swarm stacks
 keep the swarm strategy; Kubernetes stacks are listed and not importable. The
