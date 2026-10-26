@@ -327,6 +327,39 @@ class TestComposeStatus(ServiceCase):
             self.assertEqual(await self.s.reconcile_once(), 1)
         self.assertEqual(dispatched, [("d1", True)])
 
+    async def test_reconcile_lists_each_host_once_per_pass(self):
+        self.save(dep(id="d2", name="other", status="deployed"))
+        self.save(dep(id="d3", name="down", status="deployed", targets=["h2"]))
+        self.host.containers = [ctr("nginx"), ctr("backend"), ctr("frontend"),
+                                Container(id="x", names=["/other"], state="running", status="Up")]
+        hosts = []
+
+        def ops_for(host_id):
+            hosts.append(host_id)
+            if host_id == "h2":
+                raise RuntimeError("host gone")
+            return self.host, SimpleNamespace(name=host_id)
+        self.s._ops_for_host = ops_for  # type: ignore[assignment]
+        with mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()) as dispatch:
+            await self.s.reconcile_once()
+        self.assertIn(mock.call("d3", redeploy=True), dispatch.call_args_list)
+        self.assertEqual([c for c in self.host.calls if c[0] == "list_containers"], [("list_containers",)])
+        self.assertEqual(sorted(hosts), ["h1", "h1", "h2"])
+
+    async def test_reconcile_forgets_deleted_deployments_and_spent_cooldowns(self):
+        self.s._reconcile_at.update({"gone": 1.0, "d1": 1.0})
+        self.s._deploy_errs.update({"gone": {"h1": "x"}, "d1": {"h1": "y"}})
+        self.host.containers = [ctr(n) for n in ("nginx", "backend", "frontend")] + [
+            ctr("migrations", "exited", "Exited (0) now")]
+        with mock.patch("kowan.deployment.service.time.monotonic", return_value=1.0 + 30), \
+                mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()):
+            await self.s.reconcile_once()
+        self.assertEqual((self.s._reconcile_at, self.s._deploy_errs), ({"d1": 1.0}, {"d1": {"h1": "y"}}))
+        with mock.patch("kowan.deployment.service.time.monotonic", return_value=1.0 + 10_000), \
+                mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()):
+            await self.s.reconcile_once()
+        self.assertEqual(self.s._reconcile_at, {})
+
 
 class TestReconcileAndBackground(ServiceCase):
     async def test_reconcile_right_after_the_host_boots(self):
@@ -335,7 +368,7 @@ class TestReconcileAndBackground(ServiceCase):
         self.save(dep(id="down", name="dn", status="deployed"))
         dispatched = []
 
-        async def status(dep_id):
+        async def status(dep_id, listings=None):
             return [SimpleNamespace(state="exited")]
 
         async def dispatch(dep_id, *, redeploy=False):
@@ -359,7 +392,7 @@ class TestReconcileAndBackground(ServiceCase):
         self.s._tasks["busy"] = never
         states = {"fine": "running", "down": "exited", "racing": "exited"}
 
-        async def status(dep_id):
+        async def status(dep_id, listings=None):
             if dep_id == "boom":
                 raise RuntimeError("host gone")
             return [SimpleNamespace(state=states[dep_id])]
@@ -380,7 +413,7 @@ class TestReconcileAndBackground(ServiceCase):
         with mock.patch.object(self.store, "list_deployments", side_effect=RuntimeError("db")):
             self.assertEqual(await self.s.reconcile_once(), 0)
         with mock.patch.object(self.s, "status", mock.AsyncMock(return_value=[])):
-            self.assertFalse(await self.s._needs_reconcile(dep()))
+            self.assertFalse(await self.s._needs_reconcile(dep(), {}))
 
     async def test_loop_survives_a_failing_pass(self):
         calls = []

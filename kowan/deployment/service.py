@@ -43,7 +43,7 @@ import re
 import secrets as _secrets
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -407,6 +407,17 @@ class DeploymentService:
             return 0
 
         now = time.monotonic()
+        # Forget deleted deployments and spent cooldowns, so neither map grows
+        # with every deployment ever seen. No await since the listing: a
+        # deployment created meanwhile cannot be dropped.
+        ids = {d.id for d in deployments}
+        for dep_id in [k for k, t in self._reconcile_at.items() if k not in ids or now - t >= _RECONCILE_COOLDOWN]:
+            del self._reconcile_at[dep_id]
+        for dep_id in [k for k in self._deploy_errs if k not in ids]:
+            del self._deploy_errs[dep_id]
+
+        # One container listing per host for the whole pass, not one per deployment.
+        listings: Dict[str, Any] = {}
         dispatched = 0
         for dep in deployments:
             # Paused deployments are left entirely alone.
@@ -428,7 +439,7 @@ class DeploymentService:
             if last is not None and now - last < _RECONCILE_COOLDOWN:
                 continue
             try:
-                if not await self._needs_reconcile(dep):
+                if not await self._needs_reconcile(dep, listings):
                     continue
                 log.info("reconcile: %s has a down/missing target; redeploying", dep.name)
                 self._reconcile_at[dep.id] = now
@@ -440,9 +451,9 @@ class DeploymentService:
                 log.error("reconcile %s failed: %s", dep.name, err)
         return dispatched
 
-    async def _needs_reconcile(self, dep: Deployment) -> bool:
+    async def _needs_reconcile(self, dep: Deployment, listings: Dict[str, Any]) -> bool:
         """Whether any target of ``dep`` is not up (missing/stopped/errored)."""
-        targets = await self.status(dep.id)
+        targets = await self.status(dep.id, listings)
         if not targets:
             return False
         return any(t.state not in (STATE_RUNNING, STATE_ACTIVE) for t in targets)
@@ -902,18 +913,22 @@ class DeploymentService:
 
     # -- Status --------------------------------------------------------------
 
-    async def status(self, dep_id: str) -> List[DeploymentTarget]:
+    async def status(self, dep_id: str, listings: Optional[Dict[str, Any]] = None) -> List[DeploymentTarget]:
         """Report the per-target runtime state of a deployment.
 
         Never raises for an unreachable host; instead the affected target
         carries a descriptive message and a not_deployed/inactive state.
+        ``listings`` (host id -> containers, or the error listing them) is
+        shared by a reconcile pass so each host is listed once per pass.
         """
         dep = self.store.get_deployment(dep_id)
         if dep.strategy == DeploymentStrategySwarm:
             return await self._status_swarm(dep)
-        return await self._status_standalone(dep)
+        return await self._status_standalone(dep, listings)
 
-    async def _status_standalone(self, dep: Deployment) -> List[DeploymentTarget]:
+    async def _status_standalone(
+        self, dep: Deployment, listings: Optional[Dict[str, Any]] = None
+    ) -> List[DeploymentTarget]:
         # No target (unreachable through the API): nothing to report.
         if not dep.targets:
             return []
@@ -928,11 +943,17 @@ class DeploymentService:
             t.message = str(err)
             return [t]
 
-        try:
-            containers = await ops.list_containers(True)
-        except Exception as err:  # noqa: BLE001
+        containers: Any = None if listings is None else listings.get(host_id)
+        if containers is None:
+            try:
+                containers = await ops.list_containers(True)
+            except Exception as err:  # noqa: BLE001
+                containers = err
+            if listings is not None:
+                listings[host_id] = containers
+        if isinstance(containers, Exception):
             t.state = STATE_NOT_DEPLOYED
-            t.message = str(err)
+            t.message = str(containers)
             return [t]
 
         match = self._match_container(dep, containers)
