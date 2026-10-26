@@ -359,8 +359,10 @@ class AutoUpdater:
 
     def verify_options(self) -> engine.VerifyOptions:
         cfg = self.settings()
+        stable = cfg.get("stableSeconds")
+        # 0 is a real choice (no stability wait), not "unset".
         return engine.VerifyOptions(timeout=float(cfg.get("verifyTimeoutSeconds") or 120),
-                                    stable=float(cfg.get("stableSeconds") or 10))
+                                    stable=float(10 if stable is None else stable))
 
     # -- digests ---------------------------------------------------------------
     async def _remote_digest(self, ref: Any, refresh: bool) -> Tuple[str, str]:

@@ -427,6 +427,13 @@ class TestRunner(unittest.TestCase):
         self.store.close()
         self.tmp.cleanup()
 
+    def test_verify_options_take_a_zero_stable_window(self):
+        au = AutoUpdater(_Svc(self.store, None))
+        self.assertEqual((au.verify_options().timeout, au.verify_options().stable), (120.0, 10.0))
+        with mock.patch("kowan.autoupdate.runner.load_settings", return_value={"stableSeconds": 0, "verifyTimeoutSeconds": 30}):
+            opts = au.verify_options()
+        self.assertEqual((opts.timeout, opts.stable), (30.0, 0.0))
+
     def _run(self, ops, **kw):
         svc = _Svc(self.store, ops)
         au = AutoUpdater(svc)
