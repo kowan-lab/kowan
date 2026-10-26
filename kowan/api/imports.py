@@ -10,13 +10,14 @@ per item through the same checks as POST /deployments, without deploying.
 Portainer credentials are used for the scan only. Scanning Portainer is
 admin-only because it makes the server call a URL of the caller's choosing.
 
-A Portainer compose stack's sensitive variables (by name, or a URL carrying
-credentials) do not end up in its compose: the scan writes
-``[[<stack>-env.VAR]]`` references for them and returns their values as
-``env {secret, values}``; apply stores them as one encrypted Kowan secret
-(admin only, like any secret) before creating the deployment. The other
-variables (image tags, ports, time zones) are written into the compose, so
-the image references stay readable for updates, scans and promotion.
+A Portainer compose stack's variables do not end up in its compose by
+default: the scan returns the compose as written (``${VAR}``) plus
+``env {secret, values, inImage}``, and apply stores every variable not listed
+in ``env.inline`` in one encrypted Kowan secret (admin only, like any secret),
+referenced as ``[[<stack>-env.VAR]]``; the ``inline`` ones are written into
+the compose. ``inImage`` names the variables an ``image:`` line uses: updates,
+scans and promotion read images from the compose, so those are worth inlining.
+Later, ``POST /deployments/{id}/inline-secrets`` writes chosen references in.
 """
 
 from __future__ import annotations
@@ -47,13 +48,13 @@ MAX_ITEMS = 100
 # A secret name usable in a [[name.FIELD]] reference, and a variable name.
 _SECRET_NAME = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _VAR_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_SENSITIVE_NAME = re.compile(r"PASS|PWD|SECRET|TOKEN|KEY|CREDENTIAL|AUTH|SALT|PRIVATE|DSN|CONNECTION_STRING", re.I)
-_URL_WITH_CREDENTIALS = re.compile(r"^[a-z][a-z0-9+.-]*://[^/@\s]+:[^/@\s]+@", re.I)
+_IMAGE_LINE = re.compile(r"^\s*-?\s*image\s*:(.*)$", re.M)
+_VAR_USE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def is_sensitive(name: str, value: str) -> bool:
-    """Whether an imported variable belongs in a secret rather than the compose."""
-    return bool(_SENSITIVE_NAME.search(name) or _URL_WITH_CREDENTIALS.match(value))
+def vars_in_images(compose: str) -> List[str]:
+    """Variables an ``image:`` line of ``compose`` interpolates, sorted."""
+    return sorted({v for line in _IMAGE_LINE.findall(compose) for v in _VAR_USE.findall(line)})
 
 
 def register(app: web.Application, svc) -> None:
@@ -133,15 +134,15 @@ async def _scan_portainer(request: web.Request) -> web.Response:
             if s.env:
                 warnings.append(f"{len(s.env)} environment variables stay in Portainer: add them to the repository's .env")
         else:
-            # Sensitive values go to an encrypted secret on apply; the compose
-            # only references them.
-            hidden = {k: v for k, v in s.env.items() if _VAR_NAME.match(k) and is_sensitive(k, v)}
-            env = dict(s.env)
-            if hidden:
-                secret = _env_secret_name(s.name, secrets_used)
-                env.update({k: f"[[{secret}.{k}]]" for k in hidden})
-                item["env"] = {"secret": secret, "values": hidden}
-            item["compose"] = gitsource.render_compose(s.compose, _env_text(env))
+            # The compose stays a template: apply interpolates it with the
+            # variables the user chose to inline and secret references for
+            # the rest. Names a secret field cannot carry are inlined now.
+            values = {k: v for k, v in s.env.items() if _VAR_NAME.match(k)}
+            odd = {k: v for k, v in s.env.items() if k not in values}
+            item["compose"] = gitsource.render_compose(s.compose, _env_text(odd)) if odd else s.compose
+            if values:
+                item["env"] = {"secret": _env_secret_name(s.name, secrets_used), "values": values,
+                               "inImage": [v for v in vars_in_images(s.compose) if v in values]}
         if Deployment(name=s.name).resource_name() in taken:
             warnings.append("a deployment with this name exists already")
         item["warnings"] = warnings
@@ -209,7 +210,7 @@ async def _apply(request: web.Request) -> web.Response:
         secret_id = ""
         if it.get("env") is not None and not req.get("git"):
             try:
-                secret_id = _store_env_secret(svc, it.get("env"), name)
+                req["compose"], secret_id = _apply_env(svc, req["compose"], it.get("env"), name)
             except AppError as err:
                 results.append({"name": name, "ok": False, "error": str(err)})
                 continue
@@ -226,17 +227,29 @@ async def _apply(request: web.Request) -> web.Response:
     return json_response(results)
 
 
-def _store_env_secret(svc, env: Any, stack: str) -> str:
-    """Store an imported stack's variables as one encrypted secret, one field
-    per variable; returns its id. Creating secrets is admin-only."""
-    if not isinstance(env, dict) or set(env) - {"secret", "values"}:
-        raise Validation("env must be {secret, values}")
-    name, values = env.get("secret"), env.get("values")
+def _apply_env(svc, template: str, env: Any, stack: str) -> "tuple[str, str]":
+    """Interpolate an imported compose template: ``env.inline`` variables are
+    written in, the others go to one encrypted secret and are referenced.
+    Returns the compose and the secret's id ("" when every variable is inline)."""
+    if not isinstance(env, dict) or set(env) - {"secret", "values", "inline", "inImage"}:
+        raise Validation("env must be {secret, values, inline}")
+    name, values, inline = env.get("secret"), env.get("values"), env.get("inline") or []
     if not isinstance(name, str) or not _SECRET_NAME.match(name):
         raise Validation("env.secret must be a secret name (letters, digits, - and _)")
     if not isinstance(values, dict) or not values or not all(
             isinstance(k, str) and _VAR_NAME.match(k) and isinstance(v, str) for k, v in values.items()):
         raise Validation("env.values must map variable names to text")
+    if not isinstance(inline, list) or not all(isinstance(k, str) and k in values for k in inline):
+        raise Validation("env.inline must list variables of env.values")
+    hidden = {k: v for k, v in values.items() if k not in inline}
+    merged = {k: (values[k] if k in inline else f"[[{name}.{k}]]") for k in values}
+    compose = gitsource.render_compose(template, _env_text(merged))
+    return compose, (_store_env_secret(svc, name, hidden, stack) if hidden else "")
+
+
+def _store_env_secret(svc, name: str, values: Dict[str, str], stack: str) -> str:
+    """Store an imported stack's variables as one encrypted secret, one field
+    per variable; returns its id. Creating secrets is admin-only."""
     ctx = authz.current()
     if ctx is None or not ctx.principal.is_admin:
         raise Forbidden("only an admin can store the variables as a secret")

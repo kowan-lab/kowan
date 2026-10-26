@@ -17,6 +17,8 @@ import {
 import type { Deployment } from "../../types";
 import { errorMessage } from "../../utils";
 import { deployInFlight, useLifecycle } from "./shared";
+import SecretRefsPanel from "./SecretRefsPanel";
+import { useAuth } from "../../auth/AuthContext";
 
 const signature = (f: DeploymentFormValue) => JSON.stringify(deploymentFormToInput(f));
 
@@ -30,6 +32,7 @@ export default function DeploymentConfig({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const life = useLifecycle(d);
   const [form, setForm] = useState<DeploymentFormValue>(() => deploymentFormFromDeployment(d));
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +126,10 @@ export default function DeploymentConfig({
             {error}
           </Callout>
         </div>
+      )}
+
+      {user?.role === "admin" && d.type === "compose" && !d.git && (
+        <SecretRefsPanel deployment={d} dirty={dirty} onSaved={(saved) => setForm(deploymentFormFromDeployment(saved))} />
       )}
 
       <div className="shadow-[inset_0_0_0_1px_var(--border)] bg-card px-[var(--page-px,16px)] py-6">

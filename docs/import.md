@@ -14,19 +14,30 @@ Import stacks).
 `POST /api/v1/import/portainer/scan {url, apiKey | username+password, verifyTls}`
 reads `/api/endpoints`, `/api/stacks` and each stack's file through
 Portainer's API. The token or password is used for this read and not kept.
-Compose stacks come back with their plain variables applied (image tags,
-ports, time zones), so their images stay readable. Sensitive variables (a name
-with PASS, PWD, SECRET, TOKEN, KEY, CREDENTIAL, AUTH, SALT, PRIVATE, DSN or
-CONNECTION_STRING, or a URL with a user and password in it) stay out of the
-compose: it references them as `[[<stack>-env.VAR]]`, and importing stores
-them in one encrypted Kowan secret, `<stack>-env`, with a field per variable
-(numbered when that name is taken). Storing a secret needs an admin, as
-elsewhere; if creating the deployment fails, the secret is removed again. Git
-stacks come back
-as git sources (a private repository needs a credential after importing, and
-their Portainer variables belong in the repository's `.env`); swarm stacks
-keep the swarm strategy; Kubernetes stacks are listed and not importable. The
-suggested host is the one named like the Portainer environment.
+Compose stacks come back as written, with `${VAR}` in place, plus their
+variables (`env {secret, values, inImage}`). The preview lists the variables
+by name (never their values): each one goes to an encrypted Kowan secret,
+`<stack>-env`, by default, or, ticked, is written into the compose. The secret
+gets a field per variable (it is numbered when that name is taken) and the
+compose references it as `[[<stack>-env.VAR]]`, filled in at deploy time.
+Storing a secret needs an admin, as elsewhere; with every variable written in
+there is no secret and an operator can import. If creating the deployment
+fails, the secret is removed again. Variables an `image:` line uses are
+flagged: in the secret, update checks, scans and promotion cannot read which
+image runs.
+
+Later, the deployment's Config tab (admins) lists the `[[secret.FIELD]]`
+references of its compose and writes the chosen ones in:
+`POST /api/v1/deployments/{id}/inline-secrets {refs: ["shop-env.TAG"]}`.
+What runs does not change, so nothing redeploys; the result is a new
+revision, which a rollback undoes. A value that would break the YAML is
+refused.
+
+Git stacks come back as git sources (a private repository needs a credential
+after importing, and their Portainer variables belong in the repository's
+`.env`); swarm stacks keep the swarm strategy; Kubernetes stacks are listed
+and not importable. The suggested host is the one named like the Portainer
+environment.
 
 ## Compose folders (operator)
 

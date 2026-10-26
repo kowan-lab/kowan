@@ -1028,6 +1028,12 @@ export async function createDeployment(
   return data;
 }
 
+/** Write the values of some [[secret]] references into a compose (admin). */
+export async function inlineSecrets(id: string, refs: string[]): Promise<Deployment> {
+  const { data } = await api.post<Deployment>(`/deployments/${id}/inline-secrets`, { refs });
+  return data;
+}
+
 export async function updateDeployment(
   id: string,
   body: DeploymentInput,
@@ -1927,7 +1933,7 @@ export async function scanPortainer(body: { url: string; apiKey?: string; userna
 export async function scanComposeFolder(files: Record<string, string>): Promise<import("../types").ImportCandidate[]> {
   return (await api.post<import("../types").ImportCandidate[]>("/import/compose/scan", { files })).data;
 }
-export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; env?: import("../types").ImportCandidate["env"] }[]): Promise<import("../types").ImportResult[]> {
+export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; env?: { secret: string; values: Record<string, string>; inline: string[] } }[]): Promise<import("../types").ImportResult[]> {
   return (await api.post<import("../types").ImportResult[]>("/import/apply", { items })).data;
 }
 

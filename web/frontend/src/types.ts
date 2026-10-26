@@ -1669,11 +1669,13 @@ export interface ImportCandidate {
   /** Suggested Kowan host. */
   host: string;
   strategy: "standalone" | "swarm";
-  /** Compose text with the stack's plain variables applied and its sensitive
-   *  ones as [[secret.VAR]] references ("" for git stacks). */
+  /** Compose text ("" for git stacks); with `env`, a template whose ${VAR}s
+   *  the import fills in. */
   compose: string;
-  /** Sensitive variables stored as one encrypted secret on import (admin only). */
-  env?: { secret: string; values: Record<string, string> };
+  /** The stack's variables. On import the ones in `inline` are written into the
+   *  compose, the others go to one encrypted secret (admin only). `inImage`:
+   *  variables an image line uses. */
+  env?: { secret: string; values: Record<string, string>; inImage: string[] };
   git: { repoUrl: string; ref: string; path: string } | null;
   importable: boolean;
   warnings: string[];

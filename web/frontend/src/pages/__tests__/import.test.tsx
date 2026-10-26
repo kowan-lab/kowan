@@ -10,9 +10,9 @@ const cand = (over: Record<string, unknown> = {}) => ({
   host: "local", strategy: "standalone", compose: "services:\n  web:\n    image: nginx:1.27\n", git: null, importable: true, warnings: [],
   ...over,
 });
-const env = { secret: "shop-env", values: { DB_PASSWORD: "s3cret" } };
+const env = { secret: "shop-env", values: { TAG: "1.27", DB_PASSWORD: "s3cret" }, inImage: ["TAG"] };
 const found = [
-  cand({ env, compose: "services:\n  web:\n    image: nginx:1.27\n    environment: [PASSWORD=[[shop-env.DB_PASSWORD]]]\n" }),
+  cand({ env, compose: "services:\n  web:\n    image: nginx:${TAG}\n    environment: [PASSWORD=${DB_PASSWORD}]\n" }),
   cand({ key: "portainer-2", name: "blog", git: { repoUrl: "https://github.com/acme/blog.git", ref: "prod", path: "c.yml" }, compose: "",
          active: false, warnings: ["private repository: pick a git credential after importing"] }),
   cand({ key: "portainer-3", name: "metrics", warnings: ["a deployment with this name exists already"] }),
@@ -59,9 +59,16 @@ describe("import page", () => {
     expect(screen.getByRole("checkbox", { name: "Import metrics" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Import k8s" })).toBeDisabled();
     expect(screen.getAllByText(/· 2 variables/)).toHaveLength(3); // not on the git stack
-    expect(within(screen.getByRole("list", { name: "Stacks found" })).getAllByText(/stored encrypted in the secret/i)).toHaveLength(1);
+    // Every variable goes to the secret unless ticked; values never show.
+    expect(screen.getByText(/go to the encrypted secret/i)).toBeInTheDocument();
     expect(screen.getByText("shop-env")).toBeInTheDocument();
     expect(screen.queryByText(/s3cret/)).toBeNull();
+    expect(screen.getByText(/TAG is part of an image/)).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Write TAG into the compose of shop" }));
+    expect(screen.queryByText(/part of an image/)).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: "Write DB_PASSWORD into the compose of shop" }));
+    expect(screen.getByText(/no secret is created/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Write DB_PASSWORD into the compose of shop" }));
     expect(screen.getByText(/stopped in portainer/i)).toBeInTheDocument();
     expect(screen.getByText(/git https:\/\/github.com\/acme\/blog.git @ prod/)).toBeInTheDocument();
 
@@ -73,7 +80,7 @@ describe("import page", () => {
     await toast(/imported 1 of 2/i);
     const items = requests("POST", "/import/apply")[0].body.items;
     expect(items).toEqual([
-      { name: "shop-prod", host: "h-edge", strategy: "standalone", compose: found[0].compose, env },
+      { name: "shop-prod", host: "h-edge", strategy: "standalone", compose: found[0].compose, env: { secret: "shop-env", values: env.values, inline: ["TAG"] } },
       { name: "blog", host: "local", strategy: "standalone", git: { repoUrl: "https://github.com/acme/blog.git", ref: "prod", path: "c.yml" } },
     ]);
     expect(screen.getByText("unknown host")).toBeInTheDocument();

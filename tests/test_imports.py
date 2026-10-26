@@ -162,12 +162,11 @@ class TestImportAPI(ServerCase):
         by = {i["name"]: i for i in items}
         shop = by["shop"]
         self.assertEqual((shop["source"], shop["host"], shop["strategy"], shop["envCount"]), ("portainer", "local", "standalone", 3))
-        # Plain variables are written in; sensitive ones become secret references.
-        self.assertIn("nginx:1.27", shop["compose"])
-        self.assertIn("PASSWORD=[[shop-env.DB_PASSWORD]]", shop["compose"])
-        self.assertIn("URL=[[shop-env.DATABASE_URL]]", shop["compose"])
+        # The compose stays a template; every variable is offered as env.
+        self.assertIn("nginx:${TAG}", shop["compose"])
         self.assertNotIn("s3cret", shop["compose"])
-        self.assertEqual(shop["env"], {"secret": "shop-env", "values": {"DB_PASSWORD": "s3cret", "DATABASE_URL": "postgres://shop:s3cret@db/shop"}})
+        self.assertEqual(shop["env"], {"secret": "shop-env", "inImage": ["TAG"], "values": {
+            "TAG": "1.27", "DB_PASSWORD": "s3cret", "DATABASE_URL": "postgres://shop:s3cret@db/shop"}})
         self.assertEqual(shop["warnings"], [])
         self.assertNotIn("env", by["metrics"])
         blog = by["blog"]
@@ -186,26 +185,41 @@ class TestImportAPI(ServerCase):
     async def test_portainer_variables_become_a_secret(self):
         _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
         shop = next(i for i in items if i["name"] == "shop")
-        item = {"name": "shop", "host": "local", "compose": shop["compose"], "env": shop["env"]}
-        # Secrets are admin-only: an operator's import of this stack is refused.
+        env = {**shop["env"], "inline": ["TAG"]}
+        item = {"name": "shop", "host": "local", "compose": shop["compose"], "env": env}
+        # Secrets are admin-only: an operator's import that needs one is refused...
         _, res = await self.call("POST", "/import/apply", "operator", json={"items": [item]}, expect=200)
         self.assertIn("only an admin", res[0]["error"])
+        # ...but with every variable inlined there is no secret to store.
+        _, res = await self.call("POST", "/import/apply", "operator", json={"items": [
+            {**item, "name": "shop-all", "env": {**env, "inline": list(env["values"])}}]}, expect=200)
+        self.assertTrue(res[0]["ok"], res)
+        self.assertIn("PASSWORD=s3cret", self.svc.store.get_deployment(res[0]["id"]).compose)
+        self.assertEqual(self.svc.store.list_credentials("secret"), [])
+
         _, res = await self.call("POST", "/import/apply", json={"items": [
             item,
             {**item, "name": "shop2"},  # the secret exists by now
-            {**item, "name": "bad", "env": {"secret": "a.b", "values": {"X": "1"}}},
-            {**item, "name": "bad2", "env": {"secret": "ok", "values": {"1X": "1"}}},
-            {**item, "name": "bad3", "env": {"secret": "ok", "values": {}, "x": 1}},
+            {**item, "name": "bad", "env": {**env, "secret": "a.b"}},
+            {**item, "name": "bad2", "env": {**env, "values": {"1X": "1"}}},
+            {**item, "name": "bad3", "env": {**env, "x": 1}},
+            {**item, "name": "bad4", "env": {**env, "inline": ["NOPE"]}},
         ]}, expect=200)
-        self.assertEqual([r["ok"] for r in res], [True, False, False, False, False])
+        self.assertEqual([r["ok"] for r in res], [True, False, False, False, False, False])
         self.assertIn('secret named "shop-env" exists', res[1]["error"])
         self.assertIn("env.secret", res[2]["error"])
         self.assertIn("env.values", res[3]["error"])
         self.assertIn("env must be", res[4]["error"])
+        self.assertIn("env.inline", res[5]["error"])
         dep = self.svc.store.get_deployment(res[0]["id"])
+        self.assertIn("image: nginx:1.27", dep.compose)  # inlined
+        self.assertIn("PASSWORD=[[shop-env.DB_PASSWORD]]", dep.compose)
         self.assertNotIn("s3cret", dep.compose)
-        self.assertIn("PASSWORD=s3cret", self.svc.store.resolve_secrets(dep.compose))
-        self.assertIn("URL=postgres://shop:s3cret@db/shop", self.svc.store.resolve_secrets(dep.compose))
+        resolved = self.svc.store.resolve_secrets(dep.compose)
+        self.assertIn("PASSWORD=s3cret", resolved)
+        self.assertIn("URL=postgres://shop:s3cret@db/shop", resolved)
+        secret = self.svc.store.list_credentials("secret")[0]
+        self.assertEqual(sorted(self.svc.store.credential_config(secret.id)), ["DATABASE_URL", "DB_PASSWORD"])
         # A rescan numbers the next secret; a refused deployment leaves no secret behind.
         _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
         again = next(i for i in items if i["name"] == "shop")
@@ -213,8 +227,33 @@ class TestImportAPI(ServerCase):
         _, res = await self.call("POST", "/import/apply", json={"items": [
             {"name": "shop", "host": "local", "compose": again["compose"], "env": again["env"]}]}, expect=200)
         self.assertIn("already exists", res[0]["error"])
-        names = [c.name for c in self.svc.store.list_credentials("secret")]
-        self.assertEqual(names, ["shop-env"])
+        self.assertEqual([c.name for c in self.svc.store.list_credentials("secret")], ["shop-env"])
+
+        # Later, chosen references are written into the compose.
+        path = f"/deployments/{dep.id}/inline-secrets"
+        await self.roles("POST", path, "admin", json={"refs": ["shop-env.DB_PASSWORD"]})
+        for bad in ({}, {"refs": []}, {"refs": [1]}, {"refs": ["x"], "y": 1}, {"refs": ["shop-env.NOPE"]}):
+            await self.call("POST", path, json=bad, expect=400)
+        _, out = await self.call("POST", path, json={"refs": ["shop-env.DB_PASSWORD"]}, expect=200)
+        self.assertIn("PASSWORD=s3cret", out["compose"])
+        self.assertIn("URL=[[shop-env.DATABASE_URL]]", out["compose"])
+        _, revs = await self.call("GET", f"/deployments/{dep.id}/revisions", expect=200)
+        self.assertEqual((revs[0]["source"], revs[0]["note"]), ("edit", "wrote shop-env.DB_PASSWORD into the compose"))
+        await self.call("POST", "/deployments/missing/inline-secrets", json={"refs": ["a"]}, expect=404)
+        # A reference whose secret is gone does not resolve.
+        def set_compose(text):
+            d = self.svc.store.get_deployment(dep.id)
+            d.compose = text
+            self.svc.store.update_deployment(d)
+        set_compose("services:\n  web:\n    image: nginx\n    environment: [A=[[gone.X]]]\n")
+        _, err = await self.call("POST", path, json={"refs": ["gone.X"]}, expect=400)
+        self.assertIn("does not resolve", err["error"])
+        # A value that breaks the YAML is refused, and the compose is kept.
+        self.svc.store.create_credential(secret.__class__(id="c2", kind="secret", type="generic", name="yaml",
+                                                          createdAt="t", updatedAt="t"), {"value": "a: [b"})
+        set_compose("services:\n  web:\n    image: nginx\n    command: [[yaml]]\n")
+        await self.call("POST", path, json={"refs": ["yaml"]}, expect=400)
+        self.assertIn("[[yaml]]", self.svc.store.get_deployment(dep.id).compose)
 
     async def test_compose_scan_and_apply(self):
         await self.roles("POST", "/import/compose/scan", "operator", json={"files": {"a/compose.yml": "services: {}"}})

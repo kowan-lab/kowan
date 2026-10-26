@@ -59,6 +59,36 @@ describe("workload: deployment", () => {
     await waitFor(() => expect(requests("PUT", "/deployments/d-shop")[0].body).toMatchObject({ strategy: "swarm" }));
   });
 
+  it("writes chosen secret values into the compose", async () => {
+    const compose = "services:\n  web:\n    image: nginx:[[shop-env.TAG]]\n    environment: [PASSWORD=[[shop-env.DB_PASSWORD]]]\n";
+    let dep = { ...deployments[0], compose };
+    const { user } = await open(SHOP + "?tab=config", "shop", {
+      "GET /deployments": () => [dep, ...deployments.slice(1)],
+      "GET /deployments/:id": () => dep,
+      "POST /deployments/:id/inline-secrets": (r: { body: { refs: string[] } }) => {
+        dep = { ...dep, compose: dep.compose.replace("[[shop-env.TAG]]", "1.27") };
+        return dep;
+      },
+    });
+    const panel = await screen.findByRole("region", { name: /secret values in the compose/i }, { timeout: 10_000 });
+    const write = within(panel).getByRole("button", { name: /write into the compose/i });
+    expect(write).toBeDisabled();
+    expect(within(panel).getAllByRole("checkbox")).toHaveLength(2);
+    await user.click(within(panel).getByRole("checkbox", { name: "Write shop-env.TAG into the compose" }));
+    await user.click(write);
+    await toast(/written into the compose/i);
+    expect(requests("POST", "/deployments/d-shop/inline-secrets")[0].body).toEqual({ refs: ["shop-env.TAG"] });
+    await waitFor(() => expect(within(panel).getAllByRole("checkbox")).toHaveLength(1));
+    expect(screen.queryAllByText(/unsaved changes/i)).toHaveLength(0);
+  });
+
+  it("hides the secret values panel from operators", async () => {
+    const dep = { ...deployments[0], compose: "services:\n  web:\n    image: nginx:[[shop-env.TAG]]\n" };
+    renderApp(SHOP + "?tab=config", { role: "operator", api: { "GET /deployments": [dep, ...deployments.slice(1)], "GET /deployments/:id": dep } });
+    await screen.findByRole("button", { name: /^save$/i }, { timeout: 10_000 });
+    expect(screen.queryByRole("region", { name: /secret values in the compose/i })).toBeNull();
+  });
+
   it("shows deployment logs, policies and activity", async () => {
     const { user } = await open(SHOP, "shop");
     await user.click(screen.getByRole("tab", { name: /^logs$/i }));

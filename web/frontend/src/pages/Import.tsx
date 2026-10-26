@@ -34,6 +34,8 @@ interface Row extends ImportCandidate {
   selected: boolean;
   /** The name as found: labels stay put while the name is edited. */
   found: string;
+  /** Variables to write into the compose; the rest go to the secret. */
+  inline: string[];
 }
 
 export default function Import() {
@@ -47,13 +49,13 @@ export default function Import() {
 
   const load = (items: ImportCandidate[]) => {
     setResults(null);
-    setRows(items.map((i) => ({ ...i, found: i.name, selected: i.importable && i.warnings.every((w) => !w.includes("exists already")) })));
+    setRows(items.map((i) => ({ ...i, found: i.name, inline: [], selected: i.importable && i.warnings.every((w) => !w.includes("exists already")) })));
     if (!items.length) notify({ color: "yellow", title: "Nothing to import", message: "No stacks were found." });
   };
 
   const apply = useMutation({
     mutationFn: (items: Row[]) =>
-      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose, ...(r.env ? { env: r.env } : {}) }) }))),
+      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose, ...(r.env ? { env: { secret: r.env.secret, values: r.env.values, inline: r.inline } } : {}) }) }))),
     onSuccess: (res) => {
       setResults(res);
       qc.invalidateQueries({ queryKey: ["deployments"] });
@@ -111,11 +113,7 @@ export default function Import() {
                       {r.source === "portainer" ? `Portainer · ${r.endpoint}` : r.endpoint} · {r.git ? `git ${r.git.repoUrl} @ ${r.git.ref}` : "compose file"}
                       {r.envCount > 0 && !r.git ? ` · ${r.envCount} variables` : ""}
                     </Text>
-                    {r.env && (
-                      <Text size="xs" color="muted">
-                        Stored encrypted in the secret <Code>{r.env.secret}</Code>: {Object.keys(r.env.values).join(", ")}
-                      </Text>
-                    )}
+                    {r.env && r.importable && <EnvChoice row={r} onChange={(inline) => set(r.key, { inline })} />}
                     <div className="flex flex-wrap gap-[6px]">
                       <Badge color={r.kind === "kubernetes" ? "gray" : "blue"} size="sm">{r.kind}</Badge>
                       {!r.active && <Badge color="gray" size="sm">stopped in Portainer</Badge>}
@@ -214,5 +212,50 @@ function FolderForm({ onScan }: { onScan: (items: ImportCandidate[]) => void }) 
         {error && <Callout color="danger" title="Not scanned">{error}</Callout>}
       </div>
     </SectionCard>
+  );
+}
+
+/**
+ * The variables of an imported stack: each one goes to the encrypted secret
+ * (the default) or, ticked, into the compose. Values are never shown.
+ */
+function EnvChoice({ row, onChange }: { row: Row; onChange: (inline: string[]) => void }) {
+  const env = row.env!;
+  const names = Object.keys(env.values);
+  const inline = new Set(row.inline);
+  const toSecret = names.filter((n) => !inline.has(n));
+  const toggle = (name: string, on: boolean) => onChange(on ? [...row.inline, name] : row.inline.filter((n) => n !== name));
+  return (
+    <fieldset className="m-0 mt-[4px] flex min-w-0 flex-col gap-[6px] border-0 p-0">
+      <legend className="mb-[4px] p-0">
+        <Text size="xs" color="muted">
+          {toSecret.length
+            ? <>Variables go to the encrypted secret <Code>{env.secret}</Code>; tick the ones to write into the compose.</>
+            : "Every variable is written into the compose: no secret is created."}
+        </Text>
+      </legend>
+      <div className="flex flex-wrap gap-x-[16px] gap-y-[6px]">
+        {names.map((n) => (
+          <Checkbox
+            key={n}
+            size="sm"
+            label={
+              <span className="font-mono text-[12px]">
+                {n}
+                {env.inImage.includes(n) && <span className="ml-[6px] text-[var(--tone-amber-text)]">image</span>}
+              </span>
+            }
+            aria-label={`Write ${n} into the compose of ${row.found}`}
+            checked={inline.has(n)}
+            onChange={(e) => toggle(n, e.target.checked)}
+          />
+        ))}
+      </div>
+      {env.inImage.some((n) => !inline.has(n)) && (
+        <Text size="xs" color="warning">
+          {env.inImage.filter((n) => !inline.has(n)).join(", ")} {env.inImage.filter((n) => !inline.has(n)).length === 1 ? "is" : "are"} part of an image: in the secret, update checks, scans and promotion cannot read which image runs.
+        </Text>
+      )}
+    </fieldset>
   );
 }
