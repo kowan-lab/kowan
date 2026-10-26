@@ -31,6 +31,7 @@ import { errorMessage, formatDate } from "../utils";
 import { notify } from "../ui/toast";
 import { toKitColor } from "../ui/colors";
 import { SLOW_REFETCH_MS } from "../lib/live";
+import { copyText } from "../lib/clipboard";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -103,7 +104,8 @@ export default function ApiKeys() {
   const [secretCopied, setSecretCopied] = useState(false);
   const copySecret = () => {
     if (!createdSecret) return;
-    void navigator.clipboard.writeText(createdSecret.secret).then(() => {
+    void copyText(createdSecret.secret).then((ok) => {
+      if (!ok) return;
       setSecretCopied(true);
       window.setTimeout(() => setSecretCopied(false), 1500);
     });

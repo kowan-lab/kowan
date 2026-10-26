@@ -66,6 +66,7 @@ import type {
 } from "../types";
 import { errorMessage, formatDate } from "../utils";
 import { useCanOperate } from "../components/deployment/shared";
+import { copyText } from "../lib/clipboard";
 
 /** Pull a human-friendly error message out of an axios error. */
 
@@ -1623,7 +1624,8 @@ function DockerImageTriggerFields({
 function CopyUrlButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard.writeText(value).then(() => {
+    void copyText(value).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });

@@ -12,6 +12,7 @@ import { Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { renderIcon } from "./icon";
 import { toneVars, type Color } from "./tone";
+import { copyText } from "../../lib/clipboard";
 
 /* ── Button ──────────────────────────────────────────────────────────────
  * Variants: solid (default), light (soft tint), outline, clear (ghost).
@@ -273,7 +274,8 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
       aria-label={done ? "Copied" : label}
       iconLeft={done ? "check-rounded" : "content-copy-outline-rounded"}
       onClick={() => {
-        void navigator.clipboard?.writeText(value).then(() => {
+        void copyText(value).then((ok) => {
+          if (!ok) return;
           setDone(true);
           window.setTimeout(() => setDone(false), 1400);
         });

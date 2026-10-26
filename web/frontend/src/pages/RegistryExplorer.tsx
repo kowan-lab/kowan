@@ -22,6 +22,7 @@ import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import type { Registry } from "../types";
+import { copyText } from "../lib/clipboard";
 
 
 /** Strip a scheme and trailing slash so a ref reads like "host/repo:tag". */
@@ -33,7 +34,8 @@ function registryHost(url: string): string {
 function CopyRefButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard.writeText(value).then(() => {
+    void copyText(value).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     });

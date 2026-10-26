@@ -38,6 +38,7 @@ import StatusBadge from "../components/StatusBadge";
 import { LIVE_REFETCH_MS } from "../lib/live";
 import type { EnrollResponse, Host, HostMode } from "../types";
 import { errorMessage, formatDate, timeAgo } from "../utils";
+import { copyText } from "../lib/clipboard";
 
 const HOSTS_QUERY_KEY = ["hosts"] as const;
 
@@ -724,7 +725,8 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
   // Local copy state.
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard.writeText(command).then(() => {
+    void copyText(command).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });

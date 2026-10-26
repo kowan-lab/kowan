@@ -43,6 +43,7 @@ import type { PluginField, ReferencePreview, Secret } from "../types";
 import { errorMessage, formatDate } from "../utils";
 import { notify } from "../ui/toast";
 import { toKitColor } from "../ui/colors";
+import { copyText } from "../lib/clipboard";
 
 
 // Static secret types hold their value directly (free-form key/value fields).
@@ -946,7 +947,8 @@ export default function Secrets({ embedded }: { embedded?: boolean } = {}) {
 function RevealRow({ field, value }: { field: string; value: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard.writeText(value).then(() => {
+    void copyText(value).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });
