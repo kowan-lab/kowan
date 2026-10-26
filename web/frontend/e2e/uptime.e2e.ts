@@ -13,7 +13,10 @@ test("an HTTP check goes up and appears on the public status page", async ({ pag
   await d.getByLabel("Name").fill(name);
   await d.getByLabel("URL").fill(`http://127.0.0.1:${PORT}/api/v1/auth/status`);
   await d.getByLabel("Page contains").fill("initialized");
-  await d.getByRole("switch", { name: "Show on the status page" }).check({ force: true });
+  // The switch's input sits under its drawn track, which takes the pointer:
+  // click the label, as a person does, and check that it took.
+  await d.getByText("Show on the status page", { exact: true }).click();
+  await expect(d.getByRole("switch", { name: "Show on the status page" })).toBeChecked();
   await d.getByRole("button", { name: "Create check" }).click();
   await toast(page, "Check created");
   const row = page.getByRole("row").filter({ hasText: name });
