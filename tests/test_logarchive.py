@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from kowan.logstore.collector import Collector, split_line
+from kowan.logstore.collector import _MAX_LINE, Collector, split_line
 from kowan.workloads import parse_workload, workload_of
 from kowan.logstore.store import LogStore, fts_query, normalize_ts
 from tests.apicase import ServerCase
@@ -199,6 +199,13 @@ class TestFollow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.c.follow(ops2, "h", "c1", "web", "ctr~h~web", "", ""), 1)
         self.assertEqual(ops2.calls[0][2], 1000)
         self.assertEqual(self.s.search()[0]["line"], "new")
+
+    async def test_endless_line_is_kept_to_the_stored_length(self):
+        stream = _Stream([b"2026-10-20T10:00:01Z " + b"x" * 5000] + [b"y" * 5000] * 20 + [b"z\n2026-10-20T10:00:02Z ok\n"])
+        await self.c.follow(_Ops(stream), "h", "c1", "web", "ctr~h~web", "", "")
+        lines = [i["line"] for i in self.s.search()]
+        self.assertEqual(lines[1], "x" * 5000 + "y" * (_MAX_LINE - 5000))
+        self.assertEqual(lines[0], "ok")
 
 
 class TestCollectorAPI(ServerCase):

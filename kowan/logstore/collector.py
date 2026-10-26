@@ -28,6 +28,9 @@ _PRUNE_EVERY = 3600.0
 _FLUSH_LINES = 200
 _FLUSH_SECS = 0.5
 _MAX_LINE = 8192
+# An unterminated line is kept only up to what split_line stores of it (the
+# timestamp plus _MAX_LINE), so output without newlines cannot grow the buffer.
+_MAX_PARTIAL = _MAX_LINE + 64
 DEFAULT_CAP = 2_000_000
 
 
@@ -140,6 +143,7 @@ class Collector:
             async for chunk in stream:
                 buf += chunk.decode("utf-8", "replace") if isinstance(chunk, bytes) else str(chunk)
                 *lines, buf = buf.split("\n")
+                buf = buf[:_MAX_PARTIAL]
                 for raw in lines:
                     parsed = split_line(raw.rstrip("\r"))
                     if parsed is None or (resume and parsed[0] <= resume):
