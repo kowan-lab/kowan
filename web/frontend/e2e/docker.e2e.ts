@@ -20,7 +20,8 @@ test("deploys a container, stops it and deletes the deployment", async ({ page }
   await expect(page.getByRole("heading", { name: "Resources" })).toBeVisible();
   await page.getByRole("tab", { name: /^logs$/i }).click();
   await expect(page.getByTestId("log-retention")).toBeVisible();
-  await page.getByRole("tab", { name: /^overview$/i }).click();
+  // The Overview tab carries the container count ("Overview 1").
+  await page.getByRole("tab", { name: /^overview\b/i }).click();
 
   await page.getByRole("button", { name: /^stop$/i }).click();
   await expect(page.getByText(/stopped|exited/i).first()).toBeVisible({ timeout: 60_000 });
