@@ -39,8 +39,10 @@ web/frontend/.vite/
 # Tool caches locali
 .impeccable/hook.cache.json
 
-# Test output (coverage, Playwright)
+# Test output (coverage, Playwright) and the parallel runner's module timings
 .coverage
+.coverage.*
+.test-timings.json
 htmlcov/
 coverage.json
 web/frontend/coverage/

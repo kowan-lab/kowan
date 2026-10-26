@@ -29,9 +29,9 @@ jobs:
           cache-dependency-path: requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: python -m compileall -q kowan
-      # Coverage on every version; the threshold (.coveragerc fail_under)
-      # fails the job when it drops.
-      - run: python -m coverage run -m unittest discover -s tests -t .
+      # Coverage on every version, one test module per CPU; the threshold
+      # (.coveragerc fail_under) fails the job when it drops.
+      - run: python scripts/run_tests.py --coverage
       - run: python -m coverage report --format=total
 
   frontend:

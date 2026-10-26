@@ -1,4 +1,4 @@
-.PHONY: help run agent cli test coverage test-ui coverage-ui e2e test-all deps deps-dev frontend dev clean build push
+.PHONY: help run agent cli test test-serial coverage test-ui coverage-ui e2e test-all deps deps-dev frontend dev clean build push
 
 # The project virtualenv when present, else the system interpreter.
 PY ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
@@ -22,7 +22,8 @@ help:
 	@echo "  make run        start the control plane on http://localhost:5081 (setup token in the log)"
 	@echo "  make agent      start the agent (KOWAN_AGENT_MODE=agent|edge, KOWAN_AGENT_TOKEN=...)"
 	@echo "  make cli ARGS=\"hosts list\"   run the kowanctl CLI"
-	@echo "  make test       run the backend tests (unittest)"
+	@echo "  make test       run the backend tests, one module per CPU (scripts/run_tests.py)"
+	@echo "  make test-serial the backend tests in one process (to debug order-dependent tests)"
 	@echo "  make coverage   backend tests with coverage (threshold in .coveragerc)"
 	@echo "  make test-ui    frontend tests (vitest + Testing Library)"
 	@echo "  make coverage-ui frontend tests with coverage (thresholds in vitest.config.ts)"
@@ -45,14 +46,19 @@ agent:
 cli:
 	$(PY) -m kowan.cli $(ARGS)
 
-## Run the test suite (mux/tunnel + REST end to end + docker-over-tunnel).
+## Run the test suite (mux/tunnel + REST end to end + docker-over-tunnel),
+## one test module per process on every CPU; JOBS=n to limit it.
 test:
+	$(PY) scripts/run_tests.py $(if $(JOBS),-j $(JOBS))
+
+## The same tests in a single process, in discovery order.
+test-serial:
 	$(PY) -m unittest discover -s tests -t .
 
 ## Backend tests with coverage: reports in coverage.json + htmlcov/; fails
 ## below the .coveragerc threshold (fail_under).
 coverage:
-	$(PY) -m coverage run -m unittest discover -s tests -t .
+	$(PY) scripts/run_tests.py --coverage $(if $(JOBS),-j $(JOBS))
 	$(PY) -m coverage json -o coverage.json -q
 	$(PY) -m coverage html -q
 	@echo "backend coverage: $$($(PY) -m coverage report --format=total)%"

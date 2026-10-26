@@ -29,6 +29,15 @@ The standard library's `unittest`, no plugins. The base pieces:
   edge and direct mode, and `test_remote_client.py` repeats the local client's
   suite through the tunnel.
 
+`make test` and `make coverage` run `scripts/run_tests.py`: one test module
+per process, on every CPU (`JOBS=n` limits it), with the standard library
+only. The modules are independent (temporary folders, random ports); the
+slowest start first, by the durations of the previous run kept in
+`.test-timings.json`. With coverage each process writes its own data file and
+they are combined at the end. A failing module's output is printed in full;
+`make test-serial` runs everything in one process, for a test that only fails
+next to others.
+
 `make coverage` writes `coverage.json` and `htmlcov/` and fails below the
 `fail_under` threshold in `.coveragerc` (lines + branches). Only
 `raise NotImplementedError` stubs, the `if __name__ == "__main__":` guard and
