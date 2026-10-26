@@ -57,6 +57,7 @@ const TYPE_COLORS: Record<string, string> = {
   "git-http": "gray",
   "api-token": "teal",
   "basic-auth": "magenta",
+  portainer: "cyan",
 };
 
 // Soft color per capability so the badges are visually distinguishable.

@@ -17,6 +17,10 @@ Field-key convention (kept aligned with the capability builders in
     ``scheme`` (-> ``meta``) for the outbound header shape.
   * basic-auth — non-secret ``username`` (-> ``meta``), secret ``password``
     (-> ``data``).
+  * portainer — the Portainer instance an import reads stacks from: ``url``, and
+    an access token ``apiKey`` or ``username`` + ``password``; ``insecure`` set to
+    ``true`` accepts a self-signed certificate. It implements no capability: only
+    the import (kowan/api/imports.py) uses it.
 
 The capability declarations for these types live in ``kowan.capabilities`` (the
 single manifest); this module owns only the field shape and sensitivity, so the
@@ -57,6 +61,14 @@ _NATIVE: Dict[str, List[FieldSpec]] = {
     "basic-auth": [
         FieldSpec(key="username", label="Username", required=True),
         FieldSpec(key="password", label="Password", sensitive=True, required=True),
+    ],
+    "portainer": [
+        FieldSpec(key="url", label="Portainer URL", required=True, placeholder="https://portainer.example.com"),
+        FieldSpec(key="apiKey", label="Access token", sensitive=True,
+                  placeholder="My account → Access tokens (or fill username and password)"),
+        FieldSpec(key="username", label="Username", placeholder="(instead of a token)"),
+        FieldSpec(key="password", label="Password", sensitive=True),
+        FieldSpec(key="insecure", label="Accept a self-signed certificate", placeholder="true / false"),
     ],
 }
 

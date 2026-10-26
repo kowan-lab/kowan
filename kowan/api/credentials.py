@@ -164,8 +164,10 @@ def _validate_create(kind: str, body: Dict[str, Any]) -> Optional[str]:
     if kind == CredentialKindConnection:
         if type_ == "":
             return "type is required"
-        if not caps.capabilities_of(type_):
-            return "unknown connection type (implements no capability)"
+        # A known type implements a capability, or is a native type with its
+        # own consumer and none (portainer: the import reads it directly).
+        if not caps.capabilities_of(type_) and not conn_native.is_native(type_):
+            return "unknown connection type"
         return None
 
     if kind == CredentialKindRegistry:

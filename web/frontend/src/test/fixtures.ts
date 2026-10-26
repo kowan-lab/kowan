@@ -138,6 +138,7 @@ export const credentials = {
     cred("c-hook", "connection", "webhook", "ops-webhook", {}, ["url"], { url: "https://hooks.example/ops" }),
     cred("c-smb", "connection", "basic-auth", "smb-user", {}, ["username", "password"], { username: "bob", password: "********" }),
     cred("c-aws", "connection", "aws", "aws-prod", { region: "eu-west-1" }, ["accessKeyId", "secretAccessKey"], { accessKeyId: "AKIA…", secretAccessKey: "********" }),
+    cred("c-portainer", "connection", "portainer", "portainer-prod", {}, ["url", "apiKey"], { url: "https://portainer.example.com", apiKey: "********" }),
   ],
 };
 

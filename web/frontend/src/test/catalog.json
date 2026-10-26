@@ -814,6 +814,47 @@
    ]
   },
   {
+   "type": "portainer",
+   "capabilities": [],
+   "fields": [
+    {
+     "key": "url",
+     "label": "Portainer URL",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://portainer.example.com"
+    },
+    {
+     "key": "apiKey",
+     "label": "Access token",
+     "sensitive": true,
+     "required": false,
+     "placeholder": "My account \u2192 Access tokens (or fill username and password)"
+    },
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(instead of a token)"
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": false,
+     "placeholder": ""
+    },
+    {
+     "key": "insecure",
+     "label": "Accept a self-signed certificate",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "true / false"
+    }
+   ]
+  },
+  {
    "type": "slack",
    "capabilities": [
     "messageSend"
