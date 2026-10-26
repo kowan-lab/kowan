@@ -1,29 +1,36 @@
-import { Check, Moon, Palette as PaletteIcon, Sun } from "lucide-react";
+import { Check, Monitor, Moon, Palette as PaletteIcon, Sun } from "lucide-react";
 import { Popover as Pop } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/ui/kit";
 import { PALETTES, useTheme } from "@/ui/theme";
 
+const MODES = [
+  { id: "light", label: "Light", Icon: Sun },
+  { id: "dark", label: "Dark", Icon: Moon },
+  { id: "auto", label: "Auto", Icon: Monitor },
+] as const;
+
 /** Mode switch plus the palette list. Used in the top bar popover and in Settings. */
 export function ThemePanel() {
-  const { theme, setTheme, palette, setPalette } = useTheme();
+  const { theme, mode, setMode, palette, setPalette } = useTheme();
   return (
     <div className="flex flex-col gap-5">
-      <div role="radiogroup" aria-label="Mode" className="grid grid-cols-2 bg-[var(--popover)] shadow-[inset_0_0_0_1px_var(--border)]">
-        {(["light", "dark"] as const).map((m) => (
+      <div role="radiogroup" aria-label="Mode" className="grid grid-cols-3 bg-[var(--popover)] shadow-[inset_0_0_0_1px_var(--border)]">
+        {MODES.map(({ id, label, Icon }) => (
           <button
-            key={m}
+            key={id}
             type="button"
             role="radio"
-            aria-checked={theme === m}
-            onClick={() => setTheme(m)}
+            aria-checked={mode === id}
+            title={id === "auto" ? "Follow the system" : undefined}
+            onClick={() => setMode(id)}
             className={cn(
               "flex h-16 items-center justify-center gap-3 text-[13px] font-semibold transition-colors duration-100 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal",
-              theme === m ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              mode === id ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
-            {m === "light" ? <Sun className="size-[12px]" /> : <Moon className="size-[12px]" />}
-            {m === "light" ? "Light" : "Dark"}
+            <Icon className="size-[12px]" />
+            {label}
           </button>
         ))}
       </div>

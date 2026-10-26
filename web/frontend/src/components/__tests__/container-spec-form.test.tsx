@@ -105,9 +105,10 @@ describe("container spec form", () => {
     expect(latest.volumes).toEqual([{ source: "data", target: "/data", readOnly: true }]);
     await user.click(screen.getByRole("button", { name: "Remove volume" }));
 
-    // Environment
-    await user.click(screen.getByRole("tab", { name: /environment/i }));
+    // Environment: its own section, not a tab.
+    expect(screen.queryByRole("tab", { name: /environment/i })).toBeNull();
     await user.click(screen.getByRole("button", { name: /add variable/i }));
+    expect(screen.getByRole("textbox", { name: "Name of variable 1" })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("KEY"), "MODE");
     await user.type(screen.getByPlaceholderText("value"), "prod");
     expect(latest.env).toEqual([{ key: "MODE", value: "prod" }]);

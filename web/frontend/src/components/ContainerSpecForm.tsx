@@ -399,6 +399,53 @@ export function ContainerSpecForm({
 
       <Divider />
 
+      <FormSection
+        variant="plain"
+        horizontal
+        title="Environment variables"
+        description="Passed to the container. Reference a secret with [[name]] or [[name.field]] so its value is not stored here."
+        action={
+          <Button size="sm" variant="light" iconLeft="add-rounded" onClick={addEnv}>
+            Add variable
+          </Button>
+        }
+      >
+        <Box direction="column" gap={2}>
+          {value.env.length === 0 && (
+            <Text size="xs" color="muted">
+              No environment variables.
+            </Text>
+          )}
+          {value.env.map((row, i) => (
+            <Box key={i} direction="row" wrap="nowrap" gap={2} align="end">
+              <TextInput
+                placeholder="KEY"
+                aria-label={`Name of variable ${i + 1}`}
+                value={row.key}
+                onChange={(e) => updateEnv(i, { key: e.target.value })}
+                style={{ flex: 1 }}
+              />
+              <TextInput
+                placeholder="value"
+                aria-label={`Value of variable ${i + 1}`}
+                value={row.value}
+                onChange={(e) => updateEnv(i, { value: e.target.value })}
+                style={{ flex: 1 }}
+              />
+              <Button
+                variant="clear"
+                color="danger"
+                aria-label="Remove env"
+                iconLeft="delete-outline-rounded"
+                onClick={() => removeEnv(i)}
+              />
+            </Box>
+          ))}
+        </Box>
+      </FormSection>
+
+      <Divider />
+
       {/* Advanced container settings — everything else, grouped into tabs. */}
       <Box direction="column" gap={3}>
         <Box direction="row" align="center" gap={2}>
@@ -412,7 +459,6 @@ export function ContainerSpecForm({
           <Tabs.List>
             <Tabs.Trigger value="runtime">Command &amp; runtime</Tabs.Trigger>
             <Tabs.Trigger value="volumes">Volumes</Tabs.Trigger>
-            <Tabs.Trigger value="env">Environment</Tabs.Trigger>
             <Tabs.Trigger value="networks">Networks</Tabs.Trigger>
             <Tabs.Trigger value="resources">Resources</Tabs.Trigger>
             <Tabs.Trigger value="extra">Extra args</Tabs.Trigger>
@@ -522,42 +568,6 @@ export function ContainerSpecForm({
             </Box>
           </Tabs.Panel>
 
-          <Tabs.Panel value="env">
-            <Box direction="column" gap={2}>
-              {addBar("Add variable", addEnv)}
-              <Text size="xs" color="muted">
-                Reference a secret with [[name]] or [[name.field]].
-              </Text>
-              {value.env.length === 0 && (
-                <Text size="xs" color="muted">
-                  No environment variables.
-                </Text>
-              )}
-              {value.env.map((row, i) => (
-                <Box key={i} direction="row" wrap="nowrap" gap={2} align="end">
-                  <TextInput
-                    placeholder="KEY"
-                    value={row.key}
-                    onChange={(e) => updateEnv(i, { key: e.target.value })}
-                    style={{ flex: 1 }}
-                  />
-                  <TextInput
-                    placeholder="value"
-                    value={row.value}
-                    onChange={(e) => updateEnv(i, { value: e.target.value })}
-                    style={{ flex: 1 }}
-                  />
-                  <Button
-                    variant="clear"
-                    color="danger"
-                    aria-label="Remove env"
-                    iconLeft="delete-outline-rounded"
-                    onClick={() => removeEnv(i)}
-                  />
-                </Box>
-              ))}
-            </Box>
-          </Tabs.Panel>
 
           <Tabs.Panel value="networks">
             <TagsInput

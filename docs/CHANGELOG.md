@@ -4,6 +4,8 @@
 
 - **New release notices**: every 6 hours the server checks the published versions and, when one is newer than its own, posts "Kowan X.Y.Z is available" to the bell, once per version. `KOWAN_RELEASE_REPOSITORY` sets where it looks (empty turns it off).
 - **Settings → Updates** shows the running version and the latest release (it showed a registry digest next to the version), also for a server run from source, where self-update is not available. **Check** now asks the registry again: it used to repeat the answer cached for 5 minutes. Agents show the same.
+- **Auto theme**: next to Light and Dark, Auto follows the system and switches with it; it is the default for anyone who never chose.
+- **Environment variables up front** when creating or editing a container deployment: their own section under the ports, instead of the third tab of the advanced settings, where they were easy to miss.
 
 ## 0.1.1 — 2026-10-26
 

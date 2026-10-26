@@ -3,12 +3,14 @@ import { flushSync } from "react-dom";
 
 /**
  * Theming: a palette (Kowan, Graphite, Nord, Dracula, Catppuccin, Gruvbox, Tokyo Night)
- * times a mode (light / dark). Both are attributes on <html> (data-palette,
+ * times a theme (light / dark). Both are attributes on <html> (data-palette,
  * data-theme), so every token in styles/themes.css, and every portal that
- * inherits from <html>, flips at once. Persisted in localStorage; with no
- * saved mode the OS preference wins.
+ * inherits from <html>, flips at once. The mode is the choice, persisted in
+ * localStorage: light, dark, or auto (the default), which follows the OS and
+ * switches when the OS does.
  */
 export type Theme = "light" | "dark";
+export type Mode = Theme | "auto";
 export type Palette = "kowan" | "graphite" | "nord" | "dracula" | "catppuccin" | "gruvbox" | "tokyonight";
 
 /** Display data for the picker: name, origin and four swatches per mode. */
@@ -40,10 +42,17 @@ function write(key: string, v: string) {
   }
 }
 
-function initialTheme(): Theme {
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+function systemTheme(): Theme {
+  return typeof window !== "undefined" && window.matchMedia?.(DARK_QUERY).matches ? "dark" : "light";
+}
+function initialMode(): Mode {
   const saved = read(MODE_KEY);
-  if (saved === "light" || saved === "dark") return saved;
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return saved === "light" || saved === "dark" ? saved : "auto";
+}
+function resolve(mode: Mode, system: Theme): Theme {
+  return mode === "auto" ? system : mode;
 }
 function initialPalette(): Palette {
   const saved = read(PALETTE_KEY) as Palette | null;
@@ -65,7 +74,7 @@ function apply(theme: Theme, palette: Palette) {
 }
 
 // Apply before React paints, so there is no flash of the wrong theme.
-apply(initialTheme(), initialPalette());
+apply(resolve(initialMode(), systemTheme()), initialPalette());
 
 /** Run a DOM-changing update as a quick cross-fade when the browser supports it. */
 function withTransition(update: () => void) {
@@ -76,30 +85,45 @@ function withTransition(update: () => void) {
 }
 
 interface ThemeContextValue {
+  /** What is shown: the mode, with auto resolved against the OS. */
   theme: Theme;
+  /** What was chosen. */
+  mode: Mode;
   palette: Palette;
+  /** Switch to the opposite of what is shown (leaving auto). */
   toggle: () => void;
-  setTheme: (t: Theme) => void;
+  setMode: (m: Mode) => void;
   setPalette: (p: Palette) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const [mode, setModeState] = useState<Mode>(initialMode);
+  const [system, setSystem] = useState<Theme>(systemTheme);
   const [palette, setPaletteState] = useState<Palette>(initialPalette);
+  const theme = resolve(mode, system);
+
+  // Follow the OS while auto is chosen (and keep `system` current for later).
+  useEffect(() => {
+    const mq = window.matchMedia?.(DARK_QUERY);
+    if (!mq) return;
+    const onChange = () => withTransition(() => setSystem(mq.matches ? "dark" : "light"));
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     apply(theme, palette);
-    write(MODE_KEY, theme);
+    write(MODE_KEY, mode);
     write(PALETTE_KEY, palette);
-  }, [theme, palette]);
+  }, [theme, mode, palette]);
 
-  const setTheme = useCallback((t: Theme) => withTransition(() => setThemeState(t)), []);
+  const setMode = useCallback((m: Mode) => withTransition(() => setModeState(m)), []);
   const setPalette = useCallback((p: Palette) => withTransition(() => setPaletteState(p)), []);
-  const toggle = useCallback(() => withTransition(() => setThemeState((t) => (t === "dark" ? "light" : "dark"))), []);
+  const toggle = useCallback(() => withTransition(() => setModeState(theme === "dark" ? "light" : "dark")), [theme]);
 
-  const value = useMemo(() => ({ theme, palette, toggle, setTheme, setPalette }), [theme, palette, toggle, setTheme, setPalette]);
+  const value = useMemo(() => ({ theme, mode, palette, toggle, setMode, setPalette }), [theme, mode, palette, toggle, setMode, setPalette]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

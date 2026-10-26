@@ -29,8 +29,7 @@ describe("new deployment", () => {
     const ctrPorts = within(page).getAllByPlaceholderText(/^container$/i);
     await user.type(hostPorts.at(-1)!, "9000");
     await user.type(ctrPorts.at(-1)!, "9000");
-    await user.click(within(page).getByRole("tab", { name: /environment/i }));
-    await press(user, /add variable|add env/i, page);
+    await press(user, /add variable/i, page);
     await user.type(within(page).getAllByPlaceholderText(/^key$/i).at(-1)!, "MODE");
     await user.type(within(page).getAllByPlaceholderText(/^value$/i).at(-1)!, "prod");
     // After creating: protection, webhook, notify on updates, a start/stop schedule.
