@@ -112,7 +112,6 @@ class TestTrivyParsing(unittest.TestCase):
         self.assertEqual(s.os, "debian 12.8")
         self.assertEqual((s.critical, s.high, s.total, s.fixable), (1, 1, 3, 1))
         self.assertEqual(len(s.findings), 2)
-        self.assertEqual(trivy.counts_tuple(s.counts), (1, 1, 0, 0))
         self.assertEqual(trivy.sum_counts([s.counts, s.counts, None])["critical"], 2)
         for bad in (b"", b"{not json}", b"[1]"):
             with self.assertRaises(ValueError):

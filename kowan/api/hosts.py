@@ -407,7 +407,7 @@ def _docker_run(svc, request: web.Request, host: Host) -> str:
     return (
         base
         + "-p 9001:9001 "
-        + f"-e KOWAN_AGENT_MODE=agent "
+        + "-e KOWAN_AGENT_MODE=agent "
         + f"-e KOWAN_AGENT_TOKEN={host.token} {image}"
     )
 

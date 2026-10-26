@@ -3,7 +3,6 @@
 import os
 import sqlite3
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest import mock

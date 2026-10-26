@@ -1,7 +1,6 @@
 """Pure pieces of the self-update system: plan encoding, journal parsing,
 verify rules and config cloning."""
 
-import json
 import unittest
 
 from kowan.updater import clone, verify

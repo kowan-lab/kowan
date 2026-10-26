@@ -25,7 +25,7 @@ import secrets as _secrets
 import shutil
 import uuid
 from types import SimpleNamespace
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from kowan.deployment import gitsource
 from kowan.errors import Conflict, NotFound, Validation

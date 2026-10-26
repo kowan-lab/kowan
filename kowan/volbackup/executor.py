@@ -15,7 +15,7 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from kowan.models import ContainerSpec, KeyValue, VolumeMapping
 

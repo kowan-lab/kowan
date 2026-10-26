@@ -55,10 +55,6 @@ def notify_disabled(labels: Optional[Dict[str, str]]) -> bool:
     return str((labels or {}).get(LABEL_NOTIFY, "")).strip().lower() in _FALSY
 
 
-def is_hidden(labels: Optional[Dict[str, str]]) -> bool:
-    return str((labels or {}).get(LABEL_HIDDEN, "")).strip().lower() in _TRUTHY
-
-
 # ---------------------------------------------------------------------------
 # Durations
 # ---------------------------------------------------------------------------

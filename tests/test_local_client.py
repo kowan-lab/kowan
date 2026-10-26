@@ -2,7 +2,6 @@
 unix socket: the whole HTTP path runs (requests, version negotiation, error
 mapping, stream demuxing, tar handling) without touching the machine's Docker."""
 
-import asyncio
 import io
 import json
 import tarfile

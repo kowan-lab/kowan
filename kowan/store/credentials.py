@@ -317,14 +317,6 @@ class _CredentialMixin(_Base):
             (cred.type, cred.name, self._dump_meta(cred.meta), blob, cred.updated_at, cred.id),
         )
 
-    def count_credentials_by_type(self, kind: str, type_: str) -> int:
-        """Return how many credentials of a given kind+type exist."""
-        row = self._one(
-            "SELECT COUNT(*) AS n FROM credentials WHERE kind = ? AND type = ?",
-            (kind, type_),
-        )
-        return row["n"] if row is not None else 0
-
     # -- registry-kind adapters ---------------------------------------------
     def update_registry_credential(
         self, cred: Credential, *, password: str, config: Optional[dict[str, str]]

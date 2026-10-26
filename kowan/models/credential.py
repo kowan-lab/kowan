@@ -103,10 +103,6 @@ class Credential(BaseModel):
         return str(self.meta.get("lastError", "") or "")
 
     @property
-    def has_password(self) -> bool:  # registry
-        return bool(self.meta.get("hasPassword", False))
-
-    @property
     def description(self) -> str:  # secret
         return str(self.meta.get("description", "") or "")
 

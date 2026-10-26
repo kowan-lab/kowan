@@ -190,11 +190,6 @@ def parse_trivy_report(doc: Dict[str, Any], *, max_findings: int = MAX_FINDINGS)
     return out
 
 
-def counts_tuple(counts: Optional[Dict[str, int]]) -> Tuple[int, int, int, int]:
-    c = counts or {}
-    return (int(c.get("critical", 0)), int(c.get("high", 0)), int(c.get("medium", 0)), int(c.get("low", 0)))
-
-
 def sum_counts(items: Iterable[Optional[Dict[str, int]]]) -> Dict[str, int]:
     tot = {s.lower(): 0 for s in SEVERITIES}
     for c in items:

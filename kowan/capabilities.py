@@ -22,7 +22,7 @@ merely name and declare them so later phases can dispatch by capability.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Dict
 
 # ---------------------------------------------------------------------------
 # Capability names (stable string ids, used as manifest keys and in the API).
@@ -71,53 +71,6 @@ CAPABILITY_LABELS: Dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Capability Protocols — the method a connection exposes for each capability.
-# Structural (Protocol) so an existing provider satisfies one without inheriting.
-# ---------------------------------------------------------------------------
-
-@runtime_checkable
-class DockerRegistryAuth(Protocol):
-    async def docker_auth(self, registry_url: str = "") -> str:
-        """Return the base64 ``X-Registry-Auth`` token for pulling from a registry."""
-        ...
-
-
-@runtime_checkable
-class SecretFetch(Protocol):
-    async def fetch(self, field: str = "") -> str:
-        """Fetch a secret value (optionally selecting a field/key) from the backend."""
-        ...
-
-
-@runtime_checkable
-class MessageSend(Protocol):
-    async def send(self, msg: Any) -> None:
-        """Deliver a message (title/body/level) over the transport."""
-        ...
-
-
-@runtime_checkable
-class GitFetch(Protocol):
-    def git_auth(self, repo_url: str = "") -> Any:
-        """Return the credentials/transport for authenticating a git clone/fetch."""
-        ...
-
-
-@runtime_checkable
-class HttpBearer(Protocol):
-    def auth_headers(self) -> Dict[str, str]:
-        """Return the HTTP headers that authenticate an outbound request."""
-        ...
-
-
-@runtime_checkable
-class CloudIdentity(Protocol):
-    async def session(self) -> Any:
-        """Mint a short-lived provider session used to derive leaf capabilities."""
-        ...
-
-
-# ---------------------------------------------------------------------------
 # Manifest: which capabilities each currently-implemented connection type has.
 #
 # Grounded in the code as it exists today (Phase 0). Cloud registry types
@@ -133,7 +86,6 @@ _MANIFEST: Dict[str, frozenset] = {
     "generic": frozenset({CAP_DOCKER_REGISTRY_AUTH, CAP_HTTP_BEARER}),
     "ghcr": frozenset({CAP_DOCKER_REGISTRY_AUTH, CAP_HTTP_BEARER}),
     "ecr": frozenset({CAP_DOCKER_REGISTRY_AUTH}),
-    "gcp": frozenset({CAP_DOCKER_REGISTRY_AUTH}),
     "acr": frozenset({CAP_DOCKER_REGISTRY_AUTH}),
     # external secret backends -> secret fetch (+ they are http-token bearing)
     "vault": frozenset({CAP_SECRET_FETCH, CAP_HTTP_BEARER}),

@@ -5,7 +5,7 @@ import asyncio
 import datetime as dt
 import tempfile
 import unittest
-from datetime import timedelta, timezone
+from datetime import timezone
 
 from aiohttp.test_utils import TestClient, TestServer
 

@@ -157,13 +157,6 @@ class _GitOpsMixin(_Base):
             [self._run_value(run, k) for k in _RUN_FIELDS],
         )
 
-    def update_gitops_run(self, run: Dict[str, Any]) -> None:
-        sets = ", ".join(f"{k} = ?" for k in _RUN_FIELDS[1:])
-        self._execute(
-            f"UPDATE gitops_runs SET {sets} WHERE id = ?",
-            [self._run_value(run, k) for k in _RUN_FIELDS[1:]] + [run["id"]],
-        )
-
     @staticmethod
     def _run_value(run: Dict[str, Any], k: str) -> Any:
         v = run.get(k)

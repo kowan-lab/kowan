@@ -27,19 +27,6 @@ _MAX_BODY = 1 << 20  # 1 MiB
 _JSON_CT = "application/json; charset=utf-8"
 
 
-def _encode(data: Any) -> Any:
-    """Normalise a value into something json-serialisable.
-
-    Pydantic models (v2) are dumped with by_alias=True so field names use the
-    camelCase JSON aliases. Lists/tuples of models
-    are handled element-wise. Anything else is passed through to json.dumps.
-    """
-    # Pydantic v2 BaseModel: has model_dump. Duck-typed to avoid importing
-    # pydantic here (keeps this module cheap and dependency-light). Nested
-    # models inside dicts/lists (e.g. {"host": h}) are dumped too.
-    return jsonx.encode_models(data)
-
-
 def json_response(data: Any, status: int = 200) -> web.Response:
     """Write ``data`` as a JSON body with the given HTTP status code.
 

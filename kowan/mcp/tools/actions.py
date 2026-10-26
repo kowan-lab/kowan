@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..registry import ROLE_OPERATOR, ToolError, ToolRegistry, to_plain
+from ..registry import ROLE_OPERATOR, ToolError, ToolRegistry
 from ._common import CONTAINER_PROP, DEPLOYMENT_PROP, HOST_PROP, resolve_ops, short_id, with_timeout
 from .fleet import _host_names, deployment_row, find_workflow, resolve_deployment
 

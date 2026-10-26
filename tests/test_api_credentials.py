@@ -30,7 +30,6 @@ class TestSecrets(ServerCase):
 
         _, prev = await self.call("POST", "/credentials/resolve", "admin",
                                   json={"text": "pass=[[db.password]] none=[[missing]]"}, expect=200)
-        refs = {r["ref"] if "ref" in r else r.get("token", ""): r for r in prev["references"]}
         self.assertEqual(len(prev["references"]), 2)
         self.assertNotIn("pw-456", json.dumps(prev))
 

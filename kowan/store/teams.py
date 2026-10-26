@@ -217,10 +217,6 @@ class _TeamMixin(_Base):
         self._execute("DELETE FROM team_members WHERE team_id = ? AND user_id = ?", (team_id, user_id))
         self._authz_invalidate()
 
-    def user_team_ids(self, user_id: str) -> List[str]:
-        rows = self._query("SELECT team_id FROM team_members WHERE user_id = ?", (user_id,))
-        return [r["team_id"] for r in rows]
-
     def user_memberships(self, user_id: str) -> List[dict]:
         rows = self._query(
             "SELECT m.team_id, m.source, t.name FROM team_members m JOIN teams t ON t.id = m.team_id "

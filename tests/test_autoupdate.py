@@ -41,8 +41,6 @@ class TestModesAndDurations(unittest.TestCase):
         self.assertTrue(policy.notify_disabled({"kowan.notify": "False"}))
         self.assertFalse(policy.notify_disabled({"kowan.notify": "on"}))
         self.assertFalse(policy.notify_disabled({}))
-        self.assertTrue(policy.is_hidden({"kowan.hidden": "true"}))
-        self.assertFalse(policy.is_hidden({"kowan.hidden": "no"}))
 
 
 class TestWindows(unittest.TestCase):

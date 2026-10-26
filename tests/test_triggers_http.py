@@ -1,12 +1,11 @@
 """Polling triggers over HTTP, with httpx's MockTransport standing in for the
 registry and the git host: the docker-image Bearer handshake and digest
-fallback, registry_v2_get, the git smart-HTTP ref advertisement, and the
+fallback, the git smart-HTTP ref advertisement, and the
 workflow poller seeding, firing a run, and recording errors."""
 
 import asyncio
 import base64
 import hashlib
-import json
 import unittest
 from unittest import mock
 
@@ -48,8 +47,6 @@ class FakeRegistryHost:
         if url.path == "/v2/app/manifests/1.0":
             headers = {"Docker-Content-Digest": self.digest} if self.header else {}
             return httpx.Response(200, headers=headers, content=b"" if request.method == "HEAD" else self.manifest)
-        if url.path == "/v2/_catalog":
-            return httpx.Response(200, json={"repositories": ["app"]})
         return httpx.Response(404, text="nope")
 
 
@@ -77,11 +74,6 @@ class TestDockerImage(unittest.IsolatedAsyncioTestCase):
             reg.header = False
             fired, state = await p.evaluate({}, state)
             self.assertEqual(state, "sha256:" + hashlib.sha256(reg.manifest).hexdigest())
-            # registry_v2_get shares the handshake.
-            got = await dockerimage.registry_v2_get("registry.test", "/v2/_catalog", "bob", "pw")
-            self.assertEqual(got, {"repositories": ["app"]})
-            with self.assertRaises(ValueError):
-                await dockerimage.registry_v2_get("registry.test", "/v2/missing", "bob", "pw")
 
     async def test_errors(self):
         reg = FakeRegistryHost()

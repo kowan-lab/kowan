@@ -22,7 +22,7 @@ import zipfile
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .engine import _visible
-from .kinds import Context, get_kind, kinds
+from .kinds import Context, kinds
 from .resources import dump_yaml, render_document
 
 

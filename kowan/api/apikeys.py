@@ -56,7 +56,7 @@ async def _list_keys(svc: "Services", request: web.Request) -> web.Response:
     try:
         keys = svc.store.list_api_keys()
         grants = svc.store.list_grants()
-    except Exception as err:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return error_response(500, "failed to list api keys")
     for k in keys:
         k.scopes = [g.to_dict() for g in grants if g.subject_type == "apikey" and g.subject_id == k.id]
@@ -123,7 +123,7 @@ async def _create_key(svc: "Services", request: web.Request) -> web.Response:
     )
     try:
         svc.store.create_api_key(key, hash_api_key_secret(secret))
-    except Exception as err:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return error_response(500, "failed to create api key")
     if scope_fields:
         from kowan.api.teams import audit
@@ -150,7 +150,7 @@ async def _delete_key(svc: "Services", request: web.Request) -> web.Response:
     key_id = request.match_info.get("id", "")
     try:
         svc.store.delete_api_key(key_id)
-    except Exception as err:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return error_response(500, "failed to delete api key")
     return json_response({"status": "deleted"})
 

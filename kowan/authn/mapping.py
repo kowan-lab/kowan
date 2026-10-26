@@ -60,10 +60,6 @@ def map_role(claims: Dict[str, Any], config: Dict[str, Any]) -> str:
     return best
 
 
-def mapped_role_matched(claims: Dict[str, Any], config: Dict[str, Any]) -> bool:
-    return any(isinstance(r, dict) and _matches(claims, r) for r in config.get("roleMappings") or [])
-
-
 def map_teams(claims: Dict[str, Any], config: Dict[str, Any]) -> List[str]:
     """Team references (id or name) the claims map to, de-duplicated in order."""
     out: List[str] = []

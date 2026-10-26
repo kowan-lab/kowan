@@ -39,7 +39,6 @@ from kowan.events import Event
 from . import engine
 from .policy import (
     LABEL_UPDATE,
-    MODE_APPLY,
     MODE_NOTIFY,
     MODE_OFF,
     MODE_PULL,
@@ -455,7 +454,6 @@ class AutoUpdater:
             self._save_state(kind, hid, name, patch)
             return {"kind": kind, "target": name, "result": "skipped"}
 
-        labels = c.labels or {}
         alerts = eff.notify
         if eff.mode == MODE_NOTIFY:
             if state.get("notifiedDigest") != remote:

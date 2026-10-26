@@ -1,8 +1,7 @@
 """Shared error types used across the Kowan application.
 
 The common failure categories are modelled as typed exceptions so service-layer
-code can raise them and the web layer maps them to the right HTTP status via
-:func:`status_for`:
+code can raise them and the web layer maps them to the right HTTP status:
 
     NotFound      -> 404
     Conflict      -> 409
@@ -80,17 +79,6 @@ class Internal(AppError):
     """Unexpected server-side failure. Maps to 500 Internal Server Error."""
 
     status = HTTPStatus.INTERNAL_SERVER_ERROR
-
-
-def status_for(err: BaseException) -> int:
-    """Return the HTTP status code an exception should map to.
-
-    :class:`AppError` instances carry their own ``status``. Any other exception
-    is treated as an unexpected internal error (500).
-    """
-    if isinstance(err, AppError):
-        return err.status
-    return int(HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
 def error_response(err: BaseException) -> dict[str, str]:

@@ -40,7 +40,7 @@ class TestDaemonFailures(DeploymentCase):
         # Create fails on redeploy.
         self.engine.fail[("POST", r"/containers/create")] = (500, "no space left on device")
         await self.call("POST", f"/deployments/{dep['id']}/redeploy", "operator")
-        d = await self.wait_status(dep["id"], "error")
+        await self.wait_status(dep["id"], "error")
         _, status = await self.call("GET", f"/deployments/{dep['id']}/status", "viewer", expect=200)
         self.assertIn("no space left", status[0]["message"])
         del self.engine.fail[("POST", r"/containers/create")]

@@ -2,7 +2,6 @@
 volume selection, hooks, backup/restore flows with a fake helper, failure
 alerts and the HTTP API."""
 
-import asyncio
 import datetime as dt
 import os
 import tempfile

@@ -26,7 +26,7 @@ from typing import Any, Optional
 from aiohttp import web
 
 from kowan.auth import authorize as authz
-from kowan.store.teams import SOURCE_MANUAL, SUBJECT_APIKEY, SUBJECT_TEAM, SUBJECT_TYPES, SUBJECT_USER, GrantRow, Team
+from kowan.store.teams import SOURCE_MANUAL, SUBJECT_TEAM, SUBJECT_TYPES, SUBJECT_USER, GrantRow, Team
 from kowan.web import (
     SERVICES_KEY,
     api_route,

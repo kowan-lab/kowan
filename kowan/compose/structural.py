@@ -40,12 +40,6 @@ _TIMEOUT = float(os.environ.get("KOWAN_COMPOSE_VALIDATE_TIMEOUT", "10"))
 _cli_ok: Optional[bool] = None
 
 
-def reset_cli_probe() -> None:
-    """Forget the cached CLI probe (tests)."""
-    global _cli_ok
-    _cli_ok = None
-
-
 def _cli_env(extra: Optional[Mapping[str, str]]) -> Dict[str, str]:
     env: Dict[str, str] = {}
     for k in ("PATH", "HOME", "DOCKER_CONFIG", "TMPDIR", "SYSTEMROOT"):

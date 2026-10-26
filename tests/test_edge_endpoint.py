@@ -3,7 +3,6 @@ bounds message size, and drops a peer that never completes the handshake."""
 
 import asyncio
 import datetime
-import json
 import tempfile
 import unittest
 from unittest import mock

@@ -45,7 +45,6 @@ from kowan.web import (
     api_route,
     bind_svc,
     client_ip,
-    error_response,
     json_response,
     ops_error_response,
     read_body,

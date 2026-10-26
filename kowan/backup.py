@@ -34,7 +34,7 @@ import logging
 import os
 import shutil
 import tarfile
-from typing import IO, Optional, Protocol, Tuple
+from typing import IO, Protocol, Tuple
 
 log = logging.getLogger("kowan.backup")
 

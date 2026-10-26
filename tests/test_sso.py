@@ -10,7 +10,6 @@ import tempfile
 import time
 import unittest
 import uuid
-from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -21,7 +20,6 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 from kowan.api import sso as sso_api
 from kowan.auth import hash_password
-from kowan.authn import jose
 from kowan.authn.github import GitHubClient
 from kowan.authn.mapping import claim_values, map_role, map_teams
 from kowan.authn.oidc import OIDCClient, OIDCError, code_challenge, new_code_verifier
@@ -370,13 +368,13 @@ class TestProvisioning(unittest.TestCase):
                                                     "email_verified": True, "groups": ["ops", "web"]}, NOW)
         self.assertTrue(created)
         self.assertEqual((u.username, u.role, u.auth_source, u.password_hash), ("dev", "operator", "sso:kc", ""))
-        self.assertEqual(self.store.user_team_ids(u.id), ["t-web"])
+        self.assertEqual([m["teamId"] for m in self.store.user_memberships(u.id)], ["t-web"])
         self.store.add_team_member("t-man", u.id, "manual", NOW)
         u2, created = provision(self.store, self.p, {"sub": "s1", "groups": []}, NOW)
         self.assertFalse(created)
         self.assertEqual(u2.id, u.id)
         self.assertEqual(self.store.get_user(u.id).role, "viewer")  # re-synced down
-        self.assertEqual(self.store.user_team_ids(u.id), ["t-man"])  # manual kept, sso removed
+        self.assertEqual([m["teamId"] for m in self.store.user_memberships(u.id)], ["t-man"])  # manual kept, sso removed
 
     def test_username_collision(self):
         self.store.create_user(User(id="x", username="dev", role="viewer", createdAt=NOW))
@@ -592,7 +590,7 @@ class TestSSOFlow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await r.json())["returnTo"], "/")
 
     async def test_sso_only_mode(self):
-        p = await self.create_provider()
+        await self.create_provider()
         r = await self.client.put("/api/v1/sso/settings", json={"ssoOnly": True}, headers=self.admin_h)
         self.assertEqual(r.status, 200, await r.text())
         st = self.svc.store

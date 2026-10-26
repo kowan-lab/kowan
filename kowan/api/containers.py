@@ -38,7 +38,6 @@ from ..docker import Ops
 from ..models import ContainerSpec, PortMapping
 from ..web import (
     ops_error_response,
-    SERVICES_KEY,
     api_route,
     error_response,
     json_response,

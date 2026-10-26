@@ -15,7 +15,7 @@ import unittest
 
 from kowan import capabilities as cap
 from kowan import connections
-from kowan import registry, secrets
+from kowan import registry
 from kowan.connections import CapabilityError
 from kowan.models import Credential
 from kowan.secrets import Cipher, load_or_create_key

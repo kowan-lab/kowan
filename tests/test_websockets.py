@@ -4,7 +4,6 @@ hijacked stream replaced by an echoing fake), plus one-shot exec, stats and
 recent events, with the role gates and the ?token= credential for browsers."""
 
 import asyncio
-import json
 import unittest
 from unittest import mock
 

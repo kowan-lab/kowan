@@ -1,6 +1,5 @@
 """Network map: graph building, filtering and deterministic layered layout."""
 
-import copy
 import json
 import random
 import unittest

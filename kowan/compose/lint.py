@@ -416,12 +416,6 @@ _VAR = re.compile(
 SECRET_TOKEN = re.compile(r"\[\[\s*([A-Za-z0-9_.:-]+?)\s*\]\]")
 
 
-def _line_col(text: str, offset: int) -> Tuple[int, int]:
-    line = text.count("\n", 0, offset) + 1
-    start = text.rfind("\n", 0, offset) + 1
-    return line, offset - start + 1
-
-
 def _comment_start(line: str) -> int:
     """Index where a YAML comment starts on ``line`` (len when none). Good
     enough for compose: a '#' at line start or after whitespace, outside quotes."""

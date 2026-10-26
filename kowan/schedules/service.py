@@ -31,7 +31,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
 

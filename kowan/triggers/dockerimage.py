@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import httpx
 
@@ -187,56 +187,6 @@ async def _fetch_registry_token(
     if not token:
         raise ValueError("docker-image: token response carried no token")
     return token
-
-
-async def registry_v2_get(
-    base_host: str,
-    path: str,
-    username: str = "",
-    password: str = "",
-    *,
-    query: Optional[Dict[str, str]] = None,
-) -> Any:
-    """Authenticated GET of a Registry HTTP API v2 ``path`` on ``base_host``.
-
-    Performs the anonymous-or-Basic Bearer-token handshake on a 401 (the same
-    flow the manifest HEAD uses) and returns the parsed JSON body. ``base_host``
-    is a bare ``host[:port]`` (no scheme) — HTTPS is assumed; ``path`` starts with
-    ``/v2/``. Raises ``ValueError`` on a non-2xx response or a transport error.
-
-    Reused by the registry-browse API (``/v2/_catalog``, ``/v2/{repo}/tags/list``)
-    so browsing and digest polling share one token handshake.
-    """
-    endpoint = f"https://{base_host}{path}"
-    headers = {"Accept": "application/json"}
-    async with httpx.AsyncClient(
-        timeout=_DOCKER_IMAGE_TIMEOUT, follow_redirects=True
-    ) as client:
-        try:
-            resp = await client.get(endpoint, headers=headers, params=query)
-        except httpx.HTTPError as err:
-            raise ValueError(f"docker-image: GET {endpoint}: {err}") from err
-        # On a 401 carrying a Bearer challenge, obtain a token and retry once.
-        if resp.status_code == 401:
-            challenge = resp.headers.get("WWW-Authenticate", "")
-            token = await _fetch_registry_token(client, challenge, username, password)
-            auth_headers = dict(headers)
-            auth_headers["Authorization"] = "Bearer " + token
-            try:
-                resp = await client.get(endpoint, headers=auth_headers, params=query)
-            except httpx.HTTPError as err:
-                raise ValueError(f"docker-image: GET {endpoint}: {err}") from err
-
-        raw = resp.content[:_MANIFEST_BODY_LIMIT]
-        if resp.status_code < 200 or resp.status_code >= 300:
-            snippet = raw.decode("utf-8", "replace").strip()
-            raise ValueError(
-                f"docker-image: GET {endpoint}: unexpected status {resp.status_code}: {snippet}"
-            )
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as err:
-            raise ValueError(f"docker-image: decode {endpoint}: {err}") from err
 
 
 def _auth_token(req: Optional[httpx.Request]) -> str:

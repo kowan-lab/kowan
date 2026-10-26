@@ -99,6 +99,3 @@ class _ScanMixin(_Base):
         else:
             rows = self._query(f"SELECT {_SUMMARY_COLS} FROM image_scans ORDER BY scanned_at DESC")
         return [_row(r, False) for r in rows]
-
-    def delete_image_scan(self, image_id: str) -> None:
-        self._execute("DELETE FROM image_scans WHERE image_id = ?", (image_id,))
