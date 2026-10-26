@@ -977,6 +977,12 @@ export interface ComponentUpdateStatus {
   previous?: { image: string; version: string; digest: string } | null;
   inProgress?: PlatformUpdate | null;
   last?: PlatformUpdate | null;
+  /** Release versions (X.Y.Z tags of the release repository): the running one,
+   *  the newest published, and whether it is newer. Known even without self-update. */
+  currentVersion?: string;
+  latestVersion?: string;
+  newVersion?: boolean;
+  releaseError?: string;
 }
 
 // ---------------------------------------------------------------------------

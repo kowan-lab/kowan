@@ -47,6 +47,8 @@ export default defineConfig({
       KOWAN_DATA_DIR: dataDir,
       KOWAN_SETUP_TOKEN: SETUP_TOKEN,
       KOWAN_MONITOR_INTERVAL: "5s",
+      // No release check against ghcr: the specs never need the network.
+      KOWAN_RELEASE_REPOSITORY: "",
     },
     stdout: "ignore",
     // The server logs every request at INFO; e2e/.data/server.log is not written,

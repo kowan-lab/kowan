@@ -89,6 +89,7 @@ The server works without configuration. These environment variables are the ones
 | `KOWAN_SECRET_KEY` | Key that encrypts stored secrets. Generated and kept in `/data` when unset. |
 | `KOWAN_JWT_SECRET` | Session signing key. Generated and kept in `/data` when unset. |
 | `KOWAN_SETUP_TOKEN` | One-time token for the first-run setup screen. Generated and printed in the log when unset. |
+| `KOWAN_RELEASE_REPOSITORY` | Where the server looks for new releases to announce in the bell. `ghcr.io/kowan-lab/kowan` by default; empty turns it off. |
 
 Security settings, all optional. Admins can also narrow the two allowlists from **Settings > Network access** (never widen them, and never in a way that locks out their own connection):
 

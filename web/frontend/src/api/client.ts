@@ -1613,8 +1613,9 @@ export async function syncDeployment(
 // ---------------------------------------------------------------------------
 type UpdateStarted = { id: string };
 
-export async function getServerUpdateStatus(): Promise<import("../types").ComponentUpdateStatus> {
-  return (await api.get<import("../types").ComponentUpdateStatus>("/system/server/update")).data;
+/** `refresh` skips the server's registry caches (the Check button). */
+export async function getServerUpdateStatus(refresh = false): Promise<import("../types").ComponentUpdateStatus> {
+  return (await api.get<import("../types").ComponentUpdateStatus>("/system/server/update", refresh ? { params: { refresh: "1" } } : undefined)).data;
 }
 export async function startServerUpdate(image?: string): Promise<UpdateStarted> {
   return (await api.post<UpdateStarted>("/system/server/update", image ? { image } : {})).data;
@@ -1628,8 +1629,8 @@ export async function listServerUpdates(limit = 20): Promise<import("../types").
 export async function getPlatformUpdate(id: string): Promise<import("../types").PlatformUpdate> {
   return (await api.get<import("../types").PlatformUpdate>(`/system/updates/${encodeURIComponent(id)}`)).data;
 }
-export async function getAgentUpdateStatus(hostId: string): Promise<import("../types").ComponentUpdateStatus> {
-  return (await api.get<import("../types").ComponentUpdateStatus>(`/hosts/${hostId}/agent/update`)).data;
+export async function getAgentUpdateStatus(hostId: string, refresh = false): Promise<import("../types").ComponentUpdateStatus> {
+  return (await api.get<import("../types").ComponentUpdateStatus>(`/hosts/${hostId}/agent/update`, refresh ? { params: { refresh: "1" } } : undefined)).data;
 }
 export async function startAgentUpdate(hostId: string, image?: string): Promise<UpdateStarted> {
   return (await api.post<UpdateStarted>(`/hosts/${hostId}/agent/update`, image ? { image } : {})).data;

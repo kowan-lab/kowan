@@ -167,12 +167,12 @@ async def _swarm(request: web.Request) -> web.Response:
 async def _agent_update_check(request: web.Request) -> web.Response:
     """Agent update status: versions, digests, previous, in-progress and last run.
     Best-effort: problems are reported in ``reason``/``error``, never as 5xx."""
-    from kowan.api.serverupdate import manager
+    from kowan.api.serverupdate import manager, refresh_param
     from kowan.updater import COMPONENT_AGENT
 
     svc = _svc(request)
     h = _load_host(svc, request.match_info["hostID"])
-    return json_response(await manager(svc).status(COMPONENT_AGENT, h))
+    return json_response(await manager(svc).status(COMPONENT_AGENT, h, refresh=refresh_param(request)))
 
 
 async def _agent_start(request: web.Request, mode: str, allowed: set) -> web.Response:

@@ -91,6 +91,11 @@ class ServerConfig:
     # the request scheme+Host.
     external_url: str = ""
 
+    # Image repository whose X.Y.Z tags are the released versions (env
+    # KOWAN_RELEASE_REPOSITORY); the server checks it for newer releases and
+    # announces them in the bell (kowan/releases.py). Empty or "off" turns it off.
+    release_repository: str = "ghcr.io/kowan-lab/kowan"
+
 
 @dataclass
 class AgentConfig:
@@ -288,6 +293,7 @@ def load_server_config() -> ServerConfig:
         workflow_runs_keep=env_int("KOWAN_WORKFLOW_RUNS_KEEP", 100),
         secret_key=os.environ.get("KOWAN_SECRET_KEY", ""),
         external_url=os.environ.get("KOWAN_EXTERNAL_URL", ""),
+        release_repository=os.environ.get("KOWAN_RELEASE_REPOSITORY", "ghcr.io/kowan-lab/kowan"),
     )
 
     # The JWT secret is resolved from a persisted keyfile at bootstrap (see

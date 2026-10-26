@@ -25,7 +25,7 @@ def config(data_dir: str, socket: str, **kw: Any) -> ServerConfig:
         addr="127.0.0.1:0", data_dir=data_dir, jwt_secret="x" * 48,
         monitor_interval=datetime.timedelta(seconds=3600),
         metrics_retention=datetime.timedelta(hours=1), secret_key="", external_url="",
-        docker_socket=socket, **kw,
+        docker_socket=socket, release_repository="", **kw,
     )
 
 

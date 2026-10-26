@@ -223,6 +223,13 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
     onError: (e) => notify({ color: "red", title: "Could not start the rollback", message: errorMessage(e, "Nothing was changed.") }),
   });
 
+  // Check asks the registry again (the server otherwise caches its answer).
+  const check = useMutation({
+    mutationFn: () => (isServer ? getServerUpdateStatus(true) : getAgentUpdateStatus(hostId!, true)),
+    onSuccess: (fresh) => qc.setQueryData(statusKey, fresh),
+    onError: (e) => notify({ color: "red", title: "Could not check for updates", message: errorMessage(e, "Try again in a moment.") }),
+  });
+
   const s: ComponentUpdateStatus | undefined = status.data;
   const busy = !!watchId && (!current || current.status === "running");
   const name = isServer ? "server" : "agent";
@@ -241,27 +248,48 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
 
   if (status.isLoading) return <div className="flex flex-col gap-3"><Skeleton height={14} width="40%" /><Skeleton height={14} width="60%" /></div>;
   if (status.isError) return <Callout color="danger" title="Could not read the update status">{errorMessage(status.error, "Try again in a moment.")}</Callout>;
+  const checkButton = isAdmin && (
+    <Button variant="outline" size="sm" iconLeft="refresh-rounded" disabled={busy} loading={check.isPending} onClick={() => check.mutate()}>Check</Button>
+  );
+  const running = s?.currentVersion || versionOf(s?.version, s?.running);
+  // The newest release by version; a digest only for images without version tags.
+  const latestLabel = s?.latestVersion || (s?.latest ? short(s.latest) : "—");
+  const latestNote = s?.releaseError || s?.error
+    || (s?.newVersion ? "newer version available" : s?.updateAvailable ? "newer image available" : s?.latestVersion || s?.latest ? "up to date" : "not checked");
+  const versions = (
+    <>
+      <div className="flex flex-col gap-[2px]">
+        <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Running</span>
+        <span className="font-mono text-[17px] font-semibold">{running || "—"}</span>
+        {s?.image && <span className="truncate font-mono text-[12px] text-muted-foreground" title={s.image}>{s.image}</span>}
+      </div>
+      <div className="flex flex-col gap-[2px]">
+        <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Latest release</span>
+        <span className={cn("font-mono text-[17px] font-semibold", s?.newVersion && "text-[var(--tone-amber-text)]")} title={s?.latest || undefined}>{latestLabel}</span>
+        <span className="text-[12px] text-muted-foreground" role="status">{latestNote}</span>
+      </div>
+    </>
+  );
+
   if (!s?.supported) {
     return (
-      <Callout color="gray" title={`Self-update is not available for this ${name}`}>
-        {s?.reason || s?.error || `The ${name} must run as a container with the Docker socket mounted.`}
-      </Callout>
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-x-12 gap-y-5 sm:grid-cols-[repeat(2,minmax(0,max-content))_1fr]">
+          {versions}
+          {checkButton && <div className="flex flex-wrap items-start justify-end gap-3">{checkButton}</div>}
+        </div>
+        <Callout color="gray" title={`Self-update is not available for this ${name}`}>
+          {s?.reason || s?.error || `The ${name} must run as a container with the Docker socket mounted.`}
+          {s?.newVersion && ` To move to ${s.latestVersion}, ${isServer ? "pull the new image or the new code and restart the server" : "run the agent's join command again with the new image"}.`}
+        </Callout>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-x-12 gap-y-5 sm:grid-cols-[repeat(3,minmax(0,max-content))_1fr]">
-        <div className="flex flex-col gap-[2px]">
-          <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Running</span>
-          <span className="font-mono text-[17px] font-semibold">{versionOf(s.version, s.running)}</span>
-          <span className="truncate font-mono text-[12px] text-muted-foreground" title={s.image}>{s.image}</span>
-        </div>
-        <div className="flex flex-col gap-[2px]">
-          <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Registry</span>
-          <span className="font-mono text-[17px] font-semibold">{s.latest ? short(s.latest) : "—"}</span>
-          <span className="text-[12px] text-muted-foreground">{s.error ? s.error : s.updateAvailable ? "newer image available" : "same as running"}</span>
-        </div>
+        {versions}
         <div className="flex flex-col gap-[2px]">
           <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Previous</span>
           <span className="font-mono text-[17px] font-semibold">{s.previous ? versionOf(s.previous.version, s.previous.digest) : "—"}</span>
@@ -269,7 +297,7 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
         </div>
         {isAdmin && (
           <div className="flex flex-wrap items-start justify-end gap-3">
-            <Button variant="outline" size="sm" iconLeft="refresh-rounded" disabled={busy} loading={status.isFetching} onClick={() => void status.refetch()}>Check</Button>
+            {checkButton}
             {s.canRollback && <Button variant="outline" size="sm" iconLeft="history-rounded" disabled={busy} onClick={() => setConfirm("rollback")}>Roll back</Button>}
             <Button size="sm" iconLeft="upgrade-rounded" disabled={busy} onClick={() => setConfirm("update")}>{s.updateAvailable ? "Update now" : "Update"}</Button>
           </div>

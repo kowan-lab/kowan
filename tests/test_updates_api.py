@@ -36,8 +36,8 @@ class StubManager:
     def live(self, _id):
         return False
 
-    async def status(self, component, host=None):
-        self.calls.append(("status", component, getattr(host, "id", None)))
+    async def status(self, component, host=None, refresh=False):
+        self.calls.append(("status", component, getattr(host, "id", None)) + (("refresh",) if refresh else ()))
         return {"supported": True, "reason": "", "error": "", "image": "x:1", "container": "c",
                 "version": "1", "running": "", "latest": "", "updateAvailable": False,
                 "canRollback": False, "previous": None, "inProgress": None, "last": None}

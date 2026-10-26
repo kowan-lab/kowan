@@ -2,7 +2,8 @@
 
 Mounts, under ``/api/v1`` (contract: ``docs/updates-design.md``):
 
-  - GET  /system/server/update    -> status of the server (admin)
+  - GET  /system/server/update    -> status of the server, ?refresh=1 skips
+                                     the registry caches (admin)
   - POST /system/server/update    -> body {image?} -> 202 {id} (admin)
   - POST /system/server/rollback  -> body {restoreDb?} -> 202 {id} (admin)
   - GET  /system/server/updates   -> history, ?limit=20 (admin)
@@ -30,6 +31,19 @@ log = logging.getLogger("kowan.api.serverupdate")
 
 
 def register(app: web.Application, svc) -> None:
+    from kowan.releases import Releases
+
+    releases = Releases(svc, svc.config.release_repository)
+    svc.attach("releases", releases)
+
+    async def _start(_app: web.Application) -> None:
+        releases.start()
+
+    async def _stop(_app: web.Application) -> None:
+        await releases.stop()
+
+    app.on_startup.append(_start)
+    app.on_cleanup.append(_stop)
     api_route(app, "GET", "/system/server/update", require_role("admin")(_status))
     api_route(app, "POST", "/system/server/update", require_role("admin")(_update))
     api_route(app, "POST", "/system/server/rollback", require_role("admin")(_rollback))
@@ -94,10 +108,14 @@ def limit_param(request: web.Request) -> int:
     return max(1, min(n, 200))
 
 
+def refresh_param(request: web.Request) -> bool:
+    return request.query.get("refresh", "") in ("1", "true")
+
+
 async def _status(request: web.Request) -> web.Response:
     from kowan.updater import COMPONENT_SERVER
 
-    return json_response(await manager(_svc(request)).status(COMPONENT_SERVER))
+    return json_response(await manager(_svc(request)).status(COMPONENT_SERVER, refresh=refresh_param(request)))
 
 
 async def _start(request: web.Request, mode: str, body: Dict[str, Any]) -> web.Response:

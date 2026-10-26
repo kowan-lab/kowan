@@ -415,12 +415,12 @@ class UpdateManager:
         return Target(component, host, ops, insp, img), ""
 
     # -------------------------------------------------------------- status --
-    async def _latest_digest(self, image_ref: str) -> Tuple[str, str]:
+    async def _latest_digest(self, image_ref: str, refresh: bool = False) -> Tuple[str, str]:
         from .. import agentupdate
 
         now = time.monotonic()
         hit = self._latest.get(image_ref)
-        if hit and hit[0] > now:
+        if hit and hit[0] > now and not refresh:
             return hit[1], hit[2]
         try:
             dig, err = await asyncio.wait_for(agentupdate._remote_digest(self.store, image_ref), 15), ""
@@ -456,19 +456,36 @@ class UpdateManager:
             log.debug("updates: history unavailable: %s", err)
         return in_progress, last
 
-    async def status(self, component: str, host: Any = None) -> Dict[str, Any]:
+    async def status(self, component: str, host: Any = None, refresh: bool = False) -> Dict[str, Any]:
+        """The update state of the server or an agent. Besides digests (what
+        the self-update swaps), it carries the release versions: the running
+        one and the newest published (``kowan.releases``), known even when
+        self-update is not possible, e.g. a server run from source.
+        ``refresh`` skips the registry caches (the panel's Check button)."""
         host_id = None if component == COMPONENT_SERVER else getattr(host, "id", None)
         in_progress, last = self._records(component, host_id)
         res: Dict[str, Any] = {
             "supported": False, "reason": "", "error": "", "image": "", "container": "",
             "version": "", "running": "", "latest": "", "updateAvailable": False,
             "canRollback": False, "previous": None, "inProgress": in_progress, "last": last,
+            "currentVersion": "", "latestVersion": "", "newVersion": False, "releaseError": "",
         }
+        releases = getattr(self.svc, "releases", None)
+        if releases is not None:
+            res.update(await releases.status(refresh))
+        if component != COMPONENT_SERVER:
+            res["currentVersion"] = ""  # the agent's comes from its image label below
         target, reason = await self.resolve_target(component, host)
         if target is None:
             res["reason"] = reason
             res["error"] = reason
+            res["newVersion"] = res["newVersion"] and component == COMPONENT_SERVER
             return res
+        if component != COMPONENT_SERVER:
+            from ..releases import is_newer
+
+            res["currentVersion"] = target.version
+            res["newVersion"] = is_newer(res["latestVersion"], target.version)
         res.update({
             "supported": True, "image": target.image_ref, "container": target.name,
             "version": target.version, "running": target.digest,
@@ -476,7 +493,7 @@ class UpdateManager:
         res["previous"] = await self.previous_info(target)
         res["canRollback"] = res["previous"] is not None and in_progress is None
         if target.image_ref and not target.image_ref.startswith("sha256:"):
-            latest, err = await self._latest_digest(target.image_ref)
+            latest, err = await self._latest_digest(target.image_ref, refresh)
             res["latest"] = latest
             if err:
                 res["error"] = err
@@ -485,6 +502,7 @@ class UpdateManager:
             running_repo = _running_digest(target.image_inspect, _split_ref(target.image_ref)[1])
             if latest and running_repo:
                 res["updateAvailable"] = latest != running_repo
+        res["updateAvailable"] = res["updateAvailable"] or res["newVersion"]
         return res
 
     # --------------------------------------------------------------- start --

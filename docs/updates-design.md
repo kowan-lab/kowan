@@ -160,6 +160,18 @@ Server (admin):
   (`reason` explains `supported: false`; `error` also carries a best-effort
   registry check failure while `supported` stays true. `running`/`digest` are
   the registry digest, or the image id for a locally built image.)
+  The status also carries the release versions, known even when `supported`
+  is false (a server run from source): `currentVersion`, `latestVersion` (the
+  highest `X.Y.Z` tag of `KOWAN_RELEASE_REPOSITORY`, `ghcr.io/kowan-lab/kowan`
+  by default), `newVersion` and `releaseError`; `updateAvailable` is also true
+  when `newVersion` is. Registry answers are cached (5 minutes for digests, an
+  hour for versions); `?refresh=1`, sent by the Check button, skips both.
+
+Release notices: every 6 hours (first check 2 minutes after start) the server
+reads the release versions and, the first time one is newer than its own,
+posts a notice to the bell ("Kowan X.Y.Z is available"), once per version
+(`kowan/releases.py`). An empty `KOWAN_RELEASE_REPOSITORY`, or `off`, turns the
+check off.
 - `POST /system/server/update` body `{image?: string}` → `202 {id}`
 - `POST /system/server/rollback` body `{restoreDb?: boolean}` (default true) → `202 {id}`
 - `GET  /system/server/updates?limit=20` → `Update[]` (history, newest first)

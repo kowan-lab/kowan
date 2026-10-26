@@ -135,6 +135,51 @@ describe("settings page", () => {
     expect(await screen.findByText("not running in a container")).toBeInTheDocument();
   });
 
+  it("shows the running and latest release, and Check asks the registry again", async () => {
+    let latest = "1.0.0";
+    const { user } = renderApp("/settings", {
+      api: {
+        "GET /system/server/update": (r: { query: Record<string, string> }) => {
+          if (r.query.refresh) latest = "1.1.0";
+          return status({ updateAvailable: latest !== "1.0.0", currentVersion: "1.0.0", latestVersion: latest, newVersion: latest !== "1.0.0" });
+        },
+      },
+    });
+    expect(await screen.findByText("up to date", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText("Latest release")).toBeInTheDocument();
+    expect(screen.queryByText("bbbbbbbbbbbb")).toBeNull(); // a version, not a digest
+    await press(user, /^check$/i);
+    expect(await screen.findByText("newer version available")).toBeInTheDocument();
+    expect(screen.getByText("1.1.0")).toBeInTheDocument();
+    expect(requests("GET", "/system/server/update").some((r) => r.query.refresh === "1")).toBe(true);
+    expect(screen.getByRole("button", { name: /update now/i })).toBeInTheDocument();
+  });
+
+  it("shows versions and Check for a server run from source", async () => {
+    const { user } = renderApp("/settings", {
+      api: {
+        "GET /system/server/update": status({
+          supported: false, reason: "the server is not running in a container", currentVersion: "0.1.0", latestVersion: "0.1.1", newVersion: true,
+        }),
+      },
+    });
+    expect(await screen.findByText(/self-update is not available/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText("0.1.0")).toBeInTheDocument();
+    expect(screen.getByText("0.1.1")).toBeInTheDocument();
+    expect(screen.getByText(/to move to 0\.1\.1, pull the new image or the new code/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /update now/i })).toBeNull();
+    await press(user, /^check$/i);
+    await waitFor(() => expect(requests("GET", "/system/server/update").some((r) => r.query.refresh === "1")).toBe(true));
+  });
+
+  it("reports a failed check", async () => {
+    const { user } = renderApp("/settings", { api: { "GET /system/server/update": (r: { query: Record<string, string> }) =>
+      r.query.refresh ? reply(502, { error: "registry unreachable" }) : status({ updateAvailable: false, currentVersion: "1.0.0", latestVersion: "1.0.0" }) } });
+    await screen.findByText("up to date", {}, { timeout: 10_000 });
+    await press(user, /^check$/i);
+    await toast(/could not check for updates/i);
+  });
+
   it("shows a status error and hides admin cards for operators", async () => {
     renderApp("/settings", { api: { "GET /system/server/update": reply(500, { error: "docker socket missing" }) } });
     expect(await screen.findByText(/docker socket missing/i, {}, { timeout: 10_000 })).toBeInTheDocument();
