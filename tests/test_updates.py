@@ -211,6 +211,49 @@ class TestCheckHost(unittest.TestCase):
             self.assertTrue(r["checkedAt"])
 
 
+class TestCheckImage(unittest.TestCase):
+    """One image, every tag, asked of the registry now (cache bypassed)."""
+
+    def test_rows_per_tag(self):
+        images = {
+            "sha256:app": {"RepoTags": ["nginx:latest", "nginx:1.27", "<none>:<none>"], "RepoDigests": ["nginx@sha256:old"]},
+            "sha256:local": {"RepoTags": ["myapp:dev"], "RepoDigests": []},
+            "sha256:bare": {"RepoTags": [], "RepoDigests": []},
+        }
+        seen = []
+
+        async def fake_remote(store, ref):
+            seen.append(ref.tag)
+            if ref.tag == "1.27":
+                raise ValueError("401 unauthorized")
+            return "sha256:new"
+
+        async def run(image_id, cache):
+            with mock.patch.object(updates, "_remote_digest", fake_remote):
+                return await updates.check_image(mock.Mock(store=None), _FakeOps([], images), image_id, cache=cache)
+
+        cache = DigestCache()
+        rows = {r["tag"]: r for r in asyncio.run(run("sha256:app", cache))}
+        self.assertEqual(set(rows), {"nginx:latest", "nginx:1.27"})
+        self.assertTrue(rows["nginx:latest"]["updateAvailable"])
+        self.assertEqual((rows["nginx:latest"]["localDigest"], rows["nginx:latest"]["remoteDigest"]), ("sha256:old", "sha256:new"))
+        self.assertFalse(rows["nginx:1.27"]["updateAvailable"])
+        self.assertIn("401", rows["nginx:1.27"]["error"])
+        # A second check asks again: the cache is bypassed.
+        asyncio.run(run("sha256:app", cache))
+        self.assertEqual(seen.count("latest"), 2)
+        [local] = asyncio.run(run("sha256:local", cache))
+        self.assertEqual(local["error"], "local image (no registry digest)")
+        self.assertEqual(asyncio.run(run("sha256:bare", cache)), [])
+        [bad] = asyncio.run(run_bad_ref())
+        self.assertTrue(bad["error"])
+
+
+async def run_bad_ref():
+    images = {"x": {"RepoTags": ["sha256:" + "a" * 64], "RepoDigests": ["a@sha256:b"]}}
+    return await updates.check_image(mock.Mock(store=None), _FakeOps([], images), "x", cache=DigestCache())
+
+
 class TestContainerPortsOrder(unittest.TestCase):
     def test_ports_sorted_whatever_docker_returns(self):
         raw = [{"privatePort": 443, "publicPort": 8443, "type": "tcp", "ip": "::"},

@@ -7,6 +7,7 @@
 - **Auto-heal sees a compose service that is gone.** A compose target was judged by its first container, so with nginx up and backend and frontend removed it read "running" and nothing redeployed. Every declared service now counts (a one-shot that exited 0 is done): the target turns `degraded`, naming what is missing or stopped, and the reconcile loop redeploys it. The loop now runs every 5 s (`KOWAN_RECONCILE_INTERVAL`); the 120 s cooldown per deployment stays.
 - **Switching host opens its overview**, from the host menu and from search.
 - **Ports in a fixed order.** Docker lists a container's ports in a different order on every call; they are now sorted (container port, protocol, host port, IPv4 before IPv6). The container page also sorts its mounts, networks and aliases.
+- **Images: updates and bulk remove.** An Update column says which images have a newer digest; each image can be checked against its registry on the spot (`GET /hosts/{id}/images/{image}/update`, also for images no container runs) and the newer one pulled. Filters (in use, unused, untagged, update available) and multi-select remove many images at once.
 - **No leftover auto-update policies.** Saving a policy equal to the defaults (mode off, nothing else set) deletes it instead of storing it, so cycling the Updates knob back to off leaves nothing behind; an old row like that no longer shows in Auto-update.
 
 ## 0.1.2 — 2026-10-26

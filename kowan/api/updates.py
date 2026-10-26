@@ -2,6 +2,10 @@
 
 Two routes, no workflow needed:
 
+  GET  /hosts/{hostID}/images/{id}/update
+       The same check for ONE image, every tag of it, asked of the registry
+       now (cache bypassed, and refreshed for the host report): works for an
+       image no container runs. One row per tag.
   GET  /hosts/{hostID}/updates[?refresh=1]
        For every container on the host compare the digest of the image the
        container actually runs (``RepoDigests`` of its image id) with the
@@ -503,6 +507,7 @@ async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCac
 
 def register(app: web.Application, svc: Any) -> None:
     api_route(app, "GET", "/hosts/{hostID}/updates", _list_updates)
+    api_route(app, "GET", "/hosts/{hostID}/images/{id}/update", _image_update)
     api_route(
         app,
         "POST",
@@ -518,6 +523,50 @@ async def _list_updates(request: web.Request) -> web.StreamResponse:
     try:
         rows = await check_host(svc, ops, refresh=refresh)
     except Exception as err:  # noqa: BLE001 - list_containers failed
+        return ops_error_response(err)
+    return json_response(rows)
+
+
+async def check_image(svc: Any, ops: Any, image_id: str, cache: DigestCache = _CACHE) -> List[Dict[str, Any]]:
+    """Ask the registry about every tag of one image now (never raises per tag)."""
+    img = await ops.inspect_image(image_id) or {}
+    repo_digests = img.get("RepoDigests") or []
+    tags = [t for t in (img.get("RepoTags") or []) if t and t != "<none>:<none>"]
+
+    async def one(tag: str) -> Dict[str, Any]:
+        row: Dict[str, Any] = {"tag": tag, "localDigest": "", "remoteDigest": "", "updateAvailable": False, "checkedAt": now_rfc3339()}
+        try:
+            ref = parse_image_ref(tag)
+        except ValueError as err:
+            row["error"] = str(err)
+            return row
+        if not repo_digests:
+            row["error"] = "local image (no registry digest)"
+            return row
+
+        async def fetch() -> str:
+            try:
+                return await _remote_digest(svc.store, ref)
+            except Exception as err:  # noqa: BLE001
+                raise ValueError(friendly_registry_error(ref, err)) from err
+
+        entry = await cache.resolve(ref.key, fetch, refresh=True)
+        row["checkedAt"] = entry.checked_at
+        row["remoteDigest"] = entry.digest
+        row["localDigest"], row["updateAvailable"] = compare_digests(repo_digests, ref, entry.digest)
+        if entry.error:
+            row["error"] = entry.error
+        return row
+
+    return list(await asyncio.gather(*(one(t) for t in tags)))
+
+
+async def _image_update(request: web.Request) -> web.StreamResponse:
+    svc = _svc(request)
+    ops = _ops_for(svc, request.match_info["hostID"])
+    try:
+        rows = await check_image(svc, ops, request.match_info["id"])
+    except Exception as err:  # noqa: BLE001 - inspect failed (gone, host down)
         return ops_error_response(err)
     return json_response(rows)
 

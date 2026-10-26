@@ -583,7 +583,6 @@ export default function Volumes() {
               <Button
                 variant="outline"
                 color="neutral"
-                size="lg"
                 aria-label="Refresh volumes"
                 iconLeft="refresh-rounded"
                 loading={volumesQuery.isFetching}
@@ -592,7 +591,7 @@ export default function Volumes() {
             </Tooltip>
             <Button
               variant="outline"
-              color="neutral"
+              color="danger"
               iconLeft="delete-outline-rounded"
               onClick={() => setPruneOpen(true)}
             >

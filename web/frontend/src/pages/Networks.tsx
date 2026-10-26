@@ -472,7 +472,6 @@ export default function Networks() {
               <Button
                 variant="outline"
                 color="neutral"
-                size="lg"
                 iconLeft="refresh-rounded"
                 aria-label="Refresh networks"
                 loading={networksQuery.isFetching}
@@ -491,7 +490,7 @@ export default function Networks() {
             )}
             <Button
               variant="outline"
-              color="neutral"
+              color="danger"
               iconLeft="delete-outline-rounded"
               onClick={openPrune}
             >

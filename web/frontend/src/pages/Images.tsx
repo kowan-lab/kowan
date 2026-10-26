@@ -31,7 +31,13 @@ import {
   prune,
   pullImage,
   removeImage,
+  checkImageUpdate,
+  listContainers,
+  type ImageUpdateRow,
 } from "../api/client";
+import { describeUpdate, imageUpdate, normalizeRef, UPDATES_KEY, useContainerUpdates, type ImageUpdateState } from "../lib/updates";
+
+type ImageFilter = "all" | "used" | "unused" | "untagged" | "update";
 import ConfirmModal from "../components/ConfirmModal";
 import HostSelectField, { defaultTargetHost } from "../components/HostSelectField";
 import KeyValueEditor from "../components/KeyValueEditor";
@@ -44,7 +50,7 @@ import { useHost, isAllHosts } from "../HostContext";
 import { useHostScopedList, type WithHost } from "../useHostScopedList";
 import { LIVE_REFETCH_MS } from "../lib/live";
 import { realTags } from "../lib/images";
-import type { BuildOptions, BuildResult, Image } from "../types";
+import type { BuildOptions, BuildResult, Container, Image } from "../types";
 import { errorMessage, formatBytes, formatDate, shortId } from "../utils";
 import { notify } from "../ui/toast";
 
@@ -366,8 +372,131 @@ export default function Images() {
     setPullOpen(false);
   };
 
-  const images = imagesQuery.data ?? [];
   const scans = useHostScans(hostId);
+
+  // Which images have a newer digest in their registry, from the update report
+  // of the containers that run them. Check updates asks the registries again,
+  // bypassing the server's digest cache, and fills the column when it is done.
+  const updates = useContainerUpdates(hostId);
+  // A check of one image (the row's icon) is fresher than the container
+  // report and covers images no container runs: it wins while it is there.
+  const [imageChecks, setImageChecks] = useState<Record<string, ImageUpdateRow[]>>({});
+  const imageKey = (image: ImageRow) => `${rowHost(image)}/${image.id}`;
+  const updateOf = (image: ImageRow): { state: ImageUpdateState; tip: string } => {
+    const own = imageChecks[imageKey(image)];
+    if (own) {
+      const state: ImageUpdateState = !own.length ? "none" : own.some((r) => r.updateAvailable) ? "update" : own.some((r) => r.error) ? "error" : "current";
+      const short = (d: string) => (d ? d.replace(/^sha256:/, "").slice(0, 12) : "—");
+      const tip = own.map((r) => `${r.tag}: ${r.error || (r.updateAvailable ? `registry has ${short(r.remoteDigest)}, here ${short(r.localDigest)}` : `up to date (${short(r.localDigest)})`)}`).join("\n");
+      return { state, tip };
+    }
+    const u = imageUpdate(updates.forHost(rowHost(image)), realTags(image));
+    return { state: u.state, tip: u.rows.map((r) => `${r.containerName}: ${describeUpdate(r)}`).join("\n") };
+  };
+  const checkOne = useMutation({
+    mutationFn: (image: ImageRow) => checkImageUpdate(rowHost(image), image.id),
+    onSuccess: (rows, image) => {
+      setImageChecks((m) => ({ ...m, [imageKey(image)]: rows }));
+      const name = realTags(image)[0] ?? shortId(image.id);
+      const newer = rows.filter((r) => r.updateAvailable);
+      const failed = rows.find((r) => r.error);
+      notify(
+        newer.length ? { color: "blue", title: `${name}: update available`, message: "The registry has a newer image. Pull it from the row." }
+          : failed ? { color: "yellow", title: `${name}: couldn't check`, message: failed.error ?? "" }
+            : rows.length ? { color: "green", title: `${name} is up to date`, message: "Same digest as the registry." }
+              : { color: "gray", title: `${name} has no tag`, message: "There is nothing to compare with a registry." },
+      );
+    },
+    onError: (err) => notify({ color: "red", title: "Check failed", message: errorMessage(err, "Could not check the image") }),
+  });
+  // Pull the tags that have a newer image. Containers keep the image they
+  // started with until they are updated (the workload's Update does that).
+  const pullNewer = useMutation({
+    mutationFn: async (image: ImageRow) => {
+      const tags = (imageChecks[imageKey(image)] ?? []).filter((r) => r.updateAvailable).map((r) => r.tag);
+      const list = tags.length ? tags : realTags(image);
+      for (const t of list) await pullImage(rowHost(image), t);
+      return list;
+    },
+    onSuccess: (tags, image) => {
+      notify({ color: "green", title: `Pulled ${tags.join(", ")}`, message: "Containers that use it switch when they are updated or redeployed." });
+      setImageChecks((m) => {
+        const next = { ...m };
+        delete next[imageKey(image)];
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ["images"] });
+      void queryClient.invalidateQueries({ queryKey: [UPDATES_KEY] });
+    },
+    onError: (err) => notify({ color: "red", title: "Pull failed", message: errorMessage(err, "Could not pull the image") }),
+  });
+  const UPDATE_RANK: Record<ImageUpdateState, number> = { update: 3, error: 2, current: 1, none: 0 };
+
+  const allImages = imagesQuery.data ?? [];
+
+  // Which images a container (running or stopped) uses, as Docker counts it:
+  // a container names its image by tag, or by id once the tag moved on.
+  const containersQuery = useHostScopedList<Container>("containers:all", hostId, (h) => listContainers(h, true), { refetchInterval: LIVE_REFETCH_MS });
+  const usedBy = (image: ImageRow): number => {
+    const host = rowHost(image);
+    const tags = new Set(realTags(image).map(normalizeRef));
+    const bare = image.id.replace(/^sha256:/, "");
+    return (containersQuery.data ?? []).filter((c) => {
+      if ((c._hostId ?? hostId) !== host) return false;
+      const ref = c.image || "";
+      const id = ref.replace(/^sha256:/, "");
+      return tags.has(normalizeRef(ref)) || (id.length >= 12 && /^[0-9a-f]+$/.test(id) && bare.startsWith(id));
+    }).length;
+  };
+  const FILTERS: { id: ImageFilter; label: string; match: (i: ImageRow) => boolean }[] = [
+    { id: "all", label: "All", match: () => true },
+    { id: "used", label: "In use", match: (i) => usedBy(i) > 0 },
+    { id: "unused", label: "Unused", match: (i) => usedBy(i) === 0 },
+    { id: "untagged", label: "Untagged", match: (i) => realTags(i).length === 0 },
+    { id: "update", label: "Update available", match: (i) => updateOf(i).state === "update" },
+  ];
+  const [filter, setFilter] = useState<ImageFilter>("all");
+  const images = allImages.filter(FILTERS.find((f) => f.id === filter)!.match);
+
+  // Several images picked at once, for one remove. Keys are host/id, so the
+  // aggregated view can mix hosts; a filter change keeps only what still shows.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const shown = new Set(images.map(imageKey));
+  const picked = images.filter((i) => selected.has(imageKey(i)));
+  const allPicked = images.length > 0 && picked.length === images.length;
+  const pick = (image: ImageRow, on: boolean) =>
+    setSelected((cur) => {
+      const next = new Set([...cur].filter((k) => shown.has(k)));
+      if (on) next.add(imageKey(image));
+      else next.delete(imageKey(image));
+      return next;
+    });
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkForce, setBulkForce] = useState(false);
+  const bulkRemove = useMutation({
+    mutationFn: async ({ rows, force }: { rows: ImageRow[]; force: boolean }) => {
+      const failed: string[] = [];
+      for (const image of rows) {
+        try {
+          await removeImage(rowHost(image), image.id, force);
+        } catch (err) {
+          failed.push(`${realTags(image)[0] ?? shortId(image.id)}: ${errorMessage(err, "could not remove")}`);
+        }
+      }
+      return { removed: rows.length - failed.length, failed };
+    },
+    onSuccess: ({ removed, failed }) => {
+      notify(
+        failed.length
+          ? { color: "yellow", title: `Removed ${removed}, ${failed.length} failed`, message: failed.slice(0, 3).join("\n") + (failed.length > 3 ? `\n…and ${failed.length - 3} more` : "") }
+          : { color: "green", title: `Removed ${removed} image${removed === 1 ? "" : "s"}`, message: "Their disk space is free." },
+      );
+      setBulkOpen(false);
+      setBulkForce(false);
+      setSelected(new Set());
+      invalidate();
+    },
+  });
 
   const hostColumn: Column<ImageRow> = {
     key: "host",
@@ -382,6 +511,26 @@ export default function Images() {
   };
 
   const columns: Column<ImageRow>[] = [
+    {
+      key: "pick",
+      header: (
+        <Checkbox
+          aria-label={allPicked ? "Unselect every image shown" : "Select every image shown"}
+          checked={allPicked}
+          onChange={(e) => setSelected(e.target.checked ? new Set(images.map(imageKey)) : new Set())}
+        />
+      ),
+      width: 36,
+      cell: (image) => (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            aria-label={`Select ${realTags(image)[0] ?? shortId(image.id)}`}
+            checked={selected.has(imageKey(image))}
+            onChange={(e) => pick(image, e.target.checked)}
+          />
+        </span>
+      ),
+    },
     {
       key: "repoTags",
       header: "Repository tags",
@@ -443,6 +592,23 @@ export default function Images() {
       },
     },
     {
+      key: "update",
+      header: "Update",
+      sortable: true,
+      accessor: (image) => UPDATE_RANK[updateOf(image).state],
+      cell: (image) => {
+        const u = updateOf(image);
+        if (u.state === "none") return <span title="No container runs it, or it was not checked yet">—</span>;
+        const tip = u.tip;
+        const [color, label] = u.state === "update" ? ["blue", "Update available"] : u.state === "error" ? ["yellow", "Couldn't check"] : ["gray", "Up to date"];
+        return (
+          <Tooltip content={tip}>
+            <Badge variant="light" color={color as "blue"}>{label}</Badge>
+          </Tooltip>
+        );
+      },
+    },
+    {
       key: "size",
       header: "Size",
       sortable: true,
@@ -473,18 +639,43 @@ export default function Images() {
   ];
 
   const renderRowActions = (image: ImageRow) => (
-    <Tooltip content="Remove image">
-      <Button
-        color="danger"
-        variant="clear"
-        iconLeft="delete-outline-rounded"
-        onClick={() => {
-          setForceRemove(false);
-          setDeleteTarget(image);
-        }}
-        aria-label="Remove image"
-      />
-    </Tooltip>
+    <>
+      {realTags(image).length > 0 && (
+        <Tooltip content="Check this image for an update now">
+          <Button
+            variant="clear"
+            iconLeft="upgrade-rounded"
+            loading={checkOne.isPending && checkOne.variables?.id === image.id}
+            onClick={() => checkOne.mutate(image)}
+            aria-label={`Check ${realTags(image)[0]} for an update`}
+          />
+        </Tooltip>
+      )}
+      {isOperator && updateOf(image).state === "update" && (
+        <Tooltip content="Pull the newer image">
+          <Button
+            variant="clear"
+            color="info"
+            iconLeft="download-rounded"
+            loading={pullNewer.isPending && pullNewer.variables?.id === image.id}
+            onClick={() => pullNewer.mutate(image)}
+            aria-label={`Pull the newer ${realTags(image)[0]}`}
+          />
+        </Tooltip>
+      )}
+      <Tooltip content="Remove image">
+        <Button
+          color="danger"
+          variant="clear"
+          iconLeft="delete-outline-rounded"
+          onClick={() => {
+            setForceRemove(false);
+            setDeleteTarget(image);
+          }}
+          aria-label="Remove image"
+        />
+      </Tooltip>
+    </>
   );
 
   return (
@@ -498,7 +689,6 @@ export default function Images() {
             <Tooltip content="Refresh">
               <Button
                 variant="outline"
-                size="lg"
                 iconLeft="refresh-rounded"
                 onClick={() => imagesQuery.refetch()}
                 loading={imagesQuery.isFetching}
@@ -507,6 +697,7 @@ export default function Images() {
             </Tooltip>
             <Button
               variant="outline"
+              color="danger"
               iconLeft="delete-outline-rounded"
               onClick={() => {
                 setPruneAll(false);
@@ -515,6 +706,16 @@ export default function Images() {
             >
               Prune unused
             </Button>
+            {isOperator && (
+              <Button
+                variant="outline"
+                iconLeft="upgrade-rounded"
+                onClick={() => void updates.checkNow()}
+                loading={updates.checking}
+              >
+                Check updates
+              </Button>
+            )}
             {isOperator && (
               <Button
                 variant="outline"
@@ -561,6 +762,33 @@ export default function Images() {
             data={images}
             columns={columns}
             rowKey={(image) => `${image._hostId ?? ""}/${image.id}`}
+            toolbar={
+              <Box direction="row" gap={2} align="center" wrap>
+                {FILTERS.map((f) => (
+                  <Button
+                    key={f.id}
+                    size="sm"
+                    variant={filter === f.id ? "solid" : "outline"}
+                    aria-pressed={filter === f.id}
+                    onClick={() => {
+                      setFilter(f.id);
+                      setSelected(new Set());
+                    }}
+                  >
+                    {f.label} · {allImages.filter(f.match).length}
+                  </Button>
+                ))}
+                {picked.length > 0 && (
+                  <>
+                    <Text size="sm" color="muted">{picked.length} selected</Text>
+                    <Button size="sm" variant="clear" onClick={() => setSelected(new Set())}>Clear</Button>
+                    <Button size="sm" color="danger" iconLeft="delete-outline-rounded" onClick={() => setBulkOpen(true)}>
+                      Remove {picked.length}
+                    </Button>
+                  </>
+                )}
+              </Box>
+            }
             onRowClick={(image) => navigate(detailPath(image))}
             globalSearch
             pagination
@@ -923,6 +1151,36 @@ export default function Images() {
         />
       </ConfirmModal>
 
+      <ConfirmModal
+        opened={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        title={`Remove ${picked.length} image${picked.length === 1 ? "" : "s"}`}
+        confirmLabel="Remove"
+        loading={bulkRemove.isPending}
+        lockWhileLoading
+        onConfirm={() => bulkRemove.mutate({ rows: picked, force: bulkForce })}
+        message={
+          <>
+            {picked.slice(0, 8).map((i) => (
+              <div key={imageKey(i)}><Code>{realTags(i)[0] ?? shortId(i.id)}</Code></div>
+            ))}
+            {picked.length > 8 && <div>…and {picked.length - 8} more.</div>}
+            {picked.some((i) => usedBy(i) > 0) && (
+              <div style={{ marginTop: 8 }}>
+                {picked.filter((i) => usedBy(i) > 0).length} of them {picked.filter((i) => usedBy(i) > 0).length === 1 ? "is" : "are"} used by a container: Docker refuses those unless forced, and a running container's image is never removed.
+              </div>
+            )}
+            <div style={{ marginTop: 8 }}>This cannot be undone. An image that fails is reported, the rest still go.</div>
+          </>
+        }
+      >
+        <Checkbox
+          label="Force remove (even if used by stopped containers)"
+          checked={bulkForce}
+          onChange={(e) => setBulkForce(e.target.checked)}
+          disabled={bulkRemove.isPending}
+        />
+      </ConfirmModal>
       <ConfirmModal
         opened={pruneOpen}
         onClose={() => setPruneOpen(false)}

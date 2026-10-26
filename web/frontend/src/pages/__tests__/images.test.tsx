@@ -144,3 +144,81 @@ describe("images page: validation and failures", () => {
     await toast(/prune locked/i);
   });
 });
+
+describe("images: updates, filters and bulk remove", () => {
+  const A = "sha256:" + "a".repeat(64);
+  const B = "sha256:" + "b".repeat(64);
+  const C = "sha256:" + "c".repeat(64);
+  const row = (name: string) => within(pageRoot()).getByText(name).closest("tr")!;
+  const report = [{ containerId: "c-web".padEnd(64, "0"), containerName: "shop-web-1", image: "nginx:1.27", localDigest: "sha256:old",
+    remoteDigest: "sha256:new", updateAvailable: true, checkedAt: "2026-10-26T00:00:00Z" }];
+
+  it("shows which images have an update, from the containers that run them", async () => {
+    const { user } = renderApp("/images", { api: { "GET /hosts/:id/updates": report } });
+    await ready();
+    await waitFor(() => expect(within(row("nginx:1.27")).getByText("Update available")).toBeInTheDocument());
+    // Check updates asks the registries again, bypassing the server cache.
+    await press(user, /check updates/i, pageRoot());
+    await waitFor(() => expect(requests("GET", "/hosts/local/updates").some((r) => r.query.refresh === "1")).toBe(true));
+    await toast(/can be updated/i);
+  });
+
+  it("filters by use and removes several images at once", async () => {
+    const { user } = renderApp("/images", { api: { "DELETE /hosts/:h/images/:id": {} } });
+    await ready();
+    // nginx and postgres run in containers; the untagged one does not.
+    await press(user, /^in use · 2$/i, pageRoot());
+    expect(within(pageRoot()).queryByText("<none>")).toBeNull();
+    await press(user, /^unused · 1$/i, pageRoot());
+    expect(within(pageRoot()).queryByText("postgres:16")).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: /select every image shown/i }));
+    await press(user, /^remove 1$/i, pageRoot());
+    const d = await dialog(/remove 1 image/i);
+    await press(user, /^remove$/i, d);
+    await toast(/removed 1 image/i);
+    const removed = requests("DELETE", "/hosts/local/images/:id").map((r) => r.path);
+    expect(removed).toEqual([`/hosts/local/images/${C}`]);
+    expect([A, B].some((id) => removed.includes(`/hosts/local/images/${id}`))).toBe(false);
+  });
+
+  it("reports images that could not be removed and still removes the rest", async () => {
+    const { user } = renderApp("/images", { api: {
+      "DELETE /hosts/:h/images/:id": (r: { params: Record<string, string> }) => (r.params.id === A ? reply(409, { error: "image is in use" }) : {}),
+    } });
+    await ready();
+    await user.click(screen.getByRole("checkbox", { name: /select every image shown/i }));
+    await press(user, /^remove 3$/i, pageRoot());
+    const d = await dialog(/remove 3 images/i);
+    expect(within(d).getByText(/used by a container/i)).toBeInTheDocument();
+    await press(user, /^remove$/i, d);
+    await toast(/removed 2, 1 failed/i);
+  });
+
+  it("checks one image now and pulls the newer one", async () => {
+    const { user } = renderApp("/images", { api: {
+      "GET /hosts/:h/images/:id/update": [{ tag: "postgres:16", localDigest: "sha256:old", remoteDigest: "sha256:new", updateAvailable: true, checkedAt: "t" }],
+      "POST /hosts/:h/images/pull": reply(200, "{}\n", { "content-type": "application/x-ndjson" }),
+    } });
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Check postgres:16 for an update" }));
+    await toast(/postgres:16: update available/i);
+    expect(within(row("postgres:16")).getByText("Update available")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pull the newer postgres:16" }));
+    await toast(/pulled postgres:16/i);
+    expect(requests("POST", "/hosts/local/images/pull")[0].body).toMatchObject({ ref: "postgres:16" });
+  });
+
+  it("says when one image is up to date or could not be checked", async () => {
+    const { user } = renderApp("/images", { api: {
+      "GET /hosts/:h/images/:id/update": (r: { params: Record<string, string> }) =>
+        r.params.id === A ? [{ tag: "nginx:1.27", localDigest: "sha256:x", remoteDigest: "sha256:x", updateAvailable: false, checkedAt: "t" }]
+          : [{ tag: "postgres:16", localDigest: "", remoteDigest: "", updateAvailable: false, checkedAt: "t", error: "401 unauthorized" }],
+    } });
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Check nginx:1.27 for an update" }));
+    await toast(/nginx:1.27 is up to date/i);
+    await user.click(screen.getByRole("button", { name: "Check postgres:16 for an update" }));
+    await toast(/couldn't check/i);
+    expect(within(row("postgres:16")).getByText("Couldn't check")).toBeInTheDocument();
+  });
+});

@@ -1517,6 +1517,21 @@ export function eventsWebSocketURL(
  * Per-container "update available" report for a host. Remote digests are cached
  * server-side (~10 min); `refresh` bypasses that cache.
  */
+/** One tag of an image checked against its registry now. */
+export interface ImageUpdateRow {
+  tag: string;
+  localDigest: string;
+  remoteDigest: string;
+  updateAvailable: boolean;
+  checkedAt: string;
+  error?: string;
+}
+
+export async function checkImageUpdate(hostId: string, imageId: string): Promise<ImageUpdateRow[]> {
+  const { data } = await api.get<ImageUpdateRow[]>(`/hosts/${hostId}/images/${encodeURIComponent(imageId)}/update`);
+  return data;
+}
+
 export async function getHostUpdates(
   hostId: string,
   refresh = false,
