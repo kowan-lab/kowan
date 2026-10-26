@@ -26,6 +26,11 @@ function Dot({ online }: { online: boolean }) {
 export default function HostSwitcher() {
   const { hostId, setHostId } = useHost();
   const navigate = useNavigate();
+  // A page about one host's objects means nothing on another: start over at its overview.
+  const pick = (id: string) => {
+    setHostId(id);
+    navigate("/");
+  };
   const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, refetchInterval: 15_000 });
   const list: Host[] = hosts.data ?? [];
   const current = list.find((h) => h.id === hostId);
@@ -72,7 +77,7 @@ export default function HostSwitcher() {
           className="anim-pop z-50 w-[360px] bg-popover p-3 text-popover-foreground shadow-[inset_0_0_0_1px_var(--border),0_8px_24px_-6px_rgb(40_40_36/0.22)]"
         >
           <M.Label className="px-3 py-[4px] text-[12px] font-medium tracking-wide text-muted-foreground font-mono uppercase">Scope</M.Label>
-          <M.Item onSelect={() => setHostId(ALL_HOSTS)} className="flex cursor-default items-center gap-[8px] rounded-sm px-3 py-[4px] text-[13px] outline-none data-[highlighted]:bg-accent">
+          <M.Item onSelect={() => pick(ALL_HOSTS)} className="flex cursor-default items-center gap-[8px] rounded-sm px-3 py-[4px] text-[13px] outline-none data-[highlighted]:bg-accent">
             <Layers3 className="size-6 text-muted-foreground" />
             <span className="flex-1">All hosts</span>
             <span className="font-mono text-[12px] text-muted-foreground">{online}/{list.length}</span>
@@ -80,7 +85,7 @@ export default function HostSwitcher() {
           </M.Item>
           <M.Separator className="-mx-2 my-2 h-px bg-border" />
           {list.map((h) => (
-            <M.Item key={h.id} onSelect={() => setHostId(h.id)} className="flex cursor-default items-center gap-[8px] rounded-sm px-3 py-[4px] text-[13px] outline-none data-[highlighted]:bg-accent">
+            <M.Item key={h.id} onSelect={() => pick(h.id)} className="flex cursor-default items-center gap-[8px] rounded-sm px-3 py-[4px] text-[13px] outline-none data-[highlighted]:bg-accent">
               <Dot online={h.online} />
               <span className="min-w-0 flex-1 truncate">{h.name || h.id}</span>
               <span className="font-mono text-[12px] text-muted-foreground">{h.mode || h.type} · {h.online ? "online" : "offline"}</span>

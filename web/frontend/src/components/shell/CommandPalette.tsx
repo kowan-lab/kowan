@@ -124,12 +124,12 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
 
               {(hosts.data?.length ?? 0) > 0 && (
                 <Command.Group heading="Switch host" className={GROUP}>
-                  <Command.Item value="host all hosts" onSelect={() => { setHostId(ALL_HOSTS); onOpenChange(false); }} className={ITEM}>
+                  <Command.Item value="host all hosts" onSelect={() => { setHostId(ALL_HOSTS); navigate("/"); onOpenChange(false); }} className={ITEM}>
                     <Icon name="stacks-outline-rounded" size="sm" className="text-muted-foreground" />
                     <span className="flex-1">All hosts</span>
                   </Command.Item>
                   {hosts.data!.map((h) => (
-                    <Command.Item key={h.id} value={`host ${h.name} ${h.id}`} onSelect={() => { setHostId(h.id); onOpenChange(false); }} className={ITEM}>
+                    <Command.Item key={h.id} value={`host ${h.name} ${h.id}`} onSelect={() => { setHostId(h.id); navigate("/"); onOpenChange(false); }} className={ITEM}>
                       <Icon name="dns-outline" size="sm" className="text-muted-foreground" />
                       <span className="flex-1">{h.name || h.id}</span>
                       <StatePill status={h.online ? "online" : "offline"} size="sm" />

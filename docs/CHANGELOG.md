@@ -4,6 +4,7 @@
 
 - **Settings at the bottom of the sidebar**, instead of in the account menu; it opens the same Settings area.
 - **Kowan's own containers hidden** from Workloads, the dashboard, Logs and search: the server, the agents and their helpers (updates, scans, volume browsing, backups). Settings → Features shows them again (`systemContainers`, off by default).
+- **Switching host opens its overview**, from the host menu and from search.
 
 ## 0.1.2 — 2026-10-26
 

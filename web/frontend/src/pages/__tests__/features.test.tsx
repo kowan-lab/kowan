@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { requests } from "../../test/api";
 import { containers } from "../../test/fixtures";
 import { isKowanContainer } from "../../lib/features";
-import { pageRoot, renderApp } from "../../test/render";
+import { currentPath, pageRoot, renderApp } from "../../test/render";
 
 const off = { templates: false, networkMap: false, gitops: false, systemContainers: false };
 const kowan = { ...containers[2], id: "k".padEnd(64, "0"), names: ["/kowan"], state: "running", status: "Up 1 hour",
@@ -68,6 +68,15 @@ describe("features", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("link", { name: /^settings$/i }));
     expect(await screen.findByRole("heading", { name: "Settings" }, { timeout: 10_000 })).toBeInTheDocument();
+  });
+
+  it("switching host goes back to the overview", async () => {
+    const { user } = renderApp("/workloads");
+    await within(pageRoot()).findAllByText("shop", {}, { timeout: 10_000 });
+    await user.click(screen.getByRole("button", { name: /change host/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /edge-1/i }));
+    await waitFor(() => expect(currentPath()).toBe("/"));
+    expect(localStorage.getItem("kowan_host")).toBe("h-edge");
   });
 
   it("says a page is off when reached directly", async () => {
