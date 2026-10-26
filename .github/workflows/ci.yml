@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m compileall -q kowan
+      # Coverage on every version; the threshold (.coveragerc fail_under)
+      # fails the job when it drops.
+      - run: python -m coverage run -m unittest discover -s tests -t .
+      - run: python -m coverage report --format=total
+
+  frontend:
+    name: Frontend typecheck, tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck:test
+      # Component and page tests; thresholds in vitest.config.ts.
+      - run: npm run coverage
+      - run: npm run build
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      # playwright.config.ts starts the server from .venv.
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements.txt
+      - run: npm ci && npm run build && npx playwright install --with-deps chromium
+        working-directory: web/frontend
+      - run: npx playwright test
+        working-directory: web/frontend
+        env:
+          KOWAN_E2E_DOCKER: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/frontend/playwright-report
+
+  images:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
+      - name: Build agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.agent
+          push: false
+          cache-from: type=gha,scope=agent
+          cache-to: type=gha,mode=max,scope=agent

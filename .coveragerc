@@ -1,0 +1,19 @@
+[run]
+source = kowan
+branch = True
+omit =
+    kowan/*/__main__.py
+
+[report]
+show_missing = True
+skip_covered = False
+precision = 1
+# The build fails below this total (lines + branches); raise it as coverage
+# grows, never lower it to make a change pass.
+fail_under = 89
+# Documented exclusions (docs/testing.md): abstract interface stubs, the
+# `python -m` entry guard and type-checking-only imports never run in tests.
+exclude_also =
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:

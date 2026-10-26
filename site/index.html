@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kowan · Self-hosted Docker manager for homelabs and small teams</title>
+<meta name="description" content="Kowan is a free, MIT-licensed, self-hosted Docker manager. One light server, an agent per host, a fast web UI that works on a phone, a CLI and an MCP server for AI assistants.">
+<link rel="canonical" href="https://kowan-lab.github.io/kowan/">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ebebe7" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Kowan">
+<meta property="og:title" content="Kowan · Every Docker host, one light console">
+<meta property="og:description" content="Free, MIT-licensed, self-hosted Docker manager: a server, an agent per host, a web UI, a CLI and an MCP server.">
+<meta property="og:url" content="https://kowan-lab.github.io/kowan/">
+<meta property="og:image" content="https://kowan-lab.github.io/kowan/img/og-dashboard.png">
+<meta property="og:image:width" content="1440">
+<meta property="og:image:height" content="900">
+<meta property="og:image:alt" content="The Kowan web console in its dark theme.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- The Kowan mark (港 hanko seal), defined once and reused with <use href="#kowan-mark">. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="kowan-mark" viewBox="0 0 20 20"><rect width="20" height="20" style="fill:var(--seal,#fa3600)"/><rect x="1.3" y="1.3" width="17.4" height="17.4" fill="none" stroke="#fbf6ec" stroke-width="0.55"/><path fill="#fbf6ec" d="M14.64 7.48Q14.7 7.39 14.81 7.21Q14.93 7.04 15 6.96Q15.08 6.88 15.13 6.88Q15.22 6.88 15.59 7.19Q15.95 7.49 16.27 7.83Q16.59 8.16 16.59 8.26Q16.55 8.49 16.2 8.49H13Q13.62 9.29 14.62 9.9Q15.61 10.5 16.69 10.79L16.66 10.95Q15.73 11.2 15.43 12.52Q14.41 11.87 13.68 10.75L13.61 10.76V11.56L13.62 12.06Q13.64 12.61 13.68 13.09Q13.61 13.21 13.16 13.33Q12.71 13.45 12.37 13.45Q12.07 13.45 12.07 13.16Q12.08 13.13 12.12 12.95V12.68H9.85V14.82Q9.85 15 9.97 15.05Q10.09 15.1 10.51 15.1H12.39Q13.45 15.1 13.94 15.07Q14.13 15.05 14.21 15.02Q14.29 14.98 14.36 14.88Q14.48 14.71 14.65 14.28Q14.81 13.85 14.99 13.31H15.15L15.18 14.91Q15.53 15.03 15.65 15.17Q15.77 15.32 15.77 15.55Q15.77 15.91 15.48 16.12Q15.19 16.33 14.44 16.43Q13.68 16.52 12.24 16.52H10.31Q9.48 16.52 9.08 16.41Q8.68 16.31 8.52 16.03Q8.36 15.75 8.36 15.17V13.37Q8.36 12.19 8.24 11.51L10.06 12.26H12.12V10.59H9.17Q7.95 11.9 6.04 12.81L5.93 12.63Q6.9 11.84 7.64 10.77Q8.37 9.7 8.82 8.49H6.86L6.76 8.13Q5.96 11.03 5.8 11.69Q5.61 12.48 5.61 12.93Q5.61 13.29 5.83 13.89Q6 14.36 6.08 14.73Q6.16 15.1 6.15 15.61Q6.13 16.15 5.81 16.47Q5.49 16.8 5.01 16.8Q4.78 16.8 4.58 16.61Q4.39 16.42 4.31 16.04Q4.47 15.14 4.47 14.27Q4.47 13.75 4.4 13.4Q4.33 13.05 4.18 12.95Q3.92 12.74 3.47 12.7V12.42H4.11Q4.27 12.42 4.33 12.38Q4.4 12.33 4.52 12.13Q4.72 11.75 5.22 10.6Q5.72 9.44 7 6.43L7.24 6.47L6.79 8.07H8.88V6.04H8.27Q7.77 6.05 7.22 6.24L6.84 5.5Q7.43 5.59 8.24 5.61H8.88Q8.88 4.13 8.73 3.2Q9.88 3.45 10.31 3.59Q10.74 3.74 10.74 3.85Q10.74 3.91 10.63 3.99L10.38 4.16V5.61H11.98Q11.98 4.13 11.83 3.2Q13.03 3.46 13.47 3.61Q13.91 3.75 13.91 3.87Q13.91 3.93 13.8 4L13.55 4.16V5.61H14.09L14.47 5.05Q14.54 4.95 14.65 4.79Q14.76 4.63 14.82 4.55Q14.89 4.47 14.95 4.47Q15.03 4.47 15.38 4.76Q15.73 5.05 16.04 5.37Q16.36 5.7 16.36 5.8Q16.3 6.04 15.96 6.04H13.55V8.07H14.26ZM4.46 3.29Q5.71 3.49 6.29 3.99Q6.87 4.48 6.87 5.03Q6.87 5.38 6.65 5.62Q6.42 5.86 6.09 5.86Q5.77 5.86 5.48 5.64Q5.37 5.09 5.05 4.49Q4.72 3.88 4.33 3.37ZM11.98 6.04H10.38V8.07H11.98ZM3.44 6.43Q4.62 6.6 5.17 7.07Q5.72 7.53 5.72 8.06Q5.72 8.39 5.51 8.63Q5.29 8.87 4.97 8.87Q4.65 8.87 4.36 8.64Q4.28 8.1 3.99 7.51Q3.69 6.92 3.31 6.52ZM13.2 9.88Q12.97 9.4 12.68 8.49H10.61Q10.17 9.44 9.55 10.17H11.99L12.65 9.47Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></g></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5L13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-corner" viewBox="0 0 8 8"><path d="M1 1l6 6M7 2.5V7H2.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="col top-row">
+    <a class="cell brand" href="./" aria-label="Kowan home">
+      <svg class="mark" aria-hidden="true"><use href="#kowan-mark"/></svg><span>KOWAN</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a class="cell wide" href="#features">Features<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
+      <a class="cell wide" href="#quick-start">Quick start<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
+      <a class="cell" href="https://github.com/kowan-lab/kowan/tree/main/docs">Docs<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
+      <a class="cell hot" href="https://github.com/kowan-lab/kowan">GitHub<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="col">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1 id="hero-title">Every Docker host, one light console.</h1>
+        <p class="lede">Kowan is a <strong>free, MIT-licensed</strong> Docker manager you host yourself: one small server, an agent on each host, a fast web UI, a CLI and an MCP server for AI assistants.</p>
+      </div>
+      <aside class="label" aria-label="Product label">
+        <p class="label-head"><span class="sq" aria-hidden="true"></span>Kowan / product label</p>
+        <dl class="spec spec-mono">
+          <div><dt>Type</dt><dd>Self-hosted Docker manager</dd></div>
+          <div><dt>License</dt><dd>MIT, free</dd></div>
+          <div><dt>Parts</dt><dd>Server · agent · web&nbsp;UI · CLI · MCP</dd></div>
+          <div><dt>Runtime</dt><dd>Python · SQLite</dd></div>
+          <div><dt>Needs</dt><dd>Docker, nothing else</dd></div>
+          <div><dt>Hosts</dt><dd>No limit · edge or direct</dd></div>
+        </dl>
+      </aside>
+    </div>
+
+    <div class="start">
+      <div class="cmd">
+        <div class="cmd-bar"><span>Quick start · docker run</span></div>
+        <div class="cmd-body">
+          <pre id="cmd-run" tabindex="0" aria-label="Quick-start command"><code><span class="p">$ </span>docker run -d --name kowan --restart unless-stopped \
+    -p 5081:5081 \
+    -v kowan-data:/data \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    ghcr.io/kowan-lab/kowan:latest</code></pre>
+          <button class="copy" type="button" data-copy="cmd-run"><svg aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+      </div>
+      <div class="cta-row">
+        <a class="btn" href="https://github.com/kowan-lab/kowan">View on GitHub<span class="btn-arrow"><svg aria-hidden="true"><use href="#i-arrow"/></svg></span></a>
+        <p class="note">Then open <code>localhost:5081</code>. Prefer Compose? <a href="#quick-start">See the quick start</a>.</p>
+      </div>
+    </div>
+
+    <div class="marquee" aria-label="Capabilities">
+      <ul class="marquee-track"><li>Containers</li><li>Live logs</li><li>Web console</li><li>File browser</li><li>Network map</li><li>Trivy scans</li><li>Auto-update</li><li>Rollback</li><li>Self-update</li><li>Compose</li><li>Templates</li><li>Git deploys</li><li>GitOps</li><li>Workflows</li><li>Webhooks</li><li>Schedules</li><li>Restic backups</li><li>Exposure</li><li>HTTPS</li><li>Teams</li><li>SSO</li><li>API keys</li><li>Audit log</li><li>MCP</li><li>Revisions</li><li>Previews</li><li>Promotion</li><li>Uptime</li><li>Status page</li><li>Log search</li><li>Resource history</li><li>Disk cleanup</li><li>Digest</li><li>Portainer import</li><li>Installable app</li></ul>
+      <ul class="marquee-track" aria-hidden="true"><li>Containers</li><li>Live logs</li><li>Web console</li><li>File browser</li><li>Network map</li><li>Trivy scans</li><li>Auto-update</li><li>Rollback</li><li>Self-update</li><li>Compose</li><li>Templates</li><li>Git deploys</li><li>GitOps</li><li>Workflows</li><li>Webhooks</li><li>Schedules</li><li>Restic backups</li><li>Exposure</li><li>HTTPS</li><li>Teams</li><li>SSO</li><li>API keys</li><li>Audit log</li><li>MCP</li><li>Revisions</li><li>Previews</li><li>Promotion</li><li>Uptime</li><li>Status page</li><li>Log search</li><li>Resource history</li><li>Disk cleanup</li><li>Digest</li><li>Portainer import</li><li>Installable app</li></ul>
+    </div>
+
+    <figure class="hero-shot">
+      <div class="frame reg">
+          <picture>
+            <source srcset="img/dashboard-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/dashboard-dark.webp" width="1440" height="900" fetchpriority="high"
+                 alt="The Kowan overview: a host's containers, resource use and what needs attention, on one screen.">
+          </picture>
+        </div>
+      <figcaption class="cap"><span>Fig. 1 · Overview of a host</span><span>1440 × 900</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" id="features" aria-labelledby="features-title">
+  <div class="col">
+    <div class="head">
+      <h2 id="features-title">From the fleet view to the fix, on one screen.</h2>
+      <p>Kowan answers what is running where, whether it is healthy and what changed, then lets you act on it without leaving the page.</p>
+    </div>
+
+    <article class="row" id="operate" aria-labelledby="operate-title">
+      <div class="text">
+        <h3 id="operate-title"><span class="num" aria-hidden="true">001</span>Operate every host</h3>
+        <p>Containers, images, volumes, networks and stacks across all your hosts, in tables that update from Docker events. Every container is one click from its logs, a console and its files.</p>
+        <dl class="spec">
+          <div><dt>Logs</dt><dd>Live logs and a web console inside any container</dd></div>
+          <div><dt>Files</dt><dd>File browser for container and volume contents</dd></div>
+          <div><dt>Network</dt><dd>Map of containers, networks, published ports and domains</dd></div>
+        </dl>
+        <div class="pills" aria-label="Container states as the console shows them">
+          <span class="pill green">Running<span class="d">9d</span></span>
+          <span class="pill amber">Restarting</span>
+          <span class="pill red">Exited 137<span class="d">3m</span></span>
+        </div>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/container-detail-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/container-detail-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="A container's page: health, image, ports, networks, mounts and live resource use, with tabs for logs, console, stats and files.">
+          </picture>
+        </div>
+        <figcaption>Every container one click from its logs, console and files.</figcaption>
+      </figure>
+    </article>
+
+    <div class="pair">
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/container-logs-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/container-logs-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="A container's live log stream in the Kowan console.">
+          </picture>
+        </div>
+        <figcaption><b>Logs</b> Follow a container's output live, next to its console and actions.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/network-map-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/network-map-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="The network map: containers linked to the Docker networks, ports and domains they use.">
+          </picture>
+        </div>
+        <figcaption><b>Network map</b> See how containers, networks, ports and domains connect.</figcaption>
+      </figure>
+    </div>
+
+    <article class="row flip" id="workloads" aria-labelledby="workloads-title">
+      <div class="text">
+        <h3 id="workloads-title"><span class="num" aria-hidden="true">002</span>Workloads, not loose containers</h3>
+        <p>Compose stacks, Kowan deployments and lone containers become one list of workloads, whether Kowan deployed them or found them already running. What is broken comes first, with the reason.</p>
+        <dl class="spec">
+          <div><dt>Managed</dt><dd>Deployed by Kowan from an editor, a template or git</dd></div>
+          <div><dt>Discovered</dt><dd>Started outside Kowan, listed and operated as they are</dd></div>
+          <div><dt>Needs you</dt><dd>Crashed or unhealthy services and failed deploys, on top</dd></div>
+          <div><dt>Policies</dt><dd>Updates, backups and schedules per workload, each one a knob</dd></div>
+        </dl>
+        <div class="pills" aria-label="Workload states as the console shows them">
+          <span class="pill green">Running<span class="d">3/3</span></span>
+          <span class="pill red">Degraded<span class="d">5/6</span></span>
+          <span class="pill amber">Deploying</span>
+        </div>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/workloads-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/workloads-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="The Workloads page: compose stacks, Kowan deployments and lone containers as cards, with a degraded stack under Needs you.">
+          </picture>
+        </div>
+        <figcaption>Managed and discovered workloads, what needs you first.</figcaption>
+      </figure>
+    </article>
+
+    <article class="row" id="connect" aria-labelledby="connect-title">
+      <div class="text">
+        <h3 id="connect-title"><span class="num" aria-hidden="true">003</span>Connect anywhere</h3>
+        <p>Every host runs a small agent. Behind NAT or a firewall, the agent dials out to the server; when the server can reach the host, it dials in. Both run over the same multiplexed tunnel.</p>
+        <dl class="spec">
+          <div><dt>Edge</dt><dd>For home labs and hosts without inbound ports</dd></div>
+          <div><dt>Direct</dt><dd>For servers on a reachable network</dd></div>
+          <div><dt>Join</dt><dd>Kowan shows the agent's <code>docker run</code> line when you add a host</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="diagram-wrap reg">
+        <svg class="diagram" viewBox="0 0 480 452" role="img" aria-labelledby="dg-title dg-desc">
+          <title id="dg-title">How agents connect to the Kowan server</title>
+          <desc id="dg-desc">The Kowan server sits at the top. On the left, inside a home network behind NAT, an edge agent dials out to the server. On the right, the server dials a direct agent on a reachable host.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path class="head-a" d="M0 1L10 5L0 9z"/>
+            </marker>
+          </defs>
+
+          <!-- Server -->
+          <rect class="box" x="120" y="12" width="240" height="104"/>
+          <use href="#kowan-mark" x="140" y="32" width="18" height="18"/>
+          <text class="t1" x="166" y="48">kowan server</text>
+          <text class="t2" x="140" y="76">UI · REST API · MCP</text>
+          <text class="t3" x="140" y="101">:5081</text>
+
+          <!-- NAT zone -->
+          <rect class="zone" x="6" y="232" width="228" height="208"/>
+          <text class="t3" x="18" y="256">BEHIND NAT</text>
+
+          <!-- Edge agent -->
+          <rect class="box" x="22" y="300" width="196" height="116"/>
+          <g class="g-edge">
+            <rect class="tag" x="38" y="316" width="60" height="24"/>
+            <text class="tag-t" x="48" y="332">EDGE</text>
+          </g>
+          <text class="t1" x="38" y="368">agent</text>
+          <text class="t2" x="38" y="396">nas · docker</text>
+
+          <!-- Direct agent -->
+          <rect class="box" x="262" y="300" width="208" height="116"/>
+          <g class="g-direct">
+            <rect class="tag" x="278" y="316" width="78" height="24"/>
+            <text class="tag-t" x="288" y="332">DIRECT</text>
+          </g>
+          <text class="t1" x="278" y="368">agent</text>
+          <text class="t2" x="278" y="396">vps-01 · docker</text>
+
+          <!-- Edge: agent dials the server (outbound through NAT) -->
+          <path class="wire" d="M184 300V118" marker-end="url(#arrow)"/>
+          <path class="flow" d="M184 300V122"/>
+          <text class="t3" x="172" y="190" text-anchor="end">agent dials</text>
+
+          <!-- Direct: server dials the agent -->
+          <path class="wire" d="M296 116V298" marker-end="url(#arrow)"/>
+          <path class="flow" d="M296 116V294"/>
+          <text class="t3" x="308" y="190">server dials</text>
+        </svg>
+        </div>
+        <p class="rule-note"><span class="sq" aria-hidden="true"></span><span><b>One token rule.</b> Whoever dials sends the token; whoever accepts verifies it. The same rule holds in both directions.</span></p>
+      </figure>
+    </article>
+
+    <article class="row flip" id="expose" aria-labelledby="expose-title">
+      <div class="text">
+        <h3 id="expose-title"><span class="num" aria-hidden="true">004</span>See what the internet can reach</h3>
+        <p>The Exposure page lists every published port by reach, public, local only or one interface, and warns when a database or admin UI is open to everyone.</p>
+        <dl class="spec">
+          <div><dt>Domains</dt><dd>Routed by Traefik, read from container labels</dd></div>
+          <div><dt>Publish</dt><dd>A service on a domain with automatic HTTPS, through the proxy already on the host</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/exposure-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/exposure-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="The Exposure page: published ports by reach, with a warning on a database admin tool open to the internet.">
+          </picture>
+        </div>
+        <figcaption>Published ports, domains and proxies per host.</figcaption>
+      </figure>
+    </article>
+
+    <article class="row" id="automate" aria-labelledby="automate-title">
+      <div class="text">
+        <h3 id="automate-title"><span class="num" aria-hidden="true">005</span>Automate deployments</h3>
+        <p>Deploy containers and compose stacks from an editor, a template or a git repository. Kowan checks the compose file before it saves or deploys it: ports already in use, clashing names, missing variables.</p>
+        <dl class="spec">
+          <div><dt>GitOps</dt><dd>Export configuration to git and sync it back with a reviewed diff</dd></div>
+          <div><dt>Workflows</dt><dd>Webhooks and workflows to redeploy from CI or run maintenance</dd></div>
+          <div><dt>Schedules</dt><dd>Start, stop or restart containers and stacks on cron</dd></div>
+          <div><dt>Backups</dt><dd>Volumes with restic to local disk, S3 or SFTP, with browsing and restore</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/workload-detail-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/workload-detail-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="A workload's page: its containers, and its update, backup and schedule policies set with knobs.">
+          </picture>
+        </div>
+        <figcaption>A Kowan deployment with its source, containers and policies.</figcaption>
+      </figure>
+    </article>
+
+    <article class="row flip" id="teams" aria-labelledby="teams-title">
+      <div class="text">
+        <h3 id="teams-title"><span class="num" aria-hidden="true">006</span>Teams and AI assistants</h3>
+        <p>Alone, you never see the team features. With a team, roles and grants decide who can read, operate or manage which hosts, stacks and deployments.</p>
+        <dl class="spec">
+          <div><dt>Roles</dt><dd>Admin, operator and viewer, plus teams and resource-scoped grants</dd></div>
+          <div><dt>SSO</dt><dd>OpenID Connect or GitHub</dd></div>
+          <div><dt>Keys</dt><dd>API keys with narrowed scopes, and an audit log of every change</dd></div>
+          <div><dt>MCP</dt><dd>Claude and other assistants inspect and operate hosts with an API key's permissions</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/ai-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/ai-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="The AI assistants page: ready-to-paste MCP setups for Claude Code, Claude Desktop and Cursor.">
+          </picture>
+        </div>
+        <figcaption>Ready-to-paste setups for Claude Code, Claude Desktop and Cursor.</figcaption>
+      </figure>
+    </article>
+
+    <article class="row" id="ship" aria-labelledby="ship-title">
+      <div class="text">
+        <h3 id="ship-title"><span class="num" aria-hidden="true">007</span>Ship changes safely</h3>
+        <p>Every change to what a deployment runs is a revision: who made it, why, and a diff against any other. One click puts an older one back. Branches and pull requests get their own preview next to production, and staging promotes exactly what you tested.</p>
+        <dl class="spec">
+          <div><dt>History</dt><dd>Numbered revisions with diff and one-click rollback, pinned to the commit for git</dd></div>
+          <div><dt>Previews</dt><dd>A copy per branch or pull request, created by the push webhook, gone when it closes</dd></div>
+          <div><dt>Promote</dt><dd>Staging to production: the image or the commit moves, the environment stays</dd></div>
+          <div><dt>Import</dt><dd>Bring stacks over from Portainer or a folder of compose files</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/deployment-history-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/deployment-history-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="A deployment's history: five revisions by two people, with the diff of the latest promotion from staging.">
+          </picture>
+        </div>
+        <figcaption>Revisions with who, why and what changed.</figcaption>
+      </figure>
+    </article>
+
+    <div class="pair">
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/previews-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/previews-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="Preview environments of a git deployment: one for a branch and one for pull request 42, both deployed.">
+          </picture>
+        </div>
+        <figcaption><b>Previews</b> Branches and pull requests run next to the real thing, on free ports.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/disk-cleanup-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/disk-cleanup-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="Disk cleanup: stopped containers, unused images and volumes with their sizes, safe ones picked.">
+          </picture>
+        </div>
+        <figcaption><b>Disk cleanup</b> See what can go and how much it frees; named volumes stay unless you pick them.</figcaption>
+      </figure>
+    </div>
+
+    <article class="row flip" id="watch" aria-labelledby="watch-title">
+      <div class="text">
+        <h3 id="watch-title"><span class="num" aria-hidden="true">008</span>Know before your users do</h3>
+        <p>Kowan checks your sites and ports from outside, keeps the logs you choose for as long as you need them, and remembers how every workload used CPU and memory, so a slow leak shows up as a warning and not as an outage.</p>
+        <dl class="spec">
+          <div><dt>Uptime</dt><dd>HTTP and TCP checks with response times, incidents, certificate expiry and a public status page</dd></div>
+          <div><dt>Logs</dt><dd>Kept per workload and searchable across hosts, restarts and redeploys</dd></div>
+          <div><dt>Resources</dt><dd>CPU, memory and network over 30 days, with a warning when memory keeps climbing</dd></div>
+          <div><dt>Digest</dt><dd>A daily or weekly message: updates, vulnerabilities, failed backups, expiring certificates</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/uptime-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/uptime-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="The Uptime page: four checks with their recent results, uptime over 24 hours and 30 days, response time and certificate days left; one check is down.">
+          </picture>
+        </div>
+        <figcaption>Checks from outside, with the history behind each status.</figcaption>
+      </figure>
+    </article>
+
+    <div class="pair">
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/logs-history-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/logs-history-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="Searching the kept logs of three workloads for errors over the last 24 hours.">
+          </picture>
+        </div>
+        <figcaption><b>Log search</b> Words, phrases and exclusions over every host and day you keep.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame reg">
+          <picture>
+            <source srcset="img/resources-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/resources-dark.webp" width="1440" height="900" loading="lazy"
+                 alt="A workload's CPU and memory over 24 hours, with a warning that memory has grown 22 MB an hour without a restart.">
+          </picture>
+        </div>
+        <figcaption><b>Resources</b> A leak is a warning with an ETA, before it is an outage.</figcaption>
+      </figure>
+    </div>
+
+    <article class="row" id="phone" aria-labelledby="phone-title">
+      <div class="text">
+        <h3 id="phone-title"><span class="num" aria-hidden="true">009</span>Works from your phone</h3>
+        <p>Every page and every action works on a phone, not a reduced version of them. Install Kowan to the home screen and it opens like an app; it never caches your data, so what you see is always live.</p>
+        <dl class="spec">
+          <div><dt>Layout</dt><dd>Tables become cards, panels stack, the menu is a drawer</dd></div>
+          <div><dt>Install</dt><dd>A web app with its icon and shortcuts to workloads, logs and uptime</dd></div>
+          <div><dt>Offline</dt><dd>Opens without a network and says so, instead of a browser error</dd></div>
+        </dl>
+      </div>
+      <figure class="media">
+        <div class="phones">
+          <div class="frame reg">
+            <picture>
+            <source srcset="img/phone-workloads-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot tall" src="img/phone-workloads-dark.webp" width="780" height="1688" loading="lazy"
+                 alt="Kowan's Workloads page on a phone, with the workload that needs attention first.">
+          </picture>
+          </div>
+          <div class="frame reg">
+            <picture>
+            <source srcset="img/phone-uptime-light.webp" media="(prefers-color-scheme: light)">
+            <img class="shot tall" src="img/phone-uptime-dark.webp" width="780" height="1688" loading="lazy"
+                 alt="Kowan's Uptime page on a phone: each check as a card.">
+          </picture>
+          </div>
+        </div>
+        <figcaption>The same console on a 390-pixel screen.</figcaption>
+      </figure>
+    </article>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="more-title">
+  <div class="col">
+    <div class="head">
+      <h2 id="more-title">Also in the box</h2>
+    </div>
+    <dl class="more">
+      <div><dt>Images and registries</dt><dd>Pull, inspect and prune images; browse your registries with stored credentials.</dd></div>
+      <div><dt>Volumes</dt><dd>Create, inspect and explore volume contents in a file browser.</dd></div>
+      <div><dt>Swarm</dt><dd>Deploy to a single host or to a swarm.</dd></div>
+      <div><dt>Secrets</dt><dd>Credentials and secrets encrypted with AES-256-GCM, never returned by the API.</dd></div>
+      <div><dt>Alerts</dt><dd>Monitoring with alert rules, sent by email and chat channels, plus a periodic digest.</dd></div>
+      <div><dt>Auto-update</dt><dd>Notify, pull or apply new images inside maintenance windows, with Trivy scan gates and rollback when the health check fails.</dd></div>
+      <div><dt>Self-update</dt><dd>The server and every agent update themselves, with one-click rollback.</dd></div>
+      <div><dt>Audit log</dt><dd>Every change, by a person, an API key or an AI assistant, with who, from where and the result.</dd></div>
+      <div><dt>Labels</dt><dd>Set update policy, scan gates and alerts per container with <code>kowan.*</code> labels in compose.</dd></div>
+      <div><dt>CLI</dt><dd><code>kowanctl</code> scripts the server from a terminal and bridges MCP over stdio.</dd></div>
+      <div><dt>No external database</dt><dd>A small Python server with SQLite. Back up one volume and you have everything.</dd></div>
+      <div><dt>Seven themes</dt><dd>Kowan, Graphite, Nord, Dracula, Catppuccin, Gruvbox and Tokyo Night, each in light and dark.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="band" id="quick-start" aria-labelledby="qs-title">
+  <div class="col">
+    <div class="head">
+      <h2 id="qs-title">Running in a minute</h2>
+      <p>Kowan needs a machine with Docker. The server works without configuration; set <code>KOWAN_EXTERNAL_URL</code> before you attach agents on other hosts.</p>
+    </div>
+    <div class="qs">
+      <div class="qs-code">
+        <div class="tabs" role="tablist" aria-label="Install method">
+          <button class="tab" type="button" role="tab" id="tab-run" aria-controls="panel-run" aria-selected="true">docker run</button>
+          <button class="tab" type="button" role="tab" id="tab-compose" aria-controls="panel-compose" aria-selected="false" tabindex="-1">Docker Compose</button>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-run" aria-labelledby="tab-run">
+          <div class="cmd-body">
+            <pre id="qs-run" tabindex="0"><code><span class="p">$ </span>docker run -d --name kowan --restart unless-stopped \
+    -p 5081:5081 \
+    -v kowan-data:/data \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    ghcr.io/kowan-lab/kowan:latest</code></pre>
+            <button class="copy" type="button" data-copy="qs-run"><svg aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
+          </div>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-compose" aria-labelledby="tab-compose" hidden>
+          <div class="file">docker-compose.yml</div>
+          <div class="cmd-body">
+            <pre id="qs-compose" tabindex="0"><code>services:
+  server:
+    image: ghcr.io/kowan-lab/kowan:latest
+    ports:
+      - "5081:5081"
+    volumes:
+      - kowan-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  kowan-data:</code></pre>
+            <button class="copy" type="button" data-copy="qs-compose"><svg aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
+          </div>
+          <div class="cmd-body">
+            <pre id="qs-up" tabindex="0"><code><span class="p">$ </span>docker compose up -d</code></pre>
+            <button class="copy" type="button" data-copy="qs-up"><svg aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <ol>
+        <li>
+          <h3>Run the server</h3>
+          <p>Start Kowan with <code>docker run</code> or Compose. Data, keys and the database live in the <code>kowan-data</code> volume: back it up.</p>
+        </li>
+        <li>
+          <h3>Open :5081 and create the admin</h3>
+          <p>Go to <code>http://localhost:5081</code> (5-0-8-1, read <i>ko-o-wa-n</i>) and create the first admin account with the one-time setup token from <code>docker logs kowan</code>. The local Docker host is ready to manage.</p>
+        </li>
+        <li>
+          <h3>Add hosts</h3>
+          <p>In <b>Hosts → Add host</b>, pick edge or direct and run the one-line agent command Kowan shows on the other machine.</p>
+        </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band close" aria-labelledby="close-title">
+  <div class="col">
+    <div class="inner">
+      <h2 id="close-title">Free, open source and yours to run.</h2>
+      <div class="actions">
+        <a class="btn btn-signal" href="#quick-start">Get started<span class="btn-arrow"><svg aria-hidden="true"><use href="#i-arrow"/></svg></span></a>
+        <a class="btn" href="https://github.com/kowan-lab/kowan">View on GitHub<span class="btn-arrow"><svg aria-hidden="true"><use href="#i-arrow"/></svg></span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="band foot">
+  <div class="col">
+    <div class="foot-grid">
+      <div>
+        <a class="brand" href="./" aria-label="Kowan home"><svg class="mark" aria-hidden="true"><use href="#kowan-mark"/></svg><span>KOWAN</span></a>
+        <p class="meaning">The name comes from the Japanese <span lang="ja">港湾</span> (<i lang="ja-Latn">kōwan</i>): a harbour and its port facilities, where containers are loaded, stored and shipped.</p>
+      </div>
+      <nav aria-labelledby="f-project">
+        <h2 id="f-project">Project</h2>
+        <ul>
+          <li><a href="https://github.com/kowan-lab/kowan">GitHub</a></li>
+          <li><a href="https://github.com/kowan-lab/kowan/tree/main/docs">Documentation</a></li>
+          <li><a href="https://github.com/kowan-lab/kowan/discussions">Discussions</a></li>
+          <li><a href="https://github.com/kowan-lab/kowan/blob/main/CONTRIBUTING.md">Contributing</a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="f-legal">
+        <h2 id="f-legal">Trust</h2>
+        <ul>
+          <li><a href="https://github.com/kowan-lab/kowan/blob/main/LICENSE">MIT license</a></li>
+          <li><a href="https://github.com/kowan-lab/kowan/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kowan-lab/kowan/blob/main/docs/permissions.md">Permissions model</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-base">
+      <span>Kowan is released under the MIT license.</span>
+      <span>Space Grotesk (<a href="fonts/OFL-space-grotesk.txt">OFL</a>) and Geist Mono (<a href="fonts/OFL.txt">OFL</a>). The seal glyph <span lang="ja">港</span> is drawn from Shippori Mincho ExtraBold (SIL OFL 1.1).</span>
+    </div>
+  </div>
+  <div class="foot-tail" aria-hidden="true"></div>
+</footer>
+
+<script src="site.js" defer></script>
+</body>
+</html>

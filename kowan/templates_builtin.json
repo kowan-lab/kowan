@@ -1,0 +1,1042 @@
+[
+  {
+    "id": "builtin:nginx",
+    "name": "Nginx",
+    "description": "High-performance web server and reverse proxy. Serves the default page until you mount content.",
+    "category": "Web",
+    "icon": "nginx",
+    "website": "https://nginx.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8080",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "nginx:stable-alpine",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-html",
+          "target": "/usr/share/nginx/html",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:traefik",
+    "name": "Traefik",
+    "description": "Cloud-native reverse proxy that discovers containers through Docker labels. Dashboard on the API port.",
+    "category": "Web",
+    "icon": "traefik",
+    "website": "https://traefik.io/traefik",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "80",
+        "required": true
+      },
+      {
+        "name": "DASHBOARD_PORT",
+        "label": "Dashboard port",
+        "default": "8088",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "traefik:v3",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 80,
+          "protocol": "tcp"
+        },
+        {
+          "hostPort": "${DASHBOARD_PORT}",
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "/var/run/docker.sock",
+          "target": "/var/run/docker.sock",
+          "readOnly": true
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [
+        "--providers.docker=true",
+        "--providers.docker.exposedbydefault=false",
+        "--entrypoints.web.address=:80",
+        "--api.dashboard=true",
+        "--api.insecure=true"
+      ],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:caddy",
+    "name": "Caddy",
+    "description": "Web server with automatic HTTPS. Certificates and config persist in named volumes.",
+    "category": "Web",
+    "icon": "caddy",
+    "website": "https://caddyserver.com",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "80",
+        "required": true
+      },
+      {
+        "name": "HTTPS_PORT",
+        "label": "HTTPS port",
+        "default": "443",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "caddy:2-alpine",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 80,
+          "protocol": "tcp"
+        },
+        {
+          "hostPort": "${HTTPS_PORT}",
+          "containerPort": 443,
+          "protocol": "tcp"
+        },
+        {
+          "hostPort": "${HTTPS_PORT}",
+          "containerPort": 443,
+          "protocol": "udp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/data",
+          "readOnly": false
+        },
+        {
+          "source": "${KOWAN_NAME}-config",
+          "target": "/config",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:whoami",
+    "name": "whoami",
+    "description": "Tiny web server that echoes request and host information. Handy to test proxies and routing.",
+    "category": "Utility",
+    "icon": "whoami",
+    "website": "https://github.com/traefik/whoami",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8000",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "traefik/whoami:latest",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:postgres",
+    "name": "PostgreSQL",
+    "description": "Reliable open-source relational database (17.x, Alpine).",
+    "category": "Database",
+    "icon": "postgres",
+    "website": "https://www.postgresql.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "POSTGRES_USER",
+        "label": "User",
+        "default": "postgres",
+        "required": true
+      },
+      {
+        "name": "POSTGRES_PASSWORD",
+        "label": "Password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "POSTGRES_DB",
+        "label": "Database",
+        "default": "app",
+        "required": true
+      },
+      {
+        "name": "DB_PORT",
+        "label": "Host port",
+        "default": "5432",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "postgres:17-alpine",
+      "env": [
+        {
+          "key": "POSTGRES_USER",
+          "value": "${POSTGRES_USER}"
+        },
+        {
+          "key": "POSTGRES_PASSWORD",
+          "value": "${POSTGRES_PASSWORD}"
+        },
+        {
+          "key": "POSTGRES_DB",
+          "value": "${POSTGRES_DB}"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${DB_PORT}",
+          "containerPort": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/var/lib/postgresql/data",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:mariadb",
+    "name": "MariaDB",
+    "description": "Community-developed MySQL-compatible relational database (11.x).",
+    "category": "Database",
+    "icon": "mariadb",
+    "website": "https://mariadb.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "MARIADB_ROOT_PASSWORD",
+        "label": "Root password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "MARIADB_DATABASE",
+        "label": "Database",
+        "default": "app",
+        "required": true
+      },
+      {
+        "name": "MARIADB_USER",
+        "label": "User",
+        "default": "app",
+        "required": true
+      },
+      {
+        "name": "MARIADB_PASSWORD",
+        "label": "User password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "DB_PORT",
+        "label": "Host port",
+        "default": "3306",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "mariadb:11",
+      "env": [
+        {
+          "key": "MARIADB_ROOT_PASSWORD",
+          "value": "${MARIADB_ROOT_PASSWORD}"
+        },
+        {
+          "key": "MARIADB_DATABASE",
+          "value": "${MARIADB_DATABASE}"
+        },
+        {
+          "key": "MARIADB_USER",
+          "value": "${MARIADB_USER}"
+        },
+        {
+          "key": "MARIADB_PASSWORD",
+          "value": "${MARIADB_PASSWORD}"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${DB_PORT}",
+          "containerPort": 3306,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/var/lib/mysql",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:redis",
+    "name": "Redis",
+    "description": "In-memory key/value store, cache and message broker, with append-only persistence on.",
+    "category": "Database",
+    "icon": "redis",
+    "website": "https://redis.io",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "REDIS_PORT",
+        "label": "Host port",
+        "default": "6379",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "redis:7-alpine",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${REDIS_PORT}",
+          "containerPort": 6379,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/data",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [
+        "redis-server",
+        "--appendonly",
+        "yes"
+      ],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:adminer",
+    "name": "Adminer",
+    "description": "Single-page database admin UI for PostgreSQL, MySQL/MariaDB, SQLite and more.",
+    "category": "Database",
+    "icon": "adminer",
+    "website": "https://www.adminer.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8081",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "adminer:latest",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:uptime-kuma",
+    "name": "Uptime Kuma",
+    "description": "Self-hosted uptime monitoring with status pages and notifications.",
+    "category": "Monitoring",
+    "icon": "uptime-kuma",
+    "website": "https://github.com/louislam/uptime-kuma",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "3001",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "louislam/uptime-kuma:1",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/app/data",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:grafana",
+    "name": "Grafana",
+    "description": "Dashboards and visualisation for Prometheus, Loki, databases and more.",
+    "category": "Monitoring",
+    "icon": "grafana",
+    "website": "https://grafana.com/oss/grafana",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "3000",
+        "required": true
+      },
+      {
+        "name": "GF_ADMIN_PASSWORD",
+        "label": "Admin password",
+        "required": true,
+        "secret": true
+      }
+    ],
+    "spec": {
+      "image": "grafana/grafana-oss:latest",
+      "env": [
+        {
+          "key": "GF_SECURITY_ADMIN_USER",
+          "value": "admin"
+        },
+        {
+          "key": "GF_SECURITY_ADMIN_PASSWORD",
+          "value": "${GF_ADMIN_PASSWORD}"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/var/lib/grafana",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:prometheus",
+    "name": "Prometheus",
+    "description": "Metrics database and alerting toolkit. Starts with the bundled config, which scrapes itself.",
+    "category": "Monitoring",
+    "icon": "prometheus",
+    "website": "https://prometheus.io",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "9090",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "prom/prometheus:latest",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 9090,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/prometheus",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:gitea",
+    "name": "Gitea",
+    "description": "Lightweight self-hosted Git service with issues, pull requests and CI (Actions).",
+    "category": "Development",
+    "icon": "gitea",
+    "website": "https://about.gitea.com",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "3000",
+        "required": true
+      },
+      {
+        "name": "SSH_PORT",
+        "label": "SSH port",
+        "default": "2222",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "gitea/gitea:1",
+      "env": [
+        {
+          "key": "USER_UID",
+          "value": "1000"
+        },
+        {
+          "key": "USER_GID",
+          "value": "1000"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 3000,
+          "protocol": "tcp"
+        },
+        {
+          "hostPort": "${SSH_PORT}",
+          "containerPort": 22,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/data",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:n8n",
+    "name": "n8n",
+    "description": "Workflow automation with a visual editor and hundreds of integrations.",
+    "category": "Automation",
+    "icon": "n8n",
+    "website": "https://n8n.io",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "5678",
+        "required": true
+      },
+      {
+        "name": "TZ",
+        "label": "Time zone",
+        "description": "IANA name, e.g. Europe/Rome",
+        "default": "Etc/UTC"
+      }
+    ],
+    "spec": {
+      "image": "docker.n8n.io/n8nio/n8n:latest",
+      "env": [
+        {
+          "key": "GENERIC_TIMEZONE",
+          "value": "${TZ}"
+        },
+        {
+          "key": "TZ",
+          "value": "${TZ}"
+        },
+        {
+          "key": "N8N_SECURE_COOKIE",
+          "value": "false"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 5678,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/home/node/.n8n",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:vaultwarden",
+    "name": "Vaultwarden",
+    "description": "Lightweight Bitwarden-compatible password manager server. Clients need HTTPS: put it behind a proxy.",
+    "category": "Security",
+    "icon": "vaultwarden",
+    "website": "https://github.com/dani-garcia/vaultwarden",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8082",
+        "required": true
+      },
+      {
+        "name": "DOMAIN",
+        "label": "Public URL",
+        "description": "The HTTPS URL clients will use",
+        "default": "https://vault.example.com",
+        "required": true
+      },
+      {
+        "name": "SIGNUPS_ALLOWED",
+        "label": "Allow sign-ups",
+        "description": "Set to false after creating your account",
+        "default": "true"
+      }
+    ],
+    "spec": {
+      "image": "vaultwarden/server:latest",
+      "env": [
+        {
+          "key": "DOMAIN",
+          "value": "${DOMAIN}"
+        },
+        {
+          "key": "SIGNUPS_ALLOWED",
+          "value": "${SIGNUPS_ALLOWED}"
+        }
+      ],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/data",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:pihole",
+    "name": "Pi-hole",
+    "description": "Network-wide ad blocking DNS server with a web admin UI.",
+    "category": "Network",
+    "icon": "pihole",
+    "website": "https://pi-hole.net",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "DNS_PORT",
+        "label": "DNS port",
+        "default": "53",
+        "required": true
+      },
+      {
+        "name": "HTTP_PORT",
+        "label": "Web UI port",
+        "default": "8083",
+        "required": true
+      },
+      {
+        "name": "WEB_PASSWORD",
+        "label": "Admin password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "TZ",
+        "label": "Time zone",
+        "description": "IANA name, e.g. Europe/Rome",
+        "default": "Etc/UTC"
+      }
+    ],
+    "compose": "services:\n  pihole:\n    image: pihole/pihole:latest\n    restart: unless-stopped\n    ports:\n      - \"${DNS_PORT}:53/tcp\"\n      - \"${DNS_PORT}:53/udp\"\n      - \"${HTTP_PORT}:80/tcp\"\n    environment:\n      TZ: \"${TZ}\"\n      FTLCONF_webserver_api_password: \"${WEB_PASSWORD}\"\n      FTLCONF_dns_listeningMode: \"all\"\n    volumes:\n      - etc-pihole:/etc/pihole\nvolumes:\n  etc-pihole:\n"
+  },
+  {
+    "id": "builtin:mosquitto",
+    "name": "Mosquitto",
+    "description": "Eclipse Mosquitto MQTT broker. Starts with the bundled no-auth config: add a password file before exposing it.",
+    "category": "IoT",
+    "icon": "mosquitto",
+    "website": "https://mosquitto.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "MQTT_PORT",
+        "label": "MQTT port",
+        "default": "1883",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "eclipse-mosquitto:2",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${MQTT_PORT}",
+          "containerPort": 1883,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-data",
+          "target": "/mosquitto/data",
+          "readOnly": false
+        },
+        {
+          "source": "${KOWAN_NAME}-log",
+          "target": "/mosquitto/log",
+          "readOnly": false
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [
+        "mosquitto",
+        "-c",
+        "/mosquitto-no-auth.conf"
+      ],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:home-assistant",
+    "name": "Home Assistant",
+    "description": "Open-source home automation hub. Uses host networking for device discovery (UI on port 8123).",
+    "category": "IoT",
+    "icon": "home-assistant",
+    "website": "https://www.home-assistant.io",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "TZ",
+        "label": "Time zone",
+        "description": "IANA name, e.g. Europe/Rome",
+        "default": "Etc/UTC"
+      }
+    ],
+    "compose": "services:\n  homeassistant:\n    image: ghcr.io/home-assistant/home-assistant:stable\n    restart: unless-stopped\n    network_mode: host\n    environment:\n      TZ: \"${TZ}\"\n    volumes:\n      - config:/config\nvolumes:\n  config:\n"
+  },
+  {
+    "id": "builtin:jellyfin",
+    "name": "Jellyfin",
+    "description": "Free media server for movies, shows and music. Mount your library read-only at /media.",
+    "category": "Media",
+    "icon": "jellyfin",
+    "website": "https://jellyfin.org",
+    "type": "container",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8096",
+        "required": true
+      },
+      {
+        "name": "MEDIA_PATH",
+        "label": "Media folder on the host",
+        "description": "Absolute path, mounted read-only",
+        "default": "/srv/media",
+        "required": true
+      }
+    ],
+    "spec": {
+      "image": "jellyfin/jellyfin:latest",
+      "env": [],
+      "ports": [
+        {
+          "hostPort": "${HTTP_PORT}",
+          "containerPort": 8096,
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "source": "${KOWAN_NAME}-config",
+          "target": "/config",
+          "readOnly": false
+        },
+        {
+          "source": "${KOWAN_NAME}-cache",
+          "target": "/cache",
+          "readOnly": false
+        },
+        {
+          "source": "${MEDIA_PATH}",
+          "target": "/media",
+          "readOnly": true
+        }
+      ],
+      "networks": [],
+      "restartPolicy": "unless-stopped",
+      "command": [],
+      "labels": {}
+    }
+  },
+  {
+    "id": "builtin:immich",
+    "name": "Immich",
+    "description": "Self-hosted photo and video backup with mobile apps, face recognition and smart search.",
+    "category": "Media",
+    "icon": "immich",
+    "website": "https://immich.app",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "2283",
+        "required": true
+      },
+      {
+        "name": "UPLOAD_LOCATION",
+        "label": "Library folder on the host",
+        "description": "Absolute path where photos and videos are stored",
+        "default": "/srv/immich/library",
+        "required": true
+      },
+      {
+        "name": "DB_PASSWORD",
+        "label": "Database password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "TZ",
+        "label": "Time zone",
+        "description": "IANA name, e.g. Europe/Rome",
+        "default": "Etc/UTC"
+      }
+    ],
+    "compose": "services:\n  immich-server:\n    image: ghcr.io/immich-app/immich-server:release\n    restart: unless-stopped\n    ports:\n      - \"${HTTP_PORT}:2283\"\n    environment: &immich-env\n      DB_HOSTNAME: database\n      DB_USERNAME: postgres\n      DB_PASSWORD: \"${DB_PASSWORD}\"\n      DB_DATABASE_NAME: immich\n      REDIS_HOSTNAME: redis\n      TZ: \"${TZ}\"\n    volumes:\n      - \"${UPLOAD_LOCATION}:/data\"\n      - /etc/localtime:/etc/localtime:ro\n    depends_on:\n      - redis\n      - database\n  immich-machine-learning:\n    image: ghcr.io/immich-app/immich-machine-learning:release\n    restart: unless-stopped\n    environment: *immich-env\n    volumes:\n      - model-cache:/cache\n  redis:\n    image: docker.io/valkey/valkey:8-bookworm\n    restart: unless-stopped\n  database:\n    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0\n    restart: unless-stopped\n    shm_size: 128mb\n    environment:\n      POSTGRES_PASSWORD: \"${DB_PASSWORD}\"\n      POSTGRES_USER: postgres\n      POSTGRES_DB: immich\n      POSTGRES_INITDB_ARGS: \"--data-checksums\"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\nvolumes:\n  model-cache:\n  pgdata:\n"
+  },
+  {
+    "id": "builtin:paperless-ngx",
+    "name": "Paperless-ngx",
+    "description": "Document management: scan, OCR, tag and search your paperwork. Drop files into the consume volume.",
+    "category": "Productivity",
+    "icon": "paperless-ngx",
+    "website": "https://docs.paperless-ngx.com",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8000",
+        "required": true
+      },
+      {
+        "name": "ADMIN_USER",
+        "label": "Admin user",
+        "default": "admin",
+        "required": true
+      },
+      {
+        "name": "ADMIN_PASSWORD",
+        "label": "Admin password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "DB_PASSWORD",
+        "label": "Database password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "SECRET_KEY",
+        "label": "Secret key",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "TZ",
+        "label": "Time zone",
+        "description": "IANA name, e.g. Europe/Rome",
+        "default": "Etc/UTC"
+      }
+    ],
+    "compose": "services:\n  broker:\n    image: docker.io/library/redis:7-alpine\n    restart: unless-stopped\n    volumes:\n      - redisdata:/data\n  db:\n    image: docker.io/library/postgres:17-alpine\n    restart: unless-stopped\n    environment:\n      POSTGRES_DB: paperless\n      POSTGRES_USER: paperless\n      POSTGRES_PASSWORD: \"${DB_PASSWORD}\"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n  webserver:\n    image: ghcr.io/paperless-ngx/paperless-ngx:latest\n    restart: unless-stopped\n    depends_on:\n      - db\n      - broker\n    ports:\n      - \"${HTTP_PORT}:8000\"\n    environment:\n      PAPERLESS_REDIS: redis://broker:6379\n      PAPERLESS_DBHOST: db\n      PAPERLESS_DBPASS: \"${DB_PASSWORD}\"\n      PAPERLESS_SECRET_KEY: \"${SECRET_KEY}\"\n      PAPERLESS_ADMIN_USER: \"${ADMIN_USER}\"\n      PAPERLESS_ADMIN_PASSWORD: \"${ADMIN_PASSWORD}\"\n      PAPERLESS_TIME_ZONE: \"${TZ}\"\n    volumes:\n      - data:/usr/src/paperless/data\n      - media:/usr/src/paperless/media\n      - export:/usr/src/paperless/export\n      - consume:/usr/src/paperless/consume\nvolumes:\n  data:\n  media:\n  export:\n  consume:\n  pgdata:\n  redisdata:\n"
+  },
+  {
+    "id": "builtin:nextcloud",
+    "name": "Nextcloud",
+    "description": "Files, calendar, contacts and office in your own cloud, with MariaDB and Redis.",
+    "category": "Productivity",
+    "icon": "nextcloud",
+    "website": "https://nextcloud.com",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8084",
+        "required": true
+      },
+      {
+        "name": "ADMIN_USER",
+        "label": "Admin user",
+        "default": "admin",
+        "required": true
+      },
+      {
+        "name": "ADMIN_PASSWORD",
+        "label": "Admin password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "TRUSTED_DOMAINS",
+        "label": "Trusted domains",
+        "description": "Space-separated host names you will use to reach it",
+        "default": "localhost",
+        "required": true
+      },
+      {
+        "name": "DB_PASSWORD",
+        "label": "Database password",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "DB_ROOT_PASSWORD",
+        "label": "Database root password",
+        "required": true,
+        "secret": true
+      }
+    ],
+    "compose": "services:\n  db:\n    image: mariadb:11\n    restart: unless-stopped\n    command: --transaction-isolation=READ-COMMITTED\n    environment:\n      MARIADB_ROOT_PASSWORD: \"${DB_ROOT_PASSWORD}\"\n      MARIADB_DATABASE: nextcloud\n      MARIADB_USER: nextcloud\n      MARIADB_PASSWORD: \"${DB_PASSWORD}\"\n    volumes:\n      - db:/var/lib/mysql\n  redis:\n    image: redis:7-alpine\n    restart: unless-stopped\n  app:\n    image: nextcloud:stable-apache\n    restart: unless-stopped\n    depends_on:\n      - db\n      - redis\n    ports:\n      - \"${HTTP_PORT}:80\"\n    environment:\n      MYSQL_HOST: db\n      MYSQL_DATABASE: nextcloud\n      MYSQL_USER: nextcloud\n      MYSQL_PASSWORD: \"${DB_PASSWORD}\"\n      REDIS_HOST: redis\n      NEXTCLOUD_ADMIN_USER: \"${ADMIN_USER}\"\n      NEXTCLOUD_ADMIN_PASSWORD: \"${ADMIN_PASSWORD}\"\n      NEXTCLOUD_TRUSTED_DOMAINS: \"${TRUSTED_DOMAINS}\"\n    volumes:\n      - nextcloud:/var/www/html\nvolumes:\n  db:\n  nextcloud:\n"
+  },
+  {
+    "id": "builtin:wordpress-mysql",
+    "name": "WordPress",
+    "description": "WordPress CMS backed by MariaDB, wired together with Compose.",
+    "category": "Web",
+    "icon": "wordpress-mysql",
+    "website": "https://wordpress.org",
+    "type": "compose",
+    "inputs": [
+      {
+        "name": "HTTP_PORT",
+        "label": "HTTP port",
+        "default": "8085",
+        "required": true
+      },
+      {
+        "name": "DB_PASSWORD",
+        "label": "Database password",
+        "required": true,
+        "secret": true
+      }
+    ],
+    "compose": "services:\n  db:\n    image: mariadb:11\n    restart: unless-stopped\n    environment:\n      MARIADB_DATABASE: wordpress\n      MARIADB_USER: wordpress\n      MARIADB_PASSWORD: \"${DB_PASSWORD}\"\n      MARIADB_RANDOM_ROOT_PASSWORD: \"1\"\n    volumes:\n      - dbdata:/var/lib/mysql\n  wordpress:\n    image: wordpress:6-apache\n    restart: unless-stopped\n    depends_on:\n      - db\n    ports:\n      - \"${HTTP_PORT}:80\"\n    environment:\n      WORDPRESS_DB_HOST: db\n      WORDPRESS_DB_USER: wordpress\n      WORDPRESS_DB_PASSWORD: \"${DB_PASSWORD}\"\n      WORDPRESS_DB_NAME: wordpress\n    volumes:\n      - wpdata:/var/www/html\nvolumes:\n  dbdata:\n  wpdata:\n"
+  }
+]

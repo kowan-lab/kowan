@@ -1,0 +1,12 @@
+{
+  // Type-check the unit/component tests and the Playwright specs:
+  // `npm run typecheck:test`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
+    "noUnusedLocals": false
+  },
+  "include": ["src", "e2e", "playwright.config.ts"],
+  "exclude": []
+}

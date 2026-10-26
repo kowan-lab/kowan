@@ -1,0 +1,74 @@
+# Kowan — self-hosting quickstart.
+#
+#   docker compose up -d
+#
+# Then open http://localhost:5081 and create the first admin account in the
+# setup screen, with the one-time setup token from `docker compose logs server`. To build the images from this checkout instead of pulling
+# them, run `docker compose up -d --build`.
+#
+# Secrets: on first start the server generates its JWT signing key and the
+# key that encrypts stored secrets, and keeps both in the data volume. Back
+# the volume up: losing secret.key makes stored secrets unrecoverable. Set
+# KOWAN_JWT_SECRET / KOWAN_SECRET_KEY only if you manage keys yourself.
+#
+# KOWAN_EXTERNAL_URL is the URL users and agents reach this server at. Set it
+# before attaching agents on other hosts, so the join commands shown in the
+# UI point at a reachable address instead of localhost.
+#
+# Data (SQLite database, keys, compose stacks) lives in the named volume
+# "kowan-data"; remove it to start from scratch.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: "${VERSION:-dev}"   # stamped as org.opencontainers.image.version
+    image: ghcr.io/kowan-lab/kowan:latest
+    ports:
+      - "5081:5081"
+    # environment:
+    #   # Externally-reachable base URL; used for agent join commands and SSO.
+    #   KOWAN_EXTERNAL_URL: "https://kowan.example.com"
+    #   # Headless bootstrap instead of the setup screen:
+    #   KOWAN_ADMIN_USER: "admin"
+    #   KOWAN_ADMIN_PASSWORD: "<a strong password>"
+    volumes:
+      - kowan-data:/data
+      # Grants the server control of THIS host's Docker daemon (root-equivalent
+      # on the host, regardless of the in-container uid). Enables managing the
+      # local host without a separate agent AND the "Update server" self-update
+      # in Settings (it recreates this container from a newer image). Remove it if
+      # you'd rather manage this host through a dedicated edge agent (below) and
+      # keep the control plane off the socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  # --- Optional: run an edge agent for THIS host alongside the server ------------
+  # Uncomment to manage the local Docker daemon through a dedicated agent instead
+  # of the server's built-in local client, or copy this block to another host's
+  # compose file to attach it. Create an edge host in the UI (Hosts -> Add ->
+  # edge) to get the enrollment token, then set KOWAN_AGENT_TOKEN below.
+  #
+  # agent:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.agent
+  #     args:
+  #       VERSION: "${VERSION:-dev}"
+  #   image: ghcr.io/kowan-lab/kowan-agent:latest
+  #   environment:
+  #     KOWAN_AGENT_MODE: "edge"
+  #     # When co-located with the server above, reach it over the compose network:
+  #     KOWAN_SERVER_URL: "http://server:5081"
+  #     # On a remote host, point at the server's external URL instead:
+  #     # KOWAN_SERVER_URL: "https://kowan.example.com"
+  #     KOWAN_AGENT_TOKEN: "<enrollment-token-from-the-UI>"
+  #   volumes:
+  #     # Grants the agent control of this host's Docker daemon (root-equivalent).
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   restart: unless-stopped
+
+volumes:
+  kowan-data:

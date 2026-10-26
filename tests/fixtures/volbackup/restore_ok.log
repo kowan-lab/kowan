@@ -1,0 +1,5 @@
+@@kowan phase lookup
+@@kowan phase restore /data/kowan-f3-fixture
+{"message_type":"summary","total_files":3,"files_restored":3,"total_bytes":12,"bytes_restored":12}
+@@kowan rc restore snapshot 0
+@@kowan done

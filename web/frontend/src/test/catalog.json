@@ -1,0 +1,1786 @@
+{
+ "credentialTypes_secret": [
+  {
+   "type": "infisical",
+   "fields": [
+    {
+     "key": "address",
+     "label": "Address",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://app.infisical.com"
+    },
+    {
+     "key": "clientId",
+     "label": "Client ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "machine identity client id"
+    },
+    {
+     "key": "clientSecret",
+     "label": "Client Secret",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "projectId",
+     "label": "Project ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "workspace id"
+    },
+    {
+     "key": "environment",
+     "label": "Environment",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "dev"
+    },
+    {
+     "key": "secretPath",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "/"
+    },
+    {
+     "key": "key",
+     "label": "Secret name",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "DATABASE_URL"
+    }
+   ]
+  },
+  {
+   "type": "phase",
+   "fields": [
+    {
+     "key": "address",
+     "label": "API address",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://api.phase.dev"
+    },
+    {
+     "key": "token",
+     "label": "Token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "pss_service:v2:\u2026"
+    },
+    {
+     "key": "appId",
+     "label": "App ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "phase application id"
+    },
+    {
+     "key": "environment",
+     "label": "Environment",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "production"
+    },
+    {
+     "key": "path",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "/"
+    },
+    {
+     "key": "key",
+     "label": "Secret name",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "DATABASE_URL"
+    }
+   ]
+  },
+  {
+   "type": "vault",
+   "fields": [
+    {
+     "key": "address",
+     "label": "Vault address",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://vault.example.com:8200"
+    },
+    {
+     "key": "token",
+     "label": "Vault token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "s.xxxxxxxx"
+    },
+    {
+     "key": "mount",
+     "label": "KV v2 mount",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "secret"
+    },
+    {
+     "key": "path",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "app/db"
+    },
+    {
+     "key": "key",
+     "label": "Key",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "password"
+    }
+   ]
+  }
+ ],
+ "credentialTypes_registry": [
+  {
+   "type": "generic",
+   "label": "Generic (basic auth)",
+   "beta": false,
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "registry user"
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": false,
+     "placeholder": "registry password or token"
+    }
+   ]
+  },
+  {
+   "type": "ghcr",
+   "label": "GitHub Container Registry",
+   "beta": false,
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "github username"
+    },
+    {
+     "key": "password",
+     "label": "Token (PAT)",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "ghp_..."
+    }
+   ]
+  },
+  {
+   "type": "ecr",
+   "label": "AWS ECR",
+   "beta": true,
+   "fields": [
+    {
+     "key": "region",
+     "label": "Region",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "us-east-1"
+    },
+    {
+     "key": "accessKeyId",
+     "label": "Access Key ID",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "AKIA..."
+    },
+    {
+     "key": "secretAccessKey",
+     "label": "Secret Access Key",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "gcp",
+   "label": "Google Artifact/Container Registry",
+   "beta": true,
+   "fields": [
+    {
+     "key": "jsonKey",
+     "label": "Service Account JSON Key",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "{\"type\":\"service_account\",...}"
+    }
+   ]
+  },
+  {
+   "type": "acr",
+   "label": "Azure Container Registry",
+   "beta": true,
+   "fields": [
+    {
+     "key": "tenantId",
+     "label": "Tenant ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "clientId",
+     "label": "Client ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "clientSecret",
+     "label": "Client Secret",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  }
+ ],
+ "credentialTypes_channel": [
+  {
+   "type": "discord",
+   "fields": [
+    {
+     "key": "url",
+     "label": "Webhook URL",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "https://discord.com/api/webhooks/..."
+    }
+   ]
+  },
+  {
+   "type": "ntfy",
+   "fields": [
+    {
+     "key": "server",
+     "label": "Server",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://ntfy.sh"
+    },
+    {
+     "key": "topic",
+     "label": "Topic",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "kowan-alerts"
+    },
+    {
+     "key": "token",
+     "label": "Token",
+     "sensitive": true,
+     "required": false,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "slack",
+   "fields": [
+    {
+     "key": "url",
+     "label": "Webhook URL",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "https://hooks.slack.com/services/..."
+    }
+   ]
+  },
+  {
+   "type": "smtp",
+   "fields": [
+    {
+     "key": "host",
+     "label": "Host",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "smtp.example.com"
+    },
+    {
+     "key": "port",
+     "label": "Port",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "587"
+    },
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "user@example.com"
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": false,
+     "placeholder": ""
+    },
+    {
+     "key": "from",
+     "label": "From",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "alerts@example.com"
+    },
+    {
+     "key": "to",
+     "label": "To",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "ops@example.com, oncall@example.com"
+    }
+   ]
+  },
+  {
+   "type": "telegram",
+   "fields": [
+    {
+     "key": "botToken",
+     "label": "Bot Token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "123456:ABC-DEF..."
+    },
+    {
+     "key": "chatId",
+     "label": "Chat ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "-1001234567890"
+    }
+   ]
+  },
+  {
+   "type": "webhook",
+   "fields": [
+    {
+     "key": "url",
+     "label": "URL",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://example.com/hook"
+    },
+    {
+     "key": "headers",
+     "label": "Headers",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "Authorization:Bearer x;X-Env:prod"
+    }
+   ]
+  }
+ ],
+ "credentialTypes_connection": [
+  {
+   "type": "api-token",
+   "capabilities": [
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "token",
+     "label": "Token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "header",
+     "label": "Header name",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "Authorization"
+    },
+    {
+     "key": "scheme",
+     "label": "Scheme",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "Bearer"
+    }
+   ]
+  },
+  {
+   "type": "aws",
+   "capabilities": [
+    "cloudIdentity",
+    "dockerRegistryAuth"
+   ],
+   "fields": [
+    {
+     "key": "region",
+     "label": "Region",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "us-east-1"
+    },
+    {
+     "key": "accessKeyId",
+     "label": "Access Key ID",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "AKIA..."
+    },
+    {
+     "key": "secretAccessKey",
+     "label": "Secret Access Key",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "azure",
+   "capabilities": [
+    "cloudIdentity",
+    "dockerRegistryAuth"
+   ],
+   "fields": [
+    {
+     "key": "tenantId",
+     "label": "Tenant ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "clientId",
+     "label": "Client ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "clientSecret",
+     "label": "Client Secret",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "basic-auth",
+   "capabilities": [
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "bitbucket",
+   "capabilities": [
+    "gitFetch",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "token",
+     "label": "App password",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "discord",
+   "capabilities": [
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "url",
+     "label": "Webhook URL",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "https://discord.com/api/webhooks/..."
+    }
+   ]
+  },
+  {
+   "type": "gcp",
+   "capabilities": [
+    "cloudIdentity",
+    "dockerRegistryAuth"
+   ],
+   "fields": [
+    {
+     "key": "jsonKey",
+     "label": "Service Account JSON Key",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "{\"type\":\"service_account\",...}"
+    }
+   ]
+  },
+  {
+   "type": "generic",
+   "capabilities": [
+    "dockerRegistryAuth",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "registry user"
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": false,
+     "placeholder": "registry password or token"
+    }
+   ]
+  },
+  {
+   "type": "ghcr",
+   "capabilities": [
+    "dockerRegistryAuth",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "github username"
+    },
+    {
+     "key": "password",
+     "label": "Token (PAT)",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "ghp_..."
+    }
+   ]
+  },
+  {
+   "type": "git-http",
+   "capabilities": [
+    "gitFetch",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(for private repos)"
+    },
+    {
+     "key": "token",
+     "label": "Token / password",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "github",
+   "capabilities": [
+    "gitFetch",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(optional)"
+    },
+    {
+     "key": "token",
+     "label": "Personal access token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "ghp_\u2026"
+    }
+   ]
+  },
+  {
+   "type": "gitlab",
+   "capabilities": [
+    "gitFetch",
+    "httpBearer"
+   ],
+   "fields": [
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(optional)"
+    },
+    {
+     "key": "token",
+     "label": "Access token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "glpat-\u2026"
+    }
+   ]
+  },
+  {
+   "type": "infisical",
+   "capabilities": [
+    "httpBearer",
+    "secretFetch"
+   ],
+   "fields": [
+    {
+     "key": "address",
+     "label": "Address",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://app.infisical.com"
+    },
+    {
+     "key": "clientId",
+     "label": "Client ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "machine identity client id"
+    },
+    {
+     "key": "clientSecret",
+     "label": "Client Secret",
+     "sensitive": true,
+     "required": true,
+     "placeholder": ""
+    },
+    {
+     "key": "projectId",
+     "label": "Project ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "workspace id"
+    },
+    {
+     "key": "environment",
+     "label": "Environment",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "dev"
+    },
+    {
+     "key": "secretPath",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "/"
+    },
+    {
+     "key": "key",
+     "label": "Secret name",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "DATABASE_URL"
+    }
+   ]
+  },
+  {
+   "type": "ntfy",
+   "capabilities": [
+    "httpBearer",
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "server",
+     "label": "Server",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://ntfy.sh"
+    },
+    {
+     "key": "topic",
+     "label": "Topic",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "kowan-alerts"
+    },
+    {
+     "key": "token",
+     "label": "Token",
+     "sensitive": true,
+     "required": false,
+     "placeholder": ""
+    }
+   ]
+  },
+  {
+   "type": "phase",
+   "capabilities": [
+    "httpBearer",
+    "secretFetch"
+   ],
+   "fields": [
+    {
+     "key": "address",
+     "label": "API address",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "https://api.phase.dev"
+    },
+    {
+     "key": "token",
+     "label": "Token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "pss_service:v2:\u2026"
+    },
+    {
+     "key": "appId",
+     "label": "App ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "phase application id"
+    },
+    {
+     "key": "environment",
+     "label": "Environment",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "production"
+    },
+    {
+     "key": "path",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "/"
+    },
+    {
+     "key": "key",
+     "label": "Secret name",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "DATABASE_URL"
+    }
+   ]
+  },
+  {
+   "type": "slack",
+   "capabilities": [
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "url",
+     "label": "Webhook URL",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "https://hooks.slack.com/services/..."
+    }
+   ]
+  },
+  {
+   "type": "smtp",
+   "capabilities": [
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "host",
+     "label": "Host",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "smtp.example.com"
+    },
+    {
+     "key": "port",
+     "label": "Port",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "587"
+    },
+    {
+     "key": "username",
+     "label": "Username",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "user@example.com"
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "sensitive": true,
+     "required": false,
+     "placeholder": ""
+    },
+    {
+     "key": "from",
+     "label": "From",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "alerts@example.com"
+    },
+    {
+     "key": "to",
+     "label": "To",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "ops@example.com, oncall@example.com"
+    }
+   ]
+  },
+  {
+   "type": "telegram",
+   "capabilities": [
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "botToken",
+     "label": "Bot Token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "123456:ABC-DEF..."
+    },
+    {
+     "key": "chatId",
+     "label": "Chat ID",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "-1001234567890"
+    }
+   ]
+  },
+  {
+   "type": "vault",
+   "capabilities": [
+    "httpBearer",
+    "secretFetch"
+   ],
+   "fields": [
+    {
+     "key": "address",
+     "label": "Vault address",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://vault.example.com:8200"
+    },
+    {
+     "key": "token",
+     "label": "Vault token",
+     "sensitive": true,
+     "required": true,
+     "placeholder": "s.xxxxxxxx"
+    },
+    {
+     "key": "mount",
+     "label": "KV v2 mount",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "secret"
+    },
+    {
+     "key": "path",
+     "label": "Secret path",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "app/db"
+    },
+    {
+     "key": "key",
+     "label": "Key",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "password"
+    }
+   ]
+  },
+  {
+   "type": "webhook",
+   "capabilities": [
+    "httpBearer",
+    "messageSend"
+   ],
+   "fields": [
+    {
+     "key": "url",
+     "label": "URL",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://example.com/hook"
+    },
+    {
+     "key": "headers",
+     "label": "Headers",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "Authorization:Bearer x;X-Env:prod"
+    }
+   ]
+  }
+ ],
+ "volumePlugins": [
+  {
+   "type": "s3fs",
+   "label": "Amazon S3 bucket (s3fs)",
+   "description": "Mount an S3 (or S3-compatible) bucket as a Docker volume via the s3fs FUSE plugin.",
+   "pluginRef": "mochoa/s3fs-volume-plugin:latest",
+   "driver": "mochoa/s3fs-volume-plugin:latest",
+   "options": [
+    {
+     "key": "bucket",
+     "label": "Bucket",
+     "placeholder": "my-bucket",
+     "sensitive": false,
+     "required": true,
+     "fromConnection": false
+    },
+    {
+     "key": "AWSACCESSKEYID",
+     "label": "Access Key ID",
+     "placeholder": "",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": true
+    },
+    {
+     "key": "AWSSECRETACCESSKEY",
+     "label": "Secret Access Key",
+     "placeholder": "",
+     "sensitive": true,
+     "required": false,
+     "fromConnection": true
+    },
+    {
+     "key": "AWSDEFAULTREGION",
+     "label": "Region",
+     "placeholder": "",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": true
+    },
+    {
+     "key": "url",
+     "label": "Endpoint URL",
+     "placeholder": "https://s3.amazonaws.com (or S3-compatible)",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": false
+    }
+   ]
+  },
+  {
+   "type": "sshfs",
+   "label": "SSHFS remote directory",
+   "description": "Mount a directory on a remote host over SSH as a Docker volume (vieux/sshfs). Useful as a live test of the plugin install flow.",
+   "pluginRef": "vieux/sshfs:latest",
+   "driver": "vieux/sshfs:latest",
+   "options": [
+    {
+     "key": "host",
+     "label": "Host",
+     "placeholder": "host.example.com",
+     "sensitive": false,
+     "required": true,
+     "fromConnection": false
+    },
+    {
+     "key": "path",
+     "label": "Remote path",
+     "placeholder": "/remote/path",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": false
+    },
+    {
+     "key": "sshcmd",
+     "label": "SSH target",
+     "placeholder": "",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": true
+    },
+    {
+     "key": "password",
+     "label": "Password",
+     "placeholder": "",
+     "sensitive": true,
+     "required": false,
+     "fromConnection": true
+    },
+    {
+     "key": "port",
+     "label": "Port",
+     "placeholder": "22",
+     "sensitive": false,
+     "required": false,
+     "fromConnection": false
+    }
+   ]
+  }
+ ],
+ "triggerTypes": [
+  {
+   "type": "cron",
+   "kind": "cron",
+   "label": "Cron schedule",
+   "description": "Run the workflow on a cron schedule.",
+   "fields": [
+    {
+     "key": "cron",
+     "label": "Cron expression",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "0 */6 * * *"
+    }
+   ]
+  },
+  {
+   "type": "docker-image",
+   "kind": "poll",
+   "label": "Docker image",
+   "description": "Fires when an image tag's manifest digest changes in its registry (a new push to the same tag), resolved via the Registry v2 API without pulling.",
+   "fields": [
+    {
+     "key": "connectionRef",
+     "label": "Registry",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(Docker Hub / public if unset)",
+     "connection": {
+      "capability": "dockerRegistryAuth",
+      "optional": true
+     }
+    },
+    {
+     "key": "repository",
+     "label": "Repository",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "library/nginx or myorg/api"
+    },
+    {
+     "key": "tag",
+     "label": "Tag",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "latest"
+    }
+   ]
+  },
+  {
+   "type": "git-commit",
+   "kind": "poll",
+   "label": "Git commit",
+   "description": "Fires when a branch's HEAD commit changes, polled over the git smart-HTTP protocol (no clone).",
+   "fields": [
+    {
+     "key": "repo",
+     "label": "Repository URL",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://github.com/owner/repo.git"
+    },
+    {
+     "key": "branch",
+     "label": "Branch",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "main"
+    },
+    {
+     "key": "connectionRef",
+     "label": "Credential",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "(for private repos)",
+     "connection": {
+      "capability": "gitFetch",
+      "optional": true
+     }
+    }
+   ]
+  },
+  {
+   "type": "rss",
+   "kind": "poll",
+   "label": "RSS feed",
+   "description": "Fires when a new entry appears in an RSS or Atom feed, polled over HTTP (no third-party feed library).",
+   "fields": [
+    {
+     "key": "url",
+     "label": "Feed URL",
+     "sensitive": false,
+     "required": true,
+     "placeholder": "https://example.com/feed.xml"
+    }
+   ]
+  },
+  {
+   "type": "webhook",
+   "kind": "webhook",
+   "label": "Webhook",
+   "description": "Run the workflow when an HTTP request hits its public URL. The body/headers/query are passed to the steps.",
+   "fields": [
+    {
+     "key": "method",
+     "label": "Method",
+     "sensitive": false,
+     "required": false,
+     "placeholder": "POST",
+     "options": [
+      "any",
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE"
+     ]
+    }
+   ]
+  }
+ ],
+ "alertRuleTypes": [
+  {
+   "type": "cpu_high",
+   "label": "CPU usage",
+   "description": "A container's CPU usage crosses the threshold.",
+   "category": "resource",
+   "numeric": true,
+   "unit": "%",
+   "containerScoped": true,
+   "defaultOperator": ">",
+   "defaultThreshold": 80.0,
+   "defaultSeverity": "warning"
+  },
+  {
+   "type": "mem_high",
+   "label": "Memory usage",
+   "description": "A container's memory usage crosses the threshold.",
+   "category": "resource",
+   "numeric": true,
+   "unit": "%",
+   "containerScoped": true,
+   "defaultOperator": ">",
+   "defaultThreshold": 80.0,
+   "defaultSeverity": "warning"
+  },
+  {
+   "type": "disk_high",
+   "label": "Docker disk usage",
+   "description": "The disk consumed by Docker on a host (images, containers, volumes, build cache) crosses the threshold.",
+   "category": "resource",
+   "numeric": true,
+   "unit": "GB",
+   "containerScoped": false,
+   "defaultOperator": ">",
+   "defaultThreshold": 20.0,
+   "defaultSeverity": "warning"
+  },
+  {
+   "type": "container_restart_loop",
+   "label": "Restart loop",
+   "description": "A container's restart count crosses the threshold (a crash loop).",
+   "category": "lifecycle",
+   "numeric": true,
+   "unit": "restarts",
+   "containerScoped": true,
+   "defaultOperator": ">=",
+   "defaultThreshold": 5.0,
+   "defaultSeverity": "warning"
+  },
+  {
+   "type": "container_down",
+   "label": "Container down",
+   "description": "A container that was previously running is no longer running.",
+   "category": "lifecycle",
+   "numeric": false,
+   "unit": "",
+   "containerScoped": true,
+   "defaultOperator": "",
+   "defaultThreshold": 0.0,
+   "defaultSeverity": "critical"
+  },
+  {
+   "type": "container_unhealthy",
+   "label": "Container unhealthy",
+   "description": "A container's Docker healthcheck reports unhealthy.",
+   "category": "lifecycle",
+   "numeric": false,
+   "unit": "",
+   "containerScoped": true,
+   "defaultOperator": "",
+   "defaultThreshold": 0.0,
+   "defaultSeverity": "critical"
+  },
+  {
+   "type": "container_exited",
+   "label": "Abnormal exit",
+   "description": "A container exited with a non-zero exit code or was killed for running out of memory (OOM).",
+   "category": "lifecycle",
+   "numeric": false,
+   "unit": "",
+   "containerScoped": true,
+   "defaultOperator": "",
+   "defaultThreshold": 0.0,
+   "defaultSeverity": "critical"
+  },
+  {
+   "type": "host_down",
+   "label": "Host unreachable",
+   "description": "A managed host's Docker endpoint is offline.",
+   "category": "host",
+   "numeric": false,
+   "unit": "",
+   "containerScoped": false,
+   "defaultOperator": "",
+   "defaultThreshold": 0.0,
+   "defaultSeverity": "critical"
+  }
+ ],
+ "gitopsKinds": [
+  {
+   "kind": "Registry",
+   "plural": "registries",
+   "order": 10,
+   "description": "An image registry. Credentials are never inline: the password stays as stored in Kowan, or auth comes from a shared connection referenced by name.",
+   "defaults": {
+    "type": "generic",
+    "username": "",
+    "insecure": false,
+    "connection": ""
+   },
+   "policies": []
+  },
+  {
+   "kind": "NotificationChannel",
+   "plural": "channels",
+   "order": 20,
+   "description": "A notification channel. Sensitive config values must reference Kowan secrets ([[name]] / [[name.field]]); they are resolved when applied.",
+   "defaults": {
+    "enabled": true,
+    "minLevel": "info",
+    "config": {}
+   },
+   "policies": []
+  },
+  {
+   "kind": "Template",
+   "plural": "templates",
+   "order": 30,
+   "description": "A custom app template (built-in templates are not managed).",
+   "defaults": {
+    "description": "",
+    "category": "",
+    "icon": "",
+    "spec": null,
+    "compose": "",
+    "inputs": [],
+    "website": ""
+   },
+   "policies": []
+  },
+  {
+   "kind": "Deployment",
+   "plural": "deployments",
+   "order": 40,
+   "description": "A compose or single-container deployment on one host (optionally sourced from git).",
+   "defaults": {
+    "type": "compose",
+    "strategy": "standalone",
+    "replicas": 0,
+    "enabled": true,
+    "protected": false,
+    "compose": "",
+    "container": null,
+    "git": null
+   },
+   "policies": [
+    "policies"
+   ]
+  },
+  {
+   "kind": "AlertRule",
+   "plural": "alert-rules",
+   "order": 50,
+   "description": "A monitor alert rule; host and channel are referenced by name.",
+   "defaults": {
+    "operator": "",
+    "threshold": 0.0,
+    "severity": "",
+    "forDuration": 0,
+    "host": "",
+    "match": "",
+    "labelKey": "",
+    "labelValue": "",
+    "channel": "",
+    "autoResolve": true,
+    "enabled": true
+   },
+   "policies": []
+  },
+  {
+   "kind": "Workflow",
+   "plural": "workflows",
+   "order": 60,
+   "description": "A workflow: ordered steps, triggers and variables (trigger secrets are never exported).",
+   "defaults": {
+    "description": "",
+    "enabled": false,
+    "variables": {},
+    "steps": [],
+    "triggers": []
+   },
+   "policies": []
+  },
+  {
+   "kind": "AutoUpdatePolicy",
+   "plural": "auto-update",
+   "order": 70,
+   "description": "An image auto-update policy. metadata.name is the target: a deployment name, or <host>/<container> for a container.",
+   "defaults": {
+    "target": "deployment",
+    "window": "",
+    "minAge": "",
+    "scanBlock": ""
+   },
+   "policies": []
+  },
+  {
+   "kind": "Schedule",
+   "plural": "schedules",
+   "order": 70,
+   "description": "A scheduled start/stop/restart of a deployment, container or stack.",
+   "defaults": {
+    "host": "",
+    "timezone": "",
+    "enabled": true,
+    "onlyIf": {}
+   },
+   "policies": []
+  }
+ ],
+ "volbackupInfo": {
+  "image": "restic/restic:0.17.3"
+ },
+ "autoupdateSettings": {
+  "enabled": true,
+  "intervalSeconds": 21600,
+  "defaultScanBlock": "never",
+  "verifyTimeoutSeconds": 120,
+  "stableSeconds": 10,
+  "lastTickAt": "",
+  "minIntervalSeconds": 900
+ },
+ "ssoSettings": {
+  "ssoOnly": false,
+  "breakGlassUser": "admin"
+ },
+ "templates": [
+  {
+   "id": "builtin:nginx",
+   "name": "Nginx",
+   "description": "High-performance web server and reverse proxy. Serves the default page until you mount content.",
+   "category": "Web",
+   "icon": "nginx",
+   "type": "container",
+   "spec": {
+    "image": "nginx:stable-alpine",
+    "env": [],
+    "ports": [
+     {
+      "hostPort": "${HTTP_PORT}",
+      "containerPort": 80,
+      "protocol": "tcp"
+     }
+    ],
+    "volumes": [
+     {
+      "source": "${KOWAN_NAME}-html",
+      "target": "/usr/share/nginx/html",
+      "readOnly": false
+     }
+    ],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "HTTP_PORT",
+     "label": "HTTP port",
+     "default": "8080",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://nginx.org",
+   "builtIn": true
+  },
+  {
+   "id": "builtin:traefik",
+   "name": "Traefik",
+   "description": "Cloud-native reverse proxy that discovers containers through Docker labels. Dashboard on the API port.",
+   "category": "Web",
+   "icon": "traefik",
+   "type": "container",
+   "spec": {
+    "image": "traefik:v3",
+    "env": [],
+    "ports": [
+     {
+      "hostPort": "${HTTP_PORT}",
+      "containerPort": 80,
+      "protocol": "tcp"
+     },
+     {
+      "hostPort": "${DASHBOARD_PORT}",
+      "containerPort": 8080,
+      "protocol": "tcp"
+     }
+    ],
+    "volumes": [
+     {
+      "source": "/var/run/docker.sock",
+      "target": "/var/run/docker.sock",
+      "readOnly": true
+     }
+    ],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [
+     "--providers.docker=true",
+     "--providers.docker.exposedbydefault=false",
+     "--entrypoints.web.address=:80",
+     "--api.dashboard=true",
+     "--api.insecure=true"
+    ],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "HTTP_PORT",
+     "label": "HTTP port",
+     "default": "80",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "DASHBOARD_PORT",
+     "label": "Dashboard port",
+     "default": "8088",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://traefik.io/traefik",
+   "builtIn": true
+  },
+  {
+   "id": "builtin:caddy",
+   "name": "Caddy",
+   "description": "Web server with automatic HTTPS. Certificates and config persist in named volumes.",
+   "category": "Web",
+   "icon": "caddy",
+   "type": "container",
+   "spec": {
+    "image": "caddy:2-alpine",
+    "env": [],
+    "ports": [
+     {
+      "hostPort": "${HTTP_PORT}",
+      "containerPort": 80,
+      "protocol": "tcp"
+     },
+     {
+      "hostPort": "${HTTPS_PORT}",
+      "containerPort": 443,
+      "protocol": "tcp"
+     },
+     {
+      "hostPort": "${HTTPS_PORT}",
+      "containerPort": 443,
+      "protocol": "udp"
+     }
+    ],
+    "volumes": [
+     {
+      "source": "${KOWAN_NAME}-data",
+      "target": "/data",
+      "readOnly": false
+     },
+     {
+      "source": "${KOWAN_NAME}-config",
+      "target": "/config",
+      "readOnly": false
+     }
+    ],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "HTTP_PORT",
+     "label": "HTTP port",
+     "default": "80",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "HTTPS_PORT",
+     "label": "HTTPS port",
+     "default": "443",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://caddyserver.com",
+   "builtIn": true
+  },
+  {
+   "id": "builtin:whoami",
+   "name": "whoami",
+   "description": "Tiny web server that echoes request and host information. Handy to test proxies and routing.",
+   "category": "Utility",
+   "icon": "whoami",
+   "type": "container",
+   "spec": {
+    "image": "traefik/whoami:latest",
+    "env": [],
+    "ports": [
+     {
+      "hostPort": "${HTTP_PORT}",
+      "containerPort": 80,
+      "protocol": "tcp"
+     }
+    ],
+    "volumes": [],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "HTTP_PORT",
+     "label": "HTTP port",
+     "default": "8000",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://github.com/traefik/whoami",
+   "builtIn": true
+  },
+  {
+   "id": "builtin:postgres",
+   "name": "PostgreSQL",
+   "description": "Reliable open-source relational database (17.x, Alpine).",
+   "category": "Database",
+   "icon": "postgres",
+   "type": "container",
+   "spec": {
+    "image": "postgres:17-alpine",
+    "env": [
+     {
+      "key": "POSTGRES_USER",
+      "value": "${POSTGRES_USER}"
+     },
+     {
+      "key": "POSTGRES_PASSWORD",
+      "value": "${POSTGRES_PASSWORD}"
+     },
+     {
+      "key": "POSTGRES_DB",
+      "value": "${POSTGRES_DB}"
+     }
+    ],
+    "ports": [
+     {
+      "hostPort": "${DB_PORT}",
+      "containerPort": 5432,
+      "protocol": "tcp"
+     }
+    ],
+    "volumes": [
+     {
+      "source": "${KOWAN_NAME}-data",
+      "target": "/var/lib/postgresql/data",
+      "readOnly": false
+     }
+    ],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "POSTGRES_USER",
+     "label": "User",
+     "default": "postgres",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "POSTGRES_PASSWORD",
+     "label": "Password",
+     "required": true,
+     "secret": true
+    },
+    {
+     "name": "POSTGRES_DB",
+     "label": "Database",
+     "default": "app",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "DB_PORT",
+     "label": "Host port",
+     "default": "5432",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://www.postgresql.org",
+   "builtIn": true
+  },
+  {
+   "id": "builtin:mariadb",
+   "name": "MariaDB",
+   "description": "Community-developed MySQL-compatible relational database (11.x).",
+   "category": "Database",
+   "icon": "mariadb",
+   "type": "container",
+   "spec": {
+    "image": "mariadb:11",
+    "env": [
+     {
+      "key": "MARIADB_ROOT_PASSWORD",
+      "value": "${MARIADB_ROOT_PASSWORD}"
+     },
+     {
+      "key": "MARIADB_DATABASE",
+      "value": "${MARIADB_DATABASE}"
+     },
+     {
+      "key": "MARIADB_USER",
+      "value": "${MARIADB_USER}"
+     },
+     {
+      "key": "MARIADB_PASSWORD",
+      "value": "${MARIADB_PASSWORD}"
+     }
+    ],
+    "ports": [
+     {
+      "hostPort": "${DB_PORT}",
+      "containerPort": 3306,
+      "protocol": "tcp"
+     }
+    ],
+    "volumes": [
+     {
+      "source": "${KOWAN_NAME}-data",
+      "target": "/var/lib/mysql",
+      "readOnly": false
+     }
+    ],
+    "networks": [],
+    "restartPolicy": "unless-stopped",
+    "command": [],
+    "labels": {}
+   },
+   "inputs": [
+    {
+     "name": "MARIADB_ROOT_PASSWORD",
+     "label": "Root password",
+     "required": true,
+     "secret": true
+    },
+    {
+     "name": "MARIADB_DATABASE",
+     "label": "Database",
+     "default": "app",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "MARIADB_USER",
+     "label": "User",
+     "default": "app",
+     "required": true,
+     "secret": false
+    },
+    {
+     "name": "MARIADB_PASSWORD",
+     "label": "User password",
+     "required": true,
+     "secret": true
+    },
+    {
+     "name": "DB_PORT",
+     "label": "Host port",
+     "default": "3306",
+     "required": true,
+     "secret": false
+    }
+   ],
+   "website": "https://mariadb.org",
+   "builtIn": true
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+{"time":"2026-10-25T13:38:08.744514952Z","tree":"8c06","paths":["/data/kowan-f3-fixture"],"hostname":"local","id":"4fdd93e9a09b00ada673e7d622a3c1c63bfd57d36d15ed3ce72d459066099c10","short_id":"4fdd93e9","message_type":"snapshot","struct_type":"snapshot"}
+{"name":"kowan-f3-fixture","type":"dir","path":"/data/kowan-f3-fixture","uid":0,"gid":0,"mode":2147484141,"permissions":"drwxr-xr-x","mtime":"2026-10-25T13:38:05.60928241Z","message_type":"node","struct_type":"node"}
+{"name":"a.txt","type":"file","path":"/data/kowan-f3-fixture/a.txt","uid":0,"gid":0,"size":6,"mode":420,"permissions":"-rw-r--r--","mtime":"2026-10-25T13:38:05.60928241Z","message_type":"node","struct_type":"node"}
+{"name":"sub","type":"dir","path":"/data/kowan-f3-fixture/sub","uid":0,"gid":0,"mode":2147484141,"permissions":"drwxr-xr-x","mtime":"2026-10-25T13:38:05.60928241Z","message_type":"node","struct_type":"node"}

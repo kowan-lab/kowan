@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in Kowan does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See error
+  - type: input
+    id: version
+    attributes:
+      label: Kowan version
+      description: Shown in Settings, or the image tag you run.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How are hosts connected
+      multiple: true
+      options:
+        - Local Docker socket
+        - Edge agent (agent dials the server)
+        - Direct agent (server dials the agent)
+  - type: input
+    id: docker
+    attributes:
+      label: Docker version and OS
+      placeholder: "Docker 27.3, Debian 12"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Server or agent logs around the problem. Remove tokens and secrets first.
+      render: text

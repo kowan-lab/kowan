@@ -1,0 +1,21 @@
+# Runtime dependencies for Kowan.
+# The core (mux, tunnel, store, auth) is stdlib-only; these power the
+# server/agent/CLI and the outbound clients.
+#
+# Exact versions: each one was checked against the OSV advisory database. A
+# range would let an older resolver or cache install a release with known
+# vulnerabilities (aiohttp < 3.14.4, cryptography < 49, orjson < 3.11.6).
+# Upgrade deliberately, re-checking advisories.
+aiohttp==3.14.5
+pydantic==2.14.1
+cryptography==50.0.2
+httpx==0.28.1
+typer==0.27.3
+pyyaml==6.0.3
+# IANA time zones for schedules (zoneinfo): the images start FROM scratch and
+# carry no /usr/share/zoneinfo, so without this only UTC would work.
+tzdata==2026.5
+# Optional speedups, imported with a stdlib fallback (kowan/jsonx.py,
+# kowan/eventloop.py): faster JSON and a libuv event loop.
+orjson==3.13.0
+uvloop==0.23.0; sys_platform != "win32" and platform_python_implementation == "CPython"

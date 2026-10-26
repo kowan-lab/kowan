@@ -1,0 +1,218 @@
+"""Imports: Portainer stacks through a fake Portainer API (token and login,
+compose and git and swarm and kubernetes stacks, errors), compose folders
+grouped from posted files, and apply creating deployments with the same
+checks as POST /deployments."""
+
+import socket
+import unittest
+
+from aiohttp import web
+
+from kowan.importer import compose_dir
+from kowan.importer.portainer import Client, PortainerError, validate_url
+from tests.apicase import ServerCase
+
+TOKEN = "ptr_secret"
+
+
+class FakePortainer:
+    def __init__(self):
+        self.stacks = [
+            {"Id": 1, "Name": "shop", "Type": 2, "EndpointId": 1, "Status": 1,
+             "Env": [{"name": "TAG", "value": "1.27"}]},
+            {"Id": 2, "Name": "blog", "Type": 2, "EndpointId": 2, "Status": 2, "Env": [{"name": "X", "value": "1"}],
+             "GitConfig": {"URL": "https://github.com/acme/blog.git", "ReferenceName": "refs/heads/prod",
+                           "ConfigFilePath": "deploy/compose.yml", "Authentication": {"Username": "bot"}}},
+            {"Id": 3, "Name": "metrics", "Type": 1, "EndpointId": 1, "Status": 1},
+            {"Id": 4, "Name": "k8s-app", "Type": 3, "EndpointId": 1},
+        ]
+        self.files = {1: "services:\n  web:\n    image: nginx:${TAG}\n", 3: "services:\n  prom:\n    image: prom/prometheus\n"}
+        self.not_json = False
+
+    def _authed(self, request):
+        return request.headers.get("X-API-Key") == TOKEN or request.headers.get("Authorization") == "Bearer jwt-1"
+
+    async def auth(self, request):
+        body = await request.json()
+        if body == {"Username": "admin", "Password": "pw"}:
+            return web.json_response({"jwt": "jwt-1"})
+        if body.get("Username") == "nojwt":
+            return web.json_response({})
+        if body.get("Username") == "boom":
+            return web.json_response({}, status=500)
+        return web.json_response({"message": "Invalid credentials"}, status=422)
+
+    async def endpoints(self, request):
+        if not self._authed(request):
+            return web.json_response({}, status=401)
+        if self.not_json:
+            return web.Response(text="<html>login</html>")
+        return web.json_response([{"Id": 1, "Name": "local"}, {"Id": 2, "Name": "edge-site"}])
+
+    async def stacks_(self, request):
+        if not self._authed(request):
+            return web.json_response({}, status=401)
+        return web.json_response(self.stacks)
+
+    async def file(self, request):
+        sid = int(request.match_info["id"])
+        if sid not in self.files:
+            return web.json_response({}, status=404)
+        return web.json_response({"StackFileContent": self.files[sid]})
+
+    async def start(self):
+        app = web.Application()
+        app.router.add_post("/api/auth", self.auth)
+        app.router.add_get("/api/endpoints", self.endpoints)
+        app.router.add_get("/api/stacks", self.stacks_)
+        app.router.add_get("/api/stacks/{id}/file", self.file)
+        self.runner = web.AppRunner(app)
+        await self.runner.setup()
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        self.port = s.getsockname()[1]
+        s.close()
+        await web.TCPSite(self.runner, "127.0.0.1", self.port).start()
+        self.url = f"http://127.0.0.1:{self.port}/"
+        return self
+
+    async def stop(self):
+        await self.runner.cleanup()
+
+
+class TestComposeFolders(unittest.TestCase):
+    def test_group(self):
+        files = {
+            "stacks/shop/compose.yaml": "services: {}",
+            "stacks/shop/docker-compose.yml": "ignored: true",
+            "stacks/shop/.env": "TAG=1",
+            "stacks/blog/docker-compose.yml": "b",
+            "stacks/notes/README.md": "no compose here",
+            "stacks/../etc/compose.yml": "escaped",
+            "compose.yml": "root",
+            "win\\path\\compose.yml": "backslashes",
+            "": "empty",
+        }
+        out = {g["folder"]: g for g in compose_dir.group(files)}
+        self.assertEqual(sorted(out), ["", "stacks/blog", "stacks/shop", "win/path"])
+        self.assertEqual((out["stacks/shop"]["name"], out["stacks/shop"]["file"], out["stacks/shop"]["env"]), ("shop", "compose.yaml", "TAG=1"))
+        self.assertEqual(out["stacks/blog"]["env"], "")
+        self.assertEqual(out[""]["name"], "stack")
+
+
+class TestPortainerClient(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.p = await FakePortainer().start()
+
+    async def asyncTearDown(self):
+        await self.p.stop()
+
+    async def test_token_and_login(self):
+        stacks = await Client(self.p.url, api_key=TOKEN).stacks()
+        self.assertEqual([s.name for s in stacks], ["shop", "blog", "metrics", "k8s-app"])
+        shop, blog, metrics, k8s = stacks
+        self.assertEqual((shop.kind, shop.endpoint, shop.env, shop.active), ("compose", "local", {"TAG": "1.27"}, True))
+        self.assertIn("nginx:${TAG}", shop.compose)
+        self.assertEqual(blog.git, {"repoUrl": "https://github.com/acme/blog.git", "ref": "prod", "path": "deploy/compose.yml"})
+        self.assertTrue(blog.git_auth)
+        self.assertFalse(blog.active)
+        self.assertEqual((metrics.kind, k8s.kind, k8s.compose), ("swarm", "kubernetes", ""))
+        self.assertEqual(len(await Client(self.p.url, username="admin", password="pw").stacks()), 4)
+
+    async def test_errors(self):
+        for kw, msg in (({"api_key": "wrong"}, "refused the credentials"), ({}, "access token"),
+                        ({"username": "admin", "password": "bad"}, "refused the username"),
+                        ({"username": "nojwt", "password": "x"}, "no token"),
+                        ({"username": "boom", "password": "x"}, "answered 500")):
+            with self.assertRaises(PortainerError) as cm:
+                await Client(self.p.url, **kw).stacks()
+            self.assertIn(msg, str(cm.exception))
+        self.p.not_json = True
+        with self.assertRaisesRegex(PortainerError, "not JSON"):
+            await Client(self.p.url, api_key=TOKEN).stacks()
+        self.p.not_json = False
+        self.p.stacks.append({"Id": 9, "Name": "gone", "Type": 2, "EndpointId": 1})
+        with self.assertRaisesRegex(PortainerError, "answered 404"):
+            await Client(self.p.url, api_key=TOKEN).stacks()
+        await self.p.stop()
+        with self.assertRaisesRegex(PortainerError, "cannot reach Portainer"):
+            await Client(self.p.url, api_key=TOKEN).stacks()
+        self.p = await FakePortainer().start()  # for tearDown
+        with self.assertRaises(ValueError):
+            validate_url("ftp://x")
+        self.assertEqual(validate_url(" https://p.example.com/ "), "https://p.example.com")
+
+
+class TestImportAPI(ServerCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.p = await FakePortainer().start()
+
+    async def asyncTearDown(self):
+        await self.p.stop()
+        await super().asyncTearDown()
+
+    async def test_portainer_scan(self):
+        await self.roles("POST", "/import/portainer/scan", "admin", json={"url": self.p.url, "apiKey": TOKEN})
+        await self.call("POST", "/deployments", json={"name": "metrics", "type": "compose", "strategy": "standalone",
+                                                       "targets": ["local"], "compose": "services: {}"}, expect=201)
+        _, items = await self.call("POST", "/import/portainer/scan", json={"url": self.p.url, "apiKey": TOKEN}, expect=200)
+        by = {i["name"]: i for i in items}
+        shop = by["shop"]
+        self.assertEqual((shop["source"], shop["host"], shop["strategy"], shop["envCount"]), ("portainer", "local", "standalone", 1))
+        self.assertIn("nginx:1.27", shop["compose"])  # the stack's env is applied
+        self.assertEqual(shop["warnings"], [])
+        blog = by["blog"]
+        self.assertEqual(blog["git"]["ref"], "prod")
+        self.assertEqual(len(blog["warnings"]), 2)
+        self.assertEqual(blog["host"], "local")  # no host called edge-site: the first one
+        self.assertEqual(by["metrics"]["strategy"], "swarm")
+        self.assertIn("exists already", by["metrics"]["warnings"][0])
+        self.assertFalse(by["k8s-app"]["importable"])
+        for body, msg in (({"url": "nope", "apiKey": "x"}, "http"), ({"url": self.p.url, "apiKey": "bad"}, "refused"),
+                          ({"url": self.p.url, "apiKey": TOKEN, "x": 1}, "")):
+            _, err = await self.call("POST", "/import/portainer/scan", json=body, expect=400)
+            self.assertIn(msg, err["error"])
+        await self.call("POST", "/import/portainer/scan", data=b"[1]", expect=400)
+
+    async def test_compose_scan_and_apply(self):
+        await self.roles("POST", "/import/compose/scan", "operator", json={"files": {"a/compose.yml": "services: {}"}})
+        files = {"stacks/shop/compose.yml": "services:\n  web:\n    image: nginx:${TAG}\n", "stacks/shop/.env": "# c\nTAG=1.28\n",
+                 "stacks/blog/docker-compose.yml": "services:\n  ghost:\n    image: ghost:5\n"}
+        _, items = await self.call("POST", "/import/compose/scan", "operator", json={"files": files}, expect=200)
+        by = {i["name"]: i for i in items}
+        self.assertEqual(sorted(by), ["blog", "shop"])
+        self.assertIn("nginx:1.28", by["shop"]["compose"])
+        self.assertEqual((by["shop"]["envCount"], by["shop"]["endpoint"]), (1, "stacks/shop/compose.yml"))
+        for body in ({"files": {}}, {"files": []}, {"files": {"a": 1}}, {"files": {"a": "x" * (1 << 20 + 1)}},
+                     {"files": {str(i): "" for i in range(501)}}, {"x": 1}):
+            await self.call("POST", "/import/compose/scan", json=body, expect=400)
+
+        await self.roles("POST", "/import/apply", "operator", json={"items": [{"name": "x"}]})
+        _, res = await self.call("POST", "/import/apply", "operator", json={"items": [
+            {"name": "shop", "host": "local", "compose": by["shop"]["compose"]},
+            {"name": "blog", "host": "local", "strategy": "standalone", "compose": by["blog"]["compose"]},
+            {"name": "site", "host": "local", "git": {"repoUrl": "https://github.com/acme/site.git", "ref": "prod", "path": "c.yml"}},
+            {"name": "shop", "host": "local", "compose": "services: {}"},
+            {"name": "ghost", "host": "nowhere", "compose": "services: {}"},
+            {"name": "broken", "host": "local", "compose": "services: ["},
+            "not-an-item",
+        ]}, expect=200)
+        self.assertEqual([r["ok"] for r in res], [True, True, True, False, False, False, False])
+        self.assertIn("already exists", res[3]["error"])
+        self.assertIn("unknown host", res[4]["error"])
+        self.assertIn("compose", res[5]["error"])
+        self.assertEqual(res[6]["error"], "invalid item")
+        shop = self.svc.store.get_deployment(res[0]["id"])
+        self.assertEqual((shop.status, shop.type), ("stopped", "compose"))
+        self.assertIn("nginx:1.28", shop.compose)
+        site = self.svc.store.get_deployment(res[2]["id"])
+        self.assertEqual((site.git.ref, site.git.path, site.git.auto_deploy), ("prod", "c.yml", False))
+        _, revs = await self.call("GET", f"/deployments/{shop.id}/revisions", expect=200)
+        self.assertEqual((revs[0]["source"], revs[0]["author"]), ("import", "operator"))
+        for body in ({"items": []}, {"items": "x"}, {"items": [{}] * 101}, {"items": [{}], "x": 1}):
+            await self.call("POST", "/import/apply", json=body, expect=400)
+
+
+if __name__ == "__main__":
+    unittest.main()

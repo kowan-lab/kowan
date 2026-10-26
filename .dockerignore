@@ -1,0 +1,64 @@
+# Keep the build context small and reproducible. Allow-list style would be
+# tighter but brittle; instead exclude everything the image never reads. The
+# images only need: requirements.txt, kowan/, and web/frontend/ sources.
+
+# Frontend: rebuilt in-image, never copy host build output or node_modules
+**/node_modules/
+web/dist/
+web/.vite/
+web/frontend/.vite/
+web/frontend/dist/
+web/frontend/*.tsbuildinfo
+web/frontend/coverage/
+
+# Python caches, virtualenvs and build output
+**/__pycache__/
+**/*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Tests, examples and docs are not part of the runtime
+tests/
+examples/
+docs/
+*.md
+LICENSE
+Makefile
+pyproject.toml
+
+# Local runtime data, databases and secrets
+data/
+data.*/
+.devdata/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+secret.key
+*.pem
+*.key
+.env
+.env.*
+
+# Version control, CI, agent/editor/OS cruft
+.git/
+.gitignore
+.github/
+.impeccable/
+.idea/
+.vscode/
+**/.DS_Store
+
+# Docker files themselves (BuildKit reads the Dockerfile separately)
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore

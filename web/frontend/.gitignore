@@ -1,0 +1,13 @@
+node_modules
+dist
+*.local
+.vite
+
+# Generated build artifacts (source of truth is vite.config.ts)
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo
+postcss.config.cjs
+
+# Second lockfile — toolchain is npm
+bun.lock

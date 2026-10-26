@@ -1,0 +1,18 @@
+2026-10-25T13:38:08.100000000Z @@kowan phase open
+2026-10-25T13:38:08.200000000Z @@kowan phase init
+2026-10-25T13:38:08.300000000Z created restic repository 3a1f0c2b at /repo
+2026-10-25T13:38:08.300000000Z Please note that knowledge of your password is required to access
+2026-10-25T13:38:08.300000000Z @@kowan rc init repo 0
+2026-10-25T13:38:08.300000000Z @@kowan initialized
+2026-10-25T13:38:08.400000000Z @@kowan phase backup app-data
+2026-10-25T13:38:09.000000000Z {"message_type":"status","percent_done":1,"total_files":2,"files_done":2,"total_bytes":12,"bytes_done":12}
+2026-10-25T13:38:09.400000000Z {"message_type":"summary","files_new":2,"files_changed":0,"files_unmodified":0,"dirs_new":3,"dirs_changed":0,"dirs_unmodified":0,"data_blobs":2,"tree_blobs":4,"data_added":1750,"data_added_packed":1423,"total_files_processed":2,"total_bytes_processed":12,"total_duration":0.030812713,"snapshot_id":"4fdd93e9a09b00ada673e7d622a3c1c63bfd57d36d15ed3ce72d459066099c10"}
+2026-10-25T13:38:09.500000000Z @@kowan rc backup app-data 0
+2026-10-25T13:38:09.600000000Z @@kowan phase backup db-data
+2026-10-25T13:38:09.700000000Z {"message_type":"error","error":{"message":"open /data/db-data/locked: permission denied"},"during":"archival","item":"/data/db-data/locked"}
+2026-10-25T13:38:09.800000000Z {"message_type":"summary","files_new":5,"files_changed":1,"files_unmodified":10,"dirs_new":1,"dirs_changed":0,"dirs_unmodified":2,"data_blobs":6,"tree_blobs":2,"data_added":4096,"data_added_packed":2048,"total_files_processed":16,"total_bytes_processed":100000,"total_duration":0.5,"snapshot_id":"aaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999"}
+2026-10-25T13:38:09.900000000Z @@kowan rc backup db-data 3
+2026-10-25T13:38:10.000000000Z @@kowan phase forget
+2026-10-25T13:38:10.100000000Z [{"tags":null,"host":"local","paths":["/data/app-data"],"keep":[],"remove":null,"reasons":[]}]
+2026-10-25T13:38:10.200000000Z @@kowan rc forget all 0
+2026-10-25T13:38:10.300000000Z @@kowan done

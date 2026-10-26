@@ -1,0 +1,60 @@
+# Python caches / build output
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dati locali (DB SQLite, chiave dei secret, ecc.)
+*.db
+*.sqlite
+/data/
+secret.key
+
+# Variabili d'ambiente
+.env
+.env.local
+
+# Frontend
+web/frontend/node_modules/
+web/.vite/
+web/frontend/.vite/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Data dir di sviluppo (server locale di test)
+/.devdata/
+/data.bak/
+
+# Tool caches locali
+.impeccable/hook.cache.json
+
+# Test output (coverage, Playwright)
+.coverage
+htmlcov/
+coverage.json
+web/frontend/coverage/
+web/frontend/e2e/.data/
+web/frontend/test-results/
+web/frontend/playwright-report/
+
+# Internal notes, kept on disk but not published: product
+# brief, roadmap, competitive notes, experiment logs, design mockups.
+/PRODUCT.md
+/docs/BACKLOG.md
+/docs/GAP-ANALYSIS.md
+/docs/EXPERIMENT-ORBSTACK.md
+/.impeccable/
+
+# Dependency and tool caches anywhere in the tree.
+node_modules/

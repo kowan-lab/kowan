@@ -1,0 +1,139 @@
+# syntax=docker/dockerfile:1
+
+# Kowan — host agent image.
+#
+# The agent runs on each Docker host and exposes that host's Docker operations to
+# the control plane. It does NOT need the frontend.
+#
+# Build from the repository root:
+#   docker build -f Dockerfile.agent -t ghcr.io/kowan-lab/kowan-agent .
+#   docker build --platform linux/amd64 -f Dockerfile.agent -t ghcr.io/kowan-lab/kowan-agent .
+#
+# Same layout and base rationale as ./Dockerfile (python:alpine, wheels only,
+# pruned rootfs, FROM scratch with rarely-changing layers first). The agent
+# serves the full Ops surface through kowan.docker.LocalClient, which shells out
+# for compose_up/down, swarm_deploy/remove, run_container and build_image, so it
+# needs the docker CLI + compose plugin, and git for build_image from a Git URL.
+# It never runs workflow scripts, so unlike the server it ships without bash.
+#
+# RUNTIME REQUIREMENTS:
+#   * Mount the Docker socket so the agent can talk to the local daemon:
+#       -v /var/run/docker.sock:/var/run/docker.sock
+#   * agent (direct) mode (default): the control plane dials in on :9001. The
+#     agent serves wss:// with a generated self-signed cert unless you supply
+#     KOWAN_AGENT_TLS_CERT / KOWAN_AGENT_TLS_KEY.
+#       -e KOWAN_AGENT_TOKEN=<token> -p 9001:9001
+#   * edge mode: the agent dials OUT to the control plane (good behind NAT):
+#       -e KOWAN_AGENT_MODE=edge \
+#       -e KOWAN_SERVER_URL=https://your-kowan-host \
+#       -e KOWAN_AGENT_TOKEN=<enrollment-token-from-the-UI>
+#
+#   Mounting the Docker socket grants the agent full control of the host's Docker
+#   daemon (root-equivalent). Only run it on hosts you intend to manage with Kowan.
+#
+# Inspect the image without starting it:
+#   docker run --rm ghcr.io/kowan-lab/kowan-agent --help
+#   docker run --rm ghcr.io/kowan-lab/kowan-agent --version
+
+# Python 3.14: 3.15 is out, but pyyaml and frozenlist publish no musl wheels for
+# it yet, and this build installs prebuilt wheels only. Pinned by digest.
+ARG PYTHON_IMAGE=python:3.14.9-alpine3.24@sha256:dbeb11d16bb95c3a7e3c25c842cb9f20cbc8c18f8be0461a4a0dcc861ad386a0
+
+# --- tools: docker CLI + compose plugin (static client only, stripped) -----------
+FROM ${PYTHON_IMAGE} AS tools
+ARG DOCKER_CLI_VERSION=29.9.2
+ARG DOCKER_COMPOSE_VERSION=5.6.1
+ARG DOCKER_CLI_SHA256_X86_64=9ac225999fd5e863f7694c728ef23d480616b1e5639328fa309befd4243d69eb
+ARG DOCKER_CLI_SHA256_AARCH64=873b3e0207857c3b2f28392fb922f3ea6efe37620c16d4d4aaf2fef409c90b73
+RUN set -eux; \
+    apk add --no-cache curl binutils; \
+    arch="$(uname -m)"; \
+    mkdir -p /out/usr/local/bin /out/usr/local/lib/docker/cli-plugins; \
+    # Docker publishes no checksums for the static CLI: the expected hash per
+    # arch is pinned below (bump them together with DOCKER_CLI_VERSION).
+    case "$arch" in \
+      x86_64) cli_sha="$DOCKER_CLI_SHA256_X86_64" ;; \
+      aarch64) cli_sha="$DOCKER_CLI_SHA256_AARCH64" ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz; \
+    echo "${cli_sha}  /tmp/docker.tgz" | sha256sum -c -; \
+    tar -xzO -f /tmp/docker.tgz docker/docker > /out/usr/local/bin/docker; \
+    # Compose publishes an official .sha256 next to every release asset.
+    compose_url="https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${arch}"; \
+    curl -fsSL "$compose_url" -o /out/usr/local/lib/docker/cli-plugins/docker-compose; \
+    want="$(curl -fsSL "${compose_url}.sha256" | cut -d' ' -f1)"; \
+    got="$(sha256sum /out/usr/local/lib/docker/cli-plugins/docker-compose | cut -d' ' -f1)"; \
+    [ -n "$want" ] && [ "$want" = "$got" ] || { echo "compose checksum mismatch: $got != $want" >&2; exit 1; }; \
+    rm -f /tmp/docker.tgz; \
+    strip /out/usr/local/bin/docker /out/usr/local/lib/docker/cli-plugins/docker-compose; \
+    chmod 0755 /out/usr/local/bin/docker /out/usr/local/lib/docker/cli-plugins/docker-compose; \
+    /out/usr/local/bin/docker --version
+
+# --- pydeps: requirements.txt into a self-contained venv, wheels only ------------
+FROM ${PYTHON_IMAGE} AS pydeps
+COPY requirements.txt /tmp/requirements.txt
+RUN set -eux; \
+    python -m venv /opt/venv; \
+    /opt/venv/bin/pip install --no-cache-dir --no-compile --only-binary=:all: \
+        --disable-pip-version-check -r /tmp/requirements.txt; \
+    /opt/venv/bin/pip uninstall -y --no-cache-dir pip; \
+    find /opt/venv \( -name __pycache__ -o -name tests -o -name '*.pyi' \) -prune -exec rm -rf {} +; \
+    apk add --no-cache binutils; \
+    find /opt/venv -name '*.so' ! -path '*.libs/*' -exec strip --strip-unneeded {} +; \
+    rm -f /opt/venv/bin/activate* /opt/venv/bin/Activate.ps1
+
+# --- rootfs: runtime OS, pruned ---------------------------------------------------
+FROM ${PYTHON_IMAGE} AS rootfs
+RUN set -eux; \
+    apk add --no-cache git; \
+    rm -rf /var/cache/apk/* /usr/local/include \
+        /usr/local/bin/pip* /usr/local/bin/idle* /usr/local/bin/pydoc* /usr/local/bin/2to3* \
+        /usr/local/lib/python3.14/site-packages/pip* \
+        /usr/local/lib/python3.14/ensurepip /usr/local/lib/python3.14/idlelib \
+        /usr/local/lib/python3.14/tkinter /usr/local/lib/python3.14/lib2to3 \
+        /usr/local/lib/python3.14/pydoc_data /usr/local/lib/python3.14/turtledemo \
+        /usr/local/lib/python3.14/config-3.14-*; \
+    find / -xdev -name __pycache__ -prune -exec rm -rf {} +
+
+# --- final -------------------------------------------------------------------------
+FROM scratch AS final
+COPY --from=rootfs / /
+COPY --from=tools /out/ /
+COPY --from=pydeps /opt/venv /opt/venv
+WORKDIR /app
+COPY kowan/ ./kowan/
+
+# Version metadata, read by the self-update flow (docs/updates-design.md).
+ARG VERSION=dev
+ARG SOURCE_URL=https://github.com/kowan-lab/kowan
+LABEL org.opencontainers.image.title="kowan-agent" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.source="$SOURCE_URL" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.url="https://kowan-lab.github.io/kowan"
+
+# FROM scratch does not inherit the base image's ENV, so restate what matters.
+ENV PATH=/opt/venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LANG=C.UTF-8 \
+    PYTHONUNBUFFERED=1
+
+# Default direct/agent-mode listener port. Not published automatically; map it
+# with -p when running in agent mode. Edge mode dials out and needs no port.
+EXPOSE 9001
+
+# Liveness probe used by the self-update verify step (State.Health). The
+# `healthcheck` subcommand checks the heartbeat file the agent refreshes while its
+# tunnel session (edge) or listener (direct) is up.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+    CMD ["python", "-m", "kowan.agent", "healthcheck"]
+
+# Runs as root (Docker's default — no USER directive). The agent's whole job is
+# to drive the mounted Docker socket, which is root:docker (0660) on a standard
+# host; running as root lets it read/write the socket out of the box, with no
+# --group-add / matching-gid dance for the operator (the usual trade-off for
+# Docker management agents). This is not a real privilege escalation: mounting docker.sock is
+# already root-equivalent control of the host regardless of the in-container uid,
+# so a non-root user would only be defence-in-depth. Only run this on hosts you
+# intend to manage with Kowan.
+ENTRYPOINT ["python", "-m", "kowan.agent"]

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    // Emit outside the project root so a stale vite.config.js never shadows vite.config.ts.
+    "outDir": "./node_modules/.tmp/node",
+    "skipLibCheck": true,
+    // vite.config.ts runs under Node: an ES2022 target/lib provides String.includes
+    // et al. Without this the default (ES5-era) lib fails on `id.includes(...)`.
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true
+  },
+  "include": ["vite.config.ts"]
+}
