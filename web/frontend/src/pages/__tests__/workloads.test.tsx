@@ -65,7 +65,7 @@ describe("workload: deployment", () => {
     const { user } = await open(SHOP + "?tab=config", "shop", {
       "GET /deployments": () => [dep, ...deployments.slice(1)],
       "GET /deployments/:id": () => dep,
-      "POST /deployments/:id/inline-secrets": (r: { body: { refs: string[] } }) => {
+      "POST /deployments/:id/inline-secrets": () => {
         dep = { ...dep, compose: dep.compose.replace("[[shop-env.TAG]]", "1.27") };
         return dep;
       },
