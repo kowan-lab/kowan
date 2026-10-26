@@ -1966,3 +1966,15 @@ export async function previewDigest(): Promise<import("../types").DigestPreview>
 export async function sendDigest(): Promise<import("../types").DigestLast> {
   return (await api.post<import("../types").DigestLast>("/digest/send")).data;
 }
+
+// ---------------------------------------------------------------------------
+// Platform features on/off (kowan/api/features.py)
+// ---------------------------------------------------------------------------
+
+export async function getFeatures(): Promise<import("../lib/features").Features> {
+  return (await api.get<import("../lib/features").Features>("/features")).data;
+}
+
+export async function updateFeatures(changes: Partial<import("../lib/features").Features>): Promise<import("../lib/features").Features> {
+  return (await api.put<import("../lib/features").Features>("/features", changes)).data;
+}

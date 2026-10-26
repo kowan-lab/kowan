@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { FeatureGate } from "./lib/features";
 import { Route, Routes } from "react-router";
 import { Box, Spinner } from "@/ui/kit";
 import { RequireAuth } from "./auth/AuthContext";
@@ -92,7 +93,7 @@ export default function App() {
           <Route path="/volumes/:name" element={<VolumeDetail />} />
           <Route path="/networks" element={<Networks />} />
           {/* /networks/map must precede /networks/:id so it is not captured. */}
-          <Route path="/networks/map" element={<NetworkMap />} />
+          <Route path="/networks/map" element={<FeatureGate feature="networkMap"><NetworkMap /></FeatureGate>} />
           <Route path="/exposure" element={<Exposure />} />
           <Route path="/networks/:id" element={<NetworkDetail />} />
           <Route path="/credentials" element={<Connections />} />
@@ -103,15 +104,15 @@ export default function App() {
           <Route path="/workloads/:appId" element={<WorkloadDetail />} />
           {/* /new must precede /:id so it is not captured by the :id param. */}
           <Route path="/deployments/new" element={<DeploymentCreate />} />
-          <Route path="/templates" element={<Templates />} />
+          <Route path="/templates" element={<FeatureGate feature="templates"><Templates /></FeatureGate>} />
           <Route path="/workflows" element={<Workflows />} />
           <Route path="/backups" element={<Backups />} />
           <Route path="/schedules" element={<Schedules />} />
           {/* /new must precede /:id so it is not captured by the :id param. */}
           <Route path="/workflows/new" element={<WorkflowDetail />} />
           <Route path="/workflows/:id" element={<WorkflowDetail />} />
-          <Route path="/gitops" element={<GitOps />} />
-          <Route path="/gitops/:id" element={<GitOps />} />
+          <Route path="/gitops" element={<FeatureGate feature="gitops"><GitOps /></FeatureGate>} />
+          <Route path="/gitops/:id" element={<FeatureGate feature="gitops"><GitOps /></FeatureGate>} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/monitoring" element={<Monitoring />} />

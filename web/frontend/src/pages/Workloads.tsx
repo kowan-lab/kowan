@@ -11,6 +11,7 @@ import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
 import { appHref, kindShort, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
+import { useFeatures } from "../lib/features";
 import { cn } from "@/lib/utils";
 import { useCanOperate } from "../components/deployment/shared";
 import { errorMessage } from "../utils";
@@ -41,6 +42,7 @@ function readView(): View {
 
 export default function Workloads() {
   const { hostId } = useHost();
+  const features = useFeatures();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // Cards or table is a per-browser preference, not part of the URL.
@@ -106,7 +108,7 @@ export default function Workloads() {
       <Menu.Content ariaLabel="New workload">
         <Menu.Label>New workload on {all ? "a host you pick next" : scopeName}</Menu.Label>
         {[
-          { t: "From a template", d: "Databases, media, monitoring and more", to: "/templates" },
+          ...(features.templates ? [{ t: "From a template", d: "Databases, media, monitoring and more", to: "/templates" }] : []),
           { t: "Compose or container deployment", d: "Paste a compose file or describe one image", to: "/deployments/new" },
           { t: "From a git repository", d: "Choose Git as the compose source in the form", to: "/deployments/new" },
           { t: "Import stacks", d: "From Portainer or a folder of compose stacks", to: "/import" },
@@ -244,7 +246,7 @@ export default function Workloads() {
     body = (
       <Empty title={`Nothing runs on ${scopeName} yet`} text="Deploy a compose stack or a single container, or start one from a template. Stacks and containers started outside Kowan show up here on their own.">
         <BtnLink to="/deployments/new" solid>New deployment</BtnLink>
-        <BtnLink to="/templates">Browse templates</BtnLink>
+        {features.templates && <BtnLink to="/templates">Browse templates</BtnLink>}
       </Empty>
     );
   } else if (!list.length) {

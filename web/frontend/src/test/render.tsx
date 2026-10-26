@@ -96,6 +96,7 @@ export function baseApi(role: Role = "admin"): void {
     "GET /alerts": [],
     "GET /capabilities": {},
     "GET /system/version": { version: "0.1.0" },
+    "GET /features": { templates: true, networkMap: true, gitops: true },
   });
 }
 

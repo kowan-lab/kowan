@@ -14,6 +14,7 @@ import {
   Tooltip,
   type Column,
 } from "@/ui/kit";
+import { useFeatures } from "../lib/features";
 import { useNavigate } from "react-router";
 import { notify } from "../ui/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -83,6 +84,7 @@ const INITIAL_FORM: CreateFormValues = {
 
 export default function Networks() {
   const { hostId } = useHost();
+  const features = useFeatures();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const aggregated = isAllHosts(hostId);
@@ -477,14 +479,16 @@ export default function Networks() {
                 onClick={() => networksQuery.refetch()}
               />
             </Tooltip>
-            <Button
-              variant="outline"
-              color="neutral"
-              iconLeft="route-outline"
-              onClick={() => navigate("/networks/map")}
-            >
-              Map
-            </Button>
+            {features.networkMap && (
+              <Button
+                variant="outline"
+                color="neutral"
+                iconLeft="route-outline"
+                onClick={() => navigate("/networks/map")}
+              >
+                Map
+              </Button>
+            )}
             <Button
               variant="outline"
               color="neutral"

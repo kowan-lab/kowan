@@ -11,6 +11,7 @@ import { Icon } from "@/ui/kit";
 import { StatePill } from "@/ui/kit";
 import { useTheme } from "@/ui/theme";
 import { visibleNav } from "./nav";
+import { useFeatures } from "../../lib/features";
 
 const ITEM =
   "flex h-14 cursor-default items-center gap-[8px] rounded-md px-[8px] text-[13px] outline-none select-none data-[selected=true]:bg-accent";
@@ -26,6 +27,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
   const { user, logout } = useAuth();
   const { hostId, setHostId } = useHost();
   const { theme, toggle } = useTheme();
+  const features = useFeatures();
   const [q, setQ] = useState("");
   const isAdmin = user?.role === "admin";
   const scopedHost = hostId === ALL_HOSTS ? "local" : hostId;
@@ -107,7 +109,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
                 </Command.Group>
               )}
 
-              {visibleNav(isAdmin).map((s) => (
+              {visibleNav(isAdmin, features).map((s) => (
                 <Command.Group key={s.label} heading={s.label} className={GROUP}>
                   {s.items.map((i) => (
                     <Command.Item key={i.to} value={`page ${i.label} ${i.keywords ?? ""}`} onSelect={() => go(i.to)} className={ITEM}>

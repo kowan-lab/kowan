@@ -1,3 +1,5 @@
+import type { FeatureId, Features } from "../../lib/features";
+
 /**
  * Navigation model shared by the sidebar and the command palette.
  *
@@ -18,6 +20,8 @@ export interface NavItem {
   keywords?: string;
   /** Sub-heading inside a group (Settings uses Connections / Access / Server). */
   sub?: string;
+  /** A feature that can be turned off in Settings; hidden while it is off. */
+  feature?: FeatureId;
 }
 export interface NavSection {
   label: string;
@@ -32,11 +36,11 @@ export const NAV: NavSection[] = [
     items: [
       { label: "Overview", to: "/", icon: "dashboard-outline-rounded", keywords: "home dashboard needs attention" },
       { label: "Workloads", to: "/workloads", icon: "stacks-outline-rounded", keywords: "apps stacks compose deployments services containers ps running" },
-      { label: "Templates", to: "/templates", icon: "package-2-outline", keywords: "catalog new workload app" },
+      { label: "Templates", to: "/templates", icon: "package-2-outline", feature: "templates", keywords: "catalog new workload app" },
       { label: "Images", to: "/images", icon: "layers-outline-rounded", keywords: "pull build tags" },
       { label: "Volumes", to: "/volumes", icon: "database-outline", keywords: "storage files" },
       { label: "Networks", to: "/networks", icon: "lan-outline-rounded", keywords: "bridge overlay" },
-      { label: "Network map", to: "/networks/map", icon: "route-outline", keywords: "graph topology dependencies depends_on" },
+      { label: "Network map", to: "/networks/map", icon: "route-outline", feature: "networkMap", keywords: "graph topology dependencies depends_on" },
     ],
   },
   {
@@ -47,7 +51,7 @@ export const NAV: NavSection[] = [
       { label: "Schedules", to: "/schedules", icon: "power-outline-rounded", keywords: "cron start stop restart timer nightly" },
       { label: "Exposure", to: "/exposure", icon: "http-rounded", keywords: "ports public https domains traefik certificates expose" },
       { label: "Workflows", to: "/workflows", icon: "account-tree-outline-rounded", keywords: "triggers cron webhooks" },
-      { label: "GitOps", to: "/gitops", icon: "data-object-rounded", adminOnly: true, keywords: "git sync config as code export resources yaml" },
+      { label: "GitOps", to: "/gitops", icon: "data-object-rounded", adminOnly: true, feature: "gitops", keywords: "git sync config as code export resources yaml" },
     ],
   },
   {
@@ -91,6 +95,7 @@ export function isActive(to: string, pathname: string): boolean {
   return [to, ...(ALIASES[to] ?? [])].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export function visibleNav(isAdmin: boolean): NavSection[] {
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => !i.adminOnly || isAdmin) })).filter((s) => s.items.length > 0);
+export function visibleNav(isAdmin: boolean, features?: Features): NavSection[] {
+  const shown = (i: NavItem) => (!i.adminOnly || isAdmin) && (!i.feature || !features || features[i.feature]);
+  return NAV.map((s) => ({ ...s, items: s.items.filter(shown) })).filter((s) => s.items.length > 0);
 }

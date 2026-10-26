@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import { Box, Button, Callout, Divider, Icon, Text, TextInput, UploadArea } from "@/ui/kit";
-import { useMutation } from "@tanstack/react-query";
-import { changeOwnPassword, downloadBackup, restoreBackup } from "../api/client";
+import { Box, Button, Callout, Divider, Icon, InputToggle, Text, TextInput, UploadArea } from "@/ui/kit";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { changeOwnPassword, downloadBackup, restoreBackup, updateFeatures } from "../api/client";
+import { FEATURE_INFO, useFeatures, type Features } from "../lib/features";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
@@ -280,7 +281,35 @@ export default function Settings() {
           <UpdatePanel component="server" isAdmin={isAdmin} />
         </SectionCard>
       )}
+      {isAdmin && <FeaturesCard />}
       {isAdmin && <BackupCard />}
     </Box>
+  );
+}
+
+/** Turn platform features on and off for everyone (admins). */
+function FeaturesCard() {
+  const qc = useQueryClient();
+  const features = useFeatures();
+  const save = useMutation({
+    mutationFn: (changes: Partial<Features>) => updateFeatures(changes),
+    onSuccess: (next) => qc.setQueryData(["features"], next),
+    onError: (e) => notify({ color: "red", title: "Not saved", message: errorMessage(e, "Could not change the feature") }),
+  });
+  return (
+    <SectionCard title="Features" description="Turn off what this server does not use: it leaves the navigation for everyone, and its API answers that it is off. Nothing is deleted; turning it back on brings it back as it was.">
+      <div className="flex max-w-[640px] flex-col gap-[12px]">
+        {FEATURE_INFO.map((f) => (
+          <InputToggle
+            key={f.id}
+            label={f.label}
+            description={f.note}
+            checked={features[f.id]}
+            disabled={save.isPending}
+            onChange={(e) => save.mutate({ [f.id]: e.target.checked })}
+          />
+        ))}
+      </div>
+    </SectionCard>
   );
 }

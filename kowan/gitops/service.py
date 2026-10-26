@@ -235,6 +235,10 @@ class GitOpsService:
             while True:
                 await asyncio.sleep(_LOOP_TICK)
                 try:
+                    from kowan import features
+
+                    if not features.enabled(self.store, "gitops"):
+                        continue  # turned off in Settings
                     await self.tick()
                 except asyncio.CancelledError:
                     raise

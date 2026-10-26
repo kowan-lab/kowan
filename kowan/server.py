@@ -109,10 +109,13 @@ def _registrars() -> list:
     from .api import workloadres as workloadres_api
     from .api import imports as imports_api
     from .api import inline_secrets as inline_secrets_api
+    from .api import features as features_api
     from .api import cleanup as cleanup_api
     from .api import digest as digest_api
 
     return [
+        # platform features on/off: its middleware gates the routes of the rest.
+        features_api.register,
         # auth + users + external auth (public login/callback routes included).
         authapi.register,
         # Settings > Network access (UI-managed address allowlists).

@@ -25,6 +25,7 @@ import CommandPalette from "./shell/CommandPalette";
 import HostSwitcher from "./shell/HostSwitcher";
 import { ThemePanel } from "./shell/ThemePicker";
 import { isActive, visibleNav, type NavItem } from "./shell/nav";
+import { useFeatures } from "../lib/features";
 import { cn } from "@/lib/utils";
 import { useDockerEvents } from "./shell/useDockerEvents";
 import { KowanMark } from "./KowanMark";
@@ -118,7 +119,8 @@ function AppSidebar() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  const sections = visibleNav(user?.role === "admin");
+  const features = useFeatures();
+  const sections = visibleNav(user?.role === "admin", features);
   // Only the most specific matching item is active (/networks/map must not
   // also light up /networks).
   const activeTo = sections
