@@ -260,6 +260,74 @@ class TestLifecycle(ServiceCase):
                 await self.s.stop("d1")
 
 
+_PHASE = """services:
+  nginx: {image: nginx, restart: always}
+  backend: {image: app, restart: unless-stopped}
+  frontend: {image: web, restart: unless-stopped}
+  migrations: {image: app}
+  debug: {image: busybox, profiles: [debug]}
+  spare: {image: app, scale: 0}
+"""
+
+
+def ctr(service, state="running", status="Up 1 hour", project="phase"):
+    return Container(id=f"id-{service}", names=[f"/{project}-{service}"], state=state, status=status,
+                     labels={"com.docker.compose.project": project, "com.docker.compose.service": service})
+
+
+class TestComposeStatus(ServiceCase):
+    """A compose target is judged by every service it declares: one container
+    up and the others gone is degraded, and the reconcile loop heals it."""
+
+    async def target(self, *containers):
+        self.host.containers = list(containers)
+        [t] = await self.s.status("d1")
+        return t
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.s._ops_for_host = lambda host_id: (self.host, SimpleNamespace(name="phase-ec2-1"))  # type: ignore[assignment]
+        self.save(dep(id="d1", name="phase", type="compose", spec=None, compose=_PHASE, status="deployed"))
+
+    async def test_states(self):
+        done = ctr("migrations", "exited", "Exited (0) 6 minutes ago")
+        t = await self.target(ctr("nginx"), ctr("backend"), ctr("frontend"), done)
+        self.assertEqual((t.state, t.message), ("running", ""))  # the one-shot exit 0 is fine; profiles/scale 0 not expected
+
+        t = await self.target(ctr("nginx"), done)
+        self.assertEqual((t.state, t.message), ("degraded", "backend, frontend missing"))
+        self.assertEqual(t.container_id, "id-nginx")
+
+        t = await self.target(ctr("nginx"), ctr("backend", "exited", "Exited (137) 1 minute ago"), ctr("frontend"),
+                              ctr("migrations", "exited", "Exited (1) 1 minute ago"))
+        self.assertEqual((t.state, t.message), ("degraded", "backend, migrations stopped"))
+
+        t = await self.target(ctr("nginx", "exited", "Exited (0) now"), ctr("backend", "exited", "Exited (0) now"))
+        self.assertEqual(t.state, "stopped")  # nothing runs: stopped, as before
+
+        # Other projects' containers do not count for this one.
+        t = await self.target(ctr("nginx"), ctr("backend", project="other"), ctr("frontend"), done)
+        self.assertEqual((t.state, t.message), ("degraded", "backend missing"))
+
+    async def test_unparsable_compose_falls_back_to_the_first_container(self):
+        for text in ("services: [", "just text", "services: nope"):
+            d = self.store.get_deployment("d1")
+            d.compose = text
+            self.store.update_deployment(d)
+            self.assertEqual((await self.target(ctr("nginx"))).state, "running")
+
+    async def test_reconcile_heals_a_degraded_stack(self):
+        self.host.containers = [ctr("nginx"), ctr("migrations", "exited", "Exited (0) now")]
+        dispatched = []
+
+        async def dispatch(dep_id, *, redeploy=False):
+            dispatched.append((dep_id, redeploy))
+
+        with mock.patch.object(self.s, "dispatch_deploy", dispatch):
+            self.assertEqual(await self.s.reconcile_once(), 1)
+        self.assertEqual(dispatched, [("d1", True)])
+
+
 class TestReconcileAndBackground(ServiceCase):
     async def test_reconcile_right_after_the_host_boots(self):
         # Monotonic time starts at boot: a deployment never reconciled is not

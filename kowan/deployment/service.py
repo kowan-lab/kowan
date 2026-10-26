@@ -39,10 +39,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import secrets as _secrets
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Tuple
+
+import yaml
 
 from kowan import registry
 from kowan.deployment import gitsource, previews
@@ -87,7 +90,7 @@ _MAX_CONCURRENT_DEPLOYS = 3
 # live, and the minimum gap between two reconcile-driven redeploys of the SAME
 # deployment (so a flapping/crash-looping container can't trigger a tight redeploy
 # loop — the operator's "don't continuously redeploy" concern).
-_RECONCILE_INTERVAL = float(os.environ.get("KOWAN_RECONCILE_INTERVAL", "30"))
+_RECONCILE_INTERVAL = float(os.environ.get("KOWAN_RECONCILE_INTERVAL", "5"))
 _RECONCILE_COOLDOWN = float(os.environ.get("KOWAN_RECONCILE_COOLDOWN", "120"))
 
 # Per-target runtime states reported by status().
@@ -96,6 +99,9 @@ STATE_STOPPED = "stopped"
 STATE_NOT_DEPLOYED = "not_deployed"
 STATE_ACTIVE = "active"
 STATE_INACTIVE = "inactive"
+# A compose target with some services up and others missing or stopped: its
+# message names them, and the reconcile loop redeploys it like a stopped one.
+STATE_DEGRADED = "degraded"
 # stateError marks a target whose last deploy attempt failed and which has no
 # running container to show for it. The DeploymentTarget carries the failure
 # Message so the UI can render the reason.
@@ -138,6 +144,50 @@ def _spec_with_managed_labels(dep: Deployment, spec: ContainerSpec) -> Container
 def _is_running(state: str) -> bool:
     """Whether a Docker container state string denotes a running container."""
     return state == "running"
+
+
+def _compose_services(text: str) -> Dict[str, str]:
+    """``{service: restart policy}`` for the services a compose file starts by
+    default: those behind a profile or scaled to 0 are left out. Empty when the
+    file does not parse (status then falls back to any container of the project)."""
+    try:
+        doc = yaml.safe_load(text or "")
+    except yaml.YAMLError:
+        return {}
+    services = doc.get("services") if isinstance(doc, dict) else None
+    if not isinstance(services, dict):
+        return {}
+    out: Dict[str, str] = {}
+    for name, svc in services.items():
+        svc = svc if isinstance(svc, dict) else {}
+        deploy = svc.get("deploy") if isinstance(svc.get("deploy"), dict) else {}
+        if svc.get("profiles") or svc.get("scale") == 0 or deploy.get("replicas") == 0:
+            continue
+        out[str(name)] = str(svc.get("restart") or "no")
+    return out
+
+
+_EXIT_RE = re.compile(r"exited \((-?\d+)\)", re.IGNORECASE)
+
+
+def _compose_problems(services: Dict[str, str], containers: List[Container]) -> Tuple[List[str], List[str]]:
+    """The services of a compose project that are missing (no container at all)
+    and stopped (none running). A one-shot service (restart "no" or
+    "on-failure") that exited 0 has done its job and counts as up."""
+    missing: List[str] = []
+    stopped: List[str] = []
+    for name, restart in sorted(services.items()):
+        cs = [c for c in containers if (c.labels or {}).get(COMPOSE_SERVICE_LABEL) == name]
+        if not cs:
+            missing.append(name)
+            continue
+        if any(_is_running(c.state) for c in cs):
+            continue
+        codes = [_EXIT_RE.search(c.status or "") for c in cs]
+        if restart.split(":")[0] in ("no", "on-failure") and all(m and m.group(1) == "0" for m in codes):
+            continue
+        stopped.append(name)
+    return missing, stopped
 
 
 def _generate_redeploy_token() -> str:
@@ -897,7 +947,29 @@ class DeploymentService:
         else:
             t.container_id = match.id
             t.state = STATE_RUNNING if _is_running(match.state) else STATE_STOPPED
+            if dep.type == DeploymentTypeCompose:
+                self._compose_state(dep, containers, t)
         return [t]
+
+    def _compose_state(self, dep: Deployment, containers: List[Container], t: DeploymentTarget) -> None:
+        """Judge a compose target by every service it declares, not by its first
+        container: one service up and the others gone is ``degraded``."""
+        services = _compose_services(dep.compose)
+        if not services:
+            return
+        project = [c for c in containers if (c.labels or {}).get(COMPOSE_PROJECT_LABEL) == dep.resource_name()]
+        missing, stopped = _compose_problems(services, project)
+        if not missing and not stopped:
+            t.state = STATE_RUNNING
+            return
+        if not any(_is_running(c.state) for c in project):
+            t.state = STATE_STOPPED
+            return
+        t.state = STATE_DEGRADED
+        t.message = "; ".join(p for p in (
+            f"{', '.join(missing)} missing" if missing else "",
+            f"{', '.join(stopped)} stopped" if stopped else "",
+        ) if p)
 
     async def _status_swarm(self, dep: Deployment) -> List[DeploymentTarget]:
         try:

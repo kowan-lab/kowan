@@ -4,6 +4,7 @@
 
 - **Settings at the bottom of the sidebar**, instead of in the account menu; it opens the same Settings area.
 - **Kowan's own containers hidden** from Workloads, the dashboard, Logs and search: the server, the agents and their helpers (updates, scans, volume browsing, backups). Settings → Features shows them again (`systemContainers`, off by default).
+- **Auto-heal sees a compose service that is gone.** A compose target was judged by its first container, so with nginx up and backend and frontend removed it read "running" and nothing redeployed. Every declared service now counts (a one-shot that exited 0 is done): the target turns `degraded`, naming what is missing or stopped, and the reconcile loop redeploys it. The loop now runs every 5 s (`KOWAN_RECONCILE_INTERVAL`); the 120 s cooldown per deployment stays.
 - **Switching host opens its overview**, from the host menu and from search.
 
 ## 0.1.2 — 2026-10-26
