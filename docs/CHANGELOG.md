@@ -1,11 +1,19 @@
 # Kowan — Changelog
 
-## Unreleased
+## 0.1.2 — 2026-10-26
 
 - **New release notices**: every 6 hours the server checks the published versions and, when one is newer than its own, posts "Kowan X.Y.Z is available" to the bell, once per version. `KOWAN_RELEASE_REPOSITORY` sets where it looks (empty turns it off).
 - **Settings → Updates** shows the running version and the latest release (it showed a registry digest next to the version), also for a server run from source, where self-update is not available. **Check** now asks the registry again: it used to repeat the answer cached for 5 minutes. Agents show the same.
 - **Auto theme**: next to Light and Dark, Auto follows the system and switches with it; it is the default for anyone who never chose.
 - **Environment variables up front** when creating or editing a container deployment: their own section under the ports, instead of the third tab of the advanced settings, where they were easy to miss.
+- **Faster backend tests**: `make test` and CI run one test module per CPU (`scripts/run_tests.py`, standard library only): about 26 s instead of 2.5 min here, coverage unchanged. `make test-serial` keeps the single-process run.
+- Fixed: an auto-update's **stability window of 0 seconds** (Settings) was read as unset and waited 10 seconds after every update.
+- **Features on/off** in Settings (admins): Templates, Network map and GitOps can be turned off for everyone. They leave the navigation, the command palette and the links to them; their API, GitOps webhooks included, answers 404 "turned off in Settings", and GitOps stops syncing. Nothing is deleted; `GET/PUT /api/v1/features`.
+- **Stack variables** for compose deployments, like a Portainer stack's environment: name/value pairs that fill the compose's `${VAR}`s when it deploys (for a git source, over the repository's `.env`). They are part of the revision history, masked for viewers, copied to preview environments and not to promotion targets (which take the artifact, never the environment); GitOps leaves them in Kowan. The live compose check counts them as set.
+- **Config or secret, per environment row**, for stack variables and a container deployment's environment alike: a Secret row's value goes to an encrypted secret the deployment owns (`<deployment>-env`) and the row keeps a reference, so the value is never stored in the deployment or sent back; operators can set it, admins can reveal it. The secret is deleted with the deployment, shows its workload on the Secrets page and cannot be renamed. Shared secrets from the Secrets page are referenced as before, `[[name.field]]`.
+- **Import, reworked**: a Portainer stack's environment and a folder's `.env` become stack variables, each proposed as config or secret, and the compose stays as written. "Write into the compose" (0.1.1) is gone: a variable that should be plain is simply not a secret.
+- **Portainer import through Credentials**: a new Portainer connection type keeps the address and the access token (or username and password) encrypted; the import page picks one, or creates it on the spot, instead of asking every time.
+- **Container actions everywhere**: Kill (SIGKILL, or another signal through `POST …/containers/{id}/kill?signal=`), on the container page, the agent and MCP; and a "⋯" menu on every container of a workload, in its page and in the Workloads table, with start, stop, restart, pause, unpause, kill and remove.
 
 ## 0.1.1 — 2026-10-26
 
