@@ -34,6 +34,7 @@ from kowan.autoupdate.policy import (
     LABEL_SCAN_BLOCK,
     LABEL_UPDATE,
     LABEL_WINDOW,
+    is_default_policy,
     parse_window,
     resolve_policy,
     validate_policy_body,
@@ -152,7 +153,9 @@ async def _overview(request: web.Request) -> web.StreamResponse:
         pass
     objs: Dict[tuple, Dict[str, Any]] = {}
     for p in store.list_autoupdate_policies():
-        objs[(p["kind"], p["hostId"], p["target"])] = {"stored": p}
+        # A row equal to the defaults (left by an older knob save) shows like no policy.
+        if not is_default_policy(p):
+            objs[(p["kind"], p["hostId"], p["target"])] = {"stored": p}
     for st in store.list_autoupdate_states():
         objs.setdefault((st["kind"], st["hostId"], st["target"]), {})["state"] = st["data"]
     out: List[Dict[str, Any]] = []
@@ -299,8 +302,11 @@ async def _put_container(request: web.Request) -> web.StreamResponse:
         p = validate_policy_body(await _body(request))
     except ValueError as err:
         return error_response(400, str(err))
-    svc.store.upsert_autoupdate_policy({**p, "kind": "container", "hostId": host_id, "target": name,
-                                        "updatedAt": rfc3339(now_utc()), "updatedBy": _user(request)})
+    if is_default_policy(p):
+        svc.store.delete_autoupdate_policy("container", host_id, name)
+    else:
+        svc.store.upsert_autoupdate_policy({**p, "kind": "container", "hostId": host_id, "target": name,
+                                            "updatedAt": rfc3339(now_utc()), "updatedBy": _user(request)})
     return await _get_container(request)
 
 
@@ -346,8 +352,11 @@ async def _put_deployment(request: web.Request) -> web.StreamResponse:
         p = validate_policy_body(await _body(request))
     except ValueError as err:
         return error_response(400, str(err))
-    svc.store.upsert_autoupdate_policy({**p, "kind": "deployment", "hostId": "", "target": dep_id,
-                                        "updatedAt": rfc3339(now_utc()), "updatedBy": _user(request)})
+    if is_default_policy(p):
+        svc.store.delete_autoupdate_policy("deployment", "", dep_id)
+    else:
+        svc.store.upsert_autoupdate_policy({**p, "kind": "deployment", "hostId": "", "target": dep_id,
+                                            "updatedAt": rfc3339(now_utc()), "updatedBy": _user(request)})
     return await _get_deployment(request)
 
 

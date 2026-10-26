@@ -77,6 +77,28 @@ class TestDeploymentPolicyAndCheck(AutoUpdateCase):
         await self.call("DELETE", path, "operator", expect=200)
         await self.call("GET", "/deployments/missing/autoupdate", "viewer", expect=404)
 
+    async def test_a_policy_equal_to_the_defaults_is_not_kept(self):
+        # Cycling the Updates knob ends on "off": that saves no row, and an old
+        # row equal to the defaults does not show in the overview.
+        _, dep = await self.call("POST", "/deployments", "operator", json={
+            "name": "knob", "type": "container", "strategy": "standalone", "targets": ["local"],
+            "spec": {"image": "nginx:1.27"}})
+        path = f"/deployments/{dep['id']}/autoupdate"
+        await self.call("PUT", path, "operator", json={"mode": "notify"}, expect=200)
+        _, pol = await self.call("PUT", path, "operator", json={"mode": "off", "window": "", "minAge": "", "scanBlock": ""}, expect=200)
+        self.assertIsNone(pol["stored"])
+        self.assertIsNone(self.svc.store.get_autoupdate_policy("deployment", "", dep["id"]))
+        # Off with a window is a real choice and stays.
+        _, pol = await self.call("PUT", path, "operator", json={"mode": "off", "window": "02:00-05:00"}, expect=200)
+        self.assertEqual(pol["stored"]["window"], "02:00-05:00")
+        cid = self.engine.add_container("plain", "nginx:1.27")
+        _, pol = await self.call("PUT", f"{H}/containers/{cid}/autoupdate", "operator", json={"mode": "off"}, expect=200)
+        self.assertIsNone(pol["stored"])
+        self.svc.store.upsert_autoupdate_policy({"kind": "deployment", "hostId": "", "target": dep["id"], "mode": "off",
+                                                 "window": "", "minAge": "", "scanBlock": "", "updatedAt": "t", "updatedBy": "x"})
+        _, ov = await self.call("GET", "/autoupdate/overview", "viewer", expect=200)
+        self.assertNotIn("knob", [o["name"] for o in ov["objects"]])
+
     async def test_manual_check_notifies_and_records_history(self):
         self.engine.add_image("redis:7")
         self.engine.add_container("cache", "redis:7", labels={"kowan.update": "notify"})

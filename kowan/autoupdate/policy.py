@@ -366,6 +366,16 @@ def validate_policy_body(body: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
+def is_default_policy(p: Optional[Dict[str, Any]]) -> bool:
+    """A stored policy that changes nothing: mode off (the default) and every
+    other field empty (inherit). Saving one deletes the row instead, so turning
+    a knob back to off leaves nothing behind."""
+    if not p:
+        return True
+    return (parse_mode(p.get("mode") or MODE_OFF) == MODE_OFF
+            and not any(str(p.get(k) or "").strip() for k in ("window", "minAge", "scanBlock")))
+
+
 def age_ok(min_age: Optional[timedelta], first_seen: Optional[datetime], created: Optional[datetime],
            now: datetime) -> Tuple[bool, Optional[timedelta]]:
     """Minimum-age gate. The image age is the larger of "since Kowan first saw
