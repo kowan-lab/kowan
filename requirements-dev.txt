@@ -1,3 +1,5 @@
 # Development and CI only (not installed in the images).
 -r requirements.txt
-coverage==7.17.0
+# coverage 7.17 needs Python 3.11+; 3.10 stays on the last release that supports it.
+coverage==7.17.0; python_version >= "3.11"
+coverage==7.16.2; python_version < "3.11"
