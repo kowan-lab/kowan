@@ -66,9 +66,6 @@ class TestScanApi(ScanCase):
         self.assertEqual(host["scanned"], 1)
         self.assertEqual(host["totals"]["critical"], 1)
         self.assertIn(rec["imageId"], host["containers"].values())
-        _, summary = await self.call("GET", "/scans/summary", "viewer", expect=200)
-        self.assertEqual(summary[0]["hostId"], "local")
-        self.assertEqual(summary[0]["counts"]["critical"], 1)
 
     async def test_background_scan(self):
         status, res = await self.call("POST", f"{H}/images/nginx:1.27/scan", "operator", json={"force": True})

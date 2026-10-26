@@ -45,7 +45,6 @@ from another host). A failed re-scan never overwrites a good result.
 | GET | `/api/v1/hosts/{hostID}/images/{id}/scan` | latest result (with findings) + `running` |
 | POST | `/api/v1/hosts/{hostID}/images/{id}/scan` | operator; start a scan in the background (`{"force": true}` re-scans a fresh result, `{"wait": true}` waits) |
 | GET | `/api/v1/hosts/{hostID}/scans` | results for every image on the host + `containers` (containerId to imageId) + totals |
-| GET | `/api/v1/scans/summary` | per-host totals (dashboard) |
 
 `{id}` is an image id (`sha256:...`) or a ref without `/`; for refs with `/`
 pass `_` as id and `?image=<ref>`.

@@ -12,8 +12,6 @@
                                              the host, a containerId -> imageId
                                              map (for row chips) and the host's
                                              severity totals.
-  GET  /scans/summary                        per-host severity totals over the
-                                             stored results (dashboard).
 
 Image refs containing ``/`` can be passed as ``?image=`` on the same routes
 with ``_`` as the path id.
@@ -39,7 +37,6 @@ def register(app: web.Application, svc: Any) -> None:
     api_route(app, "GET", "/hosts/{hostID}/images/{id}/scan", _get_scan)
     api_route(app, "POST", "/hosts/{hostID}/images/{id}/scan", require_role("operator")(_start_scan))
     api_route(app, "GET", "/hosts/{hostID}/scans", _host_scans)
-    api_route(app, "GET", "/scans/summary", _summary)
 
 
 def _svc(request: web.Request) -> Any:
@@ -159,20 +156,3 @@ async def _host_scans(request: web.Request) -> web.StreamResponse:
     scanned = sum(1 for r in rows if r["result"] and r["result"].get("status") == "ok")
     return json_response({"hostId": host_id, "images": rows, "containers": cmap, "totals": totals,
                           "scanned": scanned, "imageCount": len(rows)})
-
-
-async def _summary(request: web.Request) -> web.StreamResponse:
-    svc = _svc(request)
-    per: Dict[str, Dict[str, Any]] = {}
-    for r in svc.store.list_image_scans():
-        if r.get("status") != "ok":
-            continue
-        h = per.setdefault(r["hostId"], {"hostId": r["hostId"], "scanned": 0, "lastScanAt": "", "counts": []})
-        h["scanned"] += 1
-        h["counts"].append(r["counts"])
-        if r["scannedAt"] > h["lastScanAt"]:
-            h["lastScanAt"] = r["scannedAt"]
-    out = []
-    for h in per.values():
-        out.append({**h, "counts": sum_counts(h["counts"])})
-    return json_response(out)
