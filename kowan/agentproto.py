@@ -627,6 +627,7 @@ _DISPATCH: Dict[str, Callable[..., Awaitable[None]]] = {
     ),
     "pause_container": _unary("pause_container", _a("id")),
     "unpause_container": _unary("unpause_container", _a("id")),
+    "kill_container": _unary("kill_container", _a("id", "signal", defaults={"signal": "SIGKILL"})),
     "exec": _unary("exec", _a("id", "cmd", defaults={"cmd": []})),
     "container_logs": _stream(
         "container_logs",

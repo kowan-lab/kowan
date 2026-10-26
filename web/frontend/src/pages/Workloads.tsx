@@ -11,6 +11,7 @@ import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
 import { appHref, kindShort, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
+import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import { useFeatures } from "../lib/features";
 import { cn } from "@/lib/utils";
 import { useCanOperate } from "../components/deployment/shared";
@@ -443,7 +444,9 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
         <td className={cn(TD, "font-mono text-muted-foreground")}>{c.container.image}</td>
         <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts([c])}</td>
         <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
-        <td className={TD} />
+        <td className={cn(TD, "text-right")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          {visible && <ContainerActionsMenu container={c.container} hostId={c.hostId} name={c.name} managed />}
+        </td>
       </tr>
     );
   };

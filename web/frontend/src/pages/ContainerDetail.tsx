@@ -130,6 +130,7 @@ export default function ContainerDetail() {
 
   const editHandlers = useDisclosure(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [killOpen, setKillOpen] = useState(false);
   const [forceRemove, setForceRemove] = useState(false);
   const [exposeOpen, setExposeOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
@@ -348,6 +349,11 @@ export default function ContainerDetail() {
             Expose on a domain…
           </Menu.Item>
           <Menu.Separator />
+          {(running || paused || state === "restarting") && (
+            <Menu.Item iconLeft="cancel-outline-rounded" color="danger" onSelect={() => setKillOpen(true)}>
+              Kill…
+            </Menu.Item>
+          )}
           <Menu.Item
             iconLeft="delete-outline-rounded"
             color="danger"
@@ -492,6 +498,20 @@ export default function ContainerDetail() {
       </Tabs>
 
       <ConfirmModal
+        opened={killOpen}
+        onClose={() => setKillOpen(false)}
+        title={`Kill ${name}`}
+        confirmLabel="Kill container"
+        loading={acting === "kill"}
+        onConfirm={() => actionMutation.mutate("kill", { onSettled: () => setKillOpen(false) })}
+        message={
+          <>
+            <Text as="span" weight="semibold">{name}</Text> is stopped at once with SIGKILL, without the grace period Stop gives it to shut down cleanly. Use it when a container does not respond to Stop.
+          </>
+        }
+      />
+
+      <ConfirmModal
         opened={removeOpen}
         onClose={() => setRemoveOpen(false)}
         title={`Remove ${name}`}
@@ -569,6 +589,9 @@ const ACTION_DONE: Record<ContainerActionType, string> = {
   start: "Start requested",
   stop: "Stop requested",
   restart: "Restart requested",
+  pause: "Paused",
+  unpause: "Unpaused",
+  kill: "Killed",
 };
 
 // ---------------------------------------------------------------------------

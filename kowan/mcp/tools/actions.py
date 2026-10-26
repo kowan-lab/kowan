@@ -22,19 +22,7 @@ _LIFECYCLE = {
 
 
 async def _kill(ops: Any, cid: str, signal: str) -> None:
-    """Kill a container. The Ops contract has no kill op yet, so use one when a
-    client provides it, else talk to the local Engine API directly."""
-    fn = getattr(ops, "kill_container", None)
-    if callable(fn):
-        await fn(cid, signal)
-        return
-    inner = getattr(ops, "inner", ops)
-    from ...docker.local import LocalClient
-
-    if isinstance(inner, LocalClient):
-        await inner._request("POST", f"/containers/{cid}/kill", params={"signal": signal})
-        return
-    raise ToolError("kill is not supported on remote hosts by this agent version; use action=stop")
+    await ops.kill_container(cid, signal)
 
 
 async def pull(svc: Any, ops: Any, ref: str, registry_id: str = "") -> None:

@@ -183,6 +183,9 @@ class RemoteClient(Ops):
     async def unpause_container(self, id: str) -> None:
         await self._call("unpause_container", {"id": id})
 
+    async def kill_container(self, id: str, signal: str = "SIGKILL") -> None:
+        await self._call("kill_container", {"id": id, "signal": signal})
+
     # -- exec ----------------------------------------------------------------
 
     async def exec(self, id: str, cmd: List[str]) -> str:

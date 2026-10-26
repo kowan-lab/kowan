@@ -34,6 +34,18 @@ class TestContainersAPI(ServerCase):
             await self.roles("POST", f"{H}/containers/{cid}/{action}", "operator")
             await self.call("POST", f"{H}/containers/{cid}/{action}", "operator", expect=204 if False else None)
         self.assertTrue(self.engine.containers[cid]["State"]["Running"])
+        # Kill: SIGKILL unless another listed signal is asked for.
+        await self.roles("POST", f"{H}/containers/{cid}/kill", "operator")
+        _, out = await self.call("POST", f"{H}/containers/{cid}/kill", "operator", params={"signal": "sighup"}, expect=200)
+        self.assertEqual(out, {"status": "signalled"})
+        self.assertIn(("POST", f"/containers/{cid}/kill", {"signal": "SIGHUP"}, None), self.engine.calls)
+        _, err = await self.call("POST", f"{H}/containers/{cid}/kill", "operator", params={"signal": "SIGSTOP"}, expect=400)
+        self.assertIn("SIGKILL", err["error"])
+        _, out = await self.call("POST", f"{H}/containers/{cid}/kill", "operator", expect=200)
+        self.assertEqual(out, {"status": "killed"})
+        self.assertFalse(self.engine.containers[cid]["State"]["Running"])
+        await self.call("POST", f"{H}/containers/missing/kill", "operator", expect=404)
+        await self.call("POST", f"{H}/containers/{cid}/start", "operator")
         # Removing a running container without force: the daemon's conflict, a 409.
         status, body = await self.call("DELETE", f"{H}/containers/{cid}", "operator")
         self.assertIn(status, (200, 204, 409))

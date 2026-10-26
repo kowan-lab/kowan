@@ -52,6 +52,9 @@ log = logging.getLogger("kowan.api.containers")
 # require_role helper always also allows admins.
 _OPERATOR = "operator"
 
+# Signals a container may be sent through the kill route; SIGKILL is the default.
+KILL_SIGNALS = ("SIGKILL", "SIGTERM", "SIGINT", "SIGHUP", "SIGQUIT", "SIGUSR1", "SIGUSR2")
+
 
 # ---------------------------------------------------------------------------
 # Truthy query parsing
@@ -294,6 +297,20 @@ def register(app: web.Application, svc: Any) -> None:
 
         return handler
 
+    async def kill_container(request: web.Request) -> web.StreamResponse:
+        """POST .../kill?signal=SIGKILL — stop at once, or send another signal."""
+        ops, err = _resolve_ops(request)
+        if err is not None:
+            return err
+        signal = (request.query.get("signal") or "SIGKILL").upper()
+        if signal not in KILL_SIGNALS:
+            return error_response(400, f"signal must be one of {', '.join(KILL_SIGNALS)}")
+        try:
+            await ops.kill_container(request.match_info["id"], signal)
+        except Exception as ex:  # noqa: BLE001
+            return ops_error_response(ex)
+        return json_response({"status": "killed" if signal == "SIGKILL" else "signalled"}, status=200)
+
     async def remove_container(request: web.Request) -> web.StreamResponse:
         ops, err = _resolve_ops(request)
         if err is not None:
@@ -348,6 +365,12 @@ def register(app: web.Application, svc: Any) -> None:
         "POST",
         base + "/containers/{id}/unpause",
         require_role(_OPERATOR)(_lifecycle("unpause_container", "unpaused")),
+    )
+    api_route(
+        app,
+        "POST",
+        base + "/containers/{id}/kill",
+        require_role(_OPERATOR)(kill_container),
     )
     api_route(
         app,

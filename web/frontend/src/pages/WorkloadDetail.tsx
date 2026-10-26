@@ -36,6 +36,7 @@ import LogViewer, { type LogSource } from "../components/logs/LogViewer";
 import { usePolicyControls } from "../components/apps/policies";
 import { PoliciesTab, PolicyStrip } from "../components/apps/PolicyPanels";
 import WorkloadResources from "../components/apps/WorkloadResources";
+import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import { Band, Btn, BtnLink, CalloutBar, Crumbs, Dot, Fact, LBL, Pill, Tag, btnClass } from "../components/apps/ui";
 import { cn } from "@/lib/utils";
 
@@ -500,6 +501,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
                           <Link to={ctrHref(c)} className={btnClass({ icon: true, size: "sm", ghost: true })} aria-label={`Open ${c.name}`} title="Open container">
                             <ExternalLink className={ICON} strokeWidth={1.5} aria-hidden />
                           </Link>
+                          {!app.stale && <ContainerActionsMenu container={c.container} hostId={c.hostId} name={c.name} managed={app.kind !== "container"} />}
                         </span>
                       </td>
                     </tr>

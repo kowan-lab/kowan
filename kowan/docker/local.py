@@ -962,6 +962,9 @@ class LocalClient(Ops):
     async def pause_container(self, id: str) -> None:
         await self._request("POST", f"/containers/{id}/pause")
 
+    async def kill_container(self, id: str, signal: str = "SIGKILL") -> None:
+        await self._request("POST", f"/containers/{id}/kill", params={"signal": signal})
+
     async def unpause_container(self, id: str) -> None:
         await self._request("POST", f"/containers/{id}/unpause")
 

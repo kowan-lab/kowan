@@ -205,6 +205,12 @@ class Ops(abc.ABC):
         """Resume a paused container."""
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def kill_container(self, id: str, signal: str = "SIGKILL") -> None:
+        """Send a signal to a running container (SIGKILL by default: stop it
+        at once, without the grace period of ``stop_container``)."""
+        raise NotImplementedError
+
     # -- exec ----------------------------------------------------------------
 
     @abc.abstractmethod

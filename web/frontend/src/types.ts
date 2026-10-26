@@ -754,7 +754,7 @@ export type ContainerInspect = Record<string, unknown>;
 // Settings is a flat key/value map.
 export type Settings = Record<string, string>;
 
-export type ContainerActionType = "start" | "stop" | "restart";
+export type ContainerActionType = "start" | "stop" | "restart" | "pause" | "unpause" | "kill";
 
 // ---------------------------------------------------------------------------
 // Volume plugins (Docker managed volume drivers such as s3fs/sshfs)
