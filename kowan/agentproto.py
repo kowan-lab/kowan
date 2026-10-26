@@ -76,6 +76,11 @@ class ProtocolError(Exception):
 # ---------------------------------------------------------------------------
 
 
+# A header line carries an op's JSON result (a container list, an inspect):
+# generous, but a peer cannot make the other side buffer without end.
+_MAX_LINE = 64 << 20
+
+
 async def _read_line(stream: Any) -> bytes:
     """Read a single ``\\n``-terminated line from ``stream`` (newline stripped).
 
@@ -92,6 +97,8 @@ async def _read_line(stream: Any) -> bytes:
         if b == b"\n":
             break
         buf.extend(b)
+        if len(buf) > _MAX_LINE:
+            raise ProtocolError("agentproto: header line too long")
     return bytes(buf)
 
 
@@ -387,14 +394,12 @@ def _dump(model: Any) -> Any:
     return model
 
 
-async def _drain_body(stream: Any, has_body: bool) -> bytes:
-    """Consume a request body (if any) and return it concatenated."""
+async def _drain_body(stream: Any, has_body: bool) -> None:
+    """Consume and discard a request body (if any)."""
     if not has_body:
-        return b""
-    out = bytearray()
-    async for chunk in _iter_request_body(stream):
-        out.extend(chunk)
-    return bytes(out)
+        return
+    async for _ in _iter_request_body(stream):
+        pass
 
 
 async def _stream_response(stream: Any, src: Any) -> None:
@@ -787,12 +792,14 @@ class _OneShot:
     """A tiny AsyncByteStream over an in-memory payload."""
 
     def __init__(self, data: bytes) -> None:
-        self._data = data
+        self._data = memoryview(data)
+        self._pos = 0
 
     async def read(self, n: int = -1) -> bytes:
         if n is None or n < 0:
             n = len(self._data)
-        out, self._data = self._data[:n], self._data[n:]
+        out = bytes(self._data[self._pos:self._pos + n])
+        self._pos += len(out)
         return out
 
 

@@ -6,6 +6,7 @@ typed errors, framing errors, the Docker daemon failing)."""
 
 import asyncio
 import unittest
+from unittest import mock
 
 from kowan import agentproto as ap
 from kowan import errors
@@ -190,6 +191,11 @@ class TestProtocol(unittest.IsolatedAsyncioTestCase):
         c, s = pair()
         await s.close()
         with self.assertRaisesRegex(ap.ProtocolError, "eof before header"):
+            await ap.call(c, "system_info")
+        # A header line longer than the cap.
+        c, s = pair()
+        await s.write(b"x" * 20 + b"\n")
+        with mock.patch.object(ap, "_MAX_LINE", 10), self.assertRaisesRegex(ap.ProtocolError, "too long"):
             await ap.call(c, "system_info")
         # A body frame cut short.
         c, s = pair()
