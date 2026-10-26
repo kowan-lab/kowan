@@ -6,6 +6,7 @@ import io
 import json
 import tarfile
 import unittest
+import zipfile
 
 from kowan.docker.local import LocalClient
 from kowan.errors import BadGateway, Conflict, NotFound, Validation
@@ -13,6 +14,14 @@ from kowan.models import ContainerSpec, KeyValue, PortMapping, VolumeMapping
 from kowan.models.container import IPAMConfig, NetworkCreateOptions, VolumeCreateOptions
 from kowan.models.volumeplugin import PluginInstallOptions
 from tests.fakeengine import FakeEngine
+
+
+class _Reader:
+    def __init__(self, data: bytes) -> None:
+        self._buf = io.BytesIO(data)
+
+    async def read(self, n: int = -1) -> bytes:
+        return self._buf.read(n)
 
 
 async def _read_all(stream) -> bytes:
@@ -196,6 +205,21 @@ class TestVolumes(EngineCase):
         self.assertEqual(raw, b"<h1>hi</h1>")
         archive = await _read_all(await self.client.download_volume_archive("site", "/assets"))
         self.assertTrue(archive.startswith(b"PK"))  # a zip
+        with zipfile.ZipFile(io.BytesIO(archive)) as z:
+            self.assertEqual(z.read("app.css"), b"body{}")
+        with zipfile.ZipFile(io.BytesIO(await _read_all(await self.client.download_volume_archive("site", "/")))) as z:
+            self.assertEqual({n: z.read(n) for n in z.namelist() if not n.endswith("/")},
+                             {"index.html": b"<h1>hi</h1>", "assets/app.css": b"body{}"})
+        # A big file streams through intact.
+        big = bytes(range(256)) * 20_000
+        await self.client.upload_volume_file("site", "/assets", "big.bin", len(big), _Reader(big))
+        self.assertEqual(await _read_all(await self.client.download_volume_file("site", "/assets/big.bin")), big)
+        self.assertEqual(await self.client.read_volume_file("site", "/assets/big.bin"), big[:2 << 20])
+        self.assertIn("big.bin", [f.name for f in await self.client.browse_volume("site", "/assets")])
+        with self.assertRaises(Validation):
+            await self.client.read_volume_file("site", "/assets")
+        with self.assertRaises(Validation):
+            await self.client.download_volume_file("site", "/assets")
         # helper containers are cleaned up
         self.assertFalse([c for c in self.engine.containers.values() if c["State"]["Running"]])
 

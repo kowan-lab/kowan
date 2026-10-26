@@ -40,7 +40,7 @@ import tempfile
 import time
 import zipfile
 from collections import OrderedDict
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import aiohttp
 
@@ -270,27 +270,38 @@ class _ResponseStream:
                 await res
 
 
-class _BytesStream:
-    """An in-memory :class:`AsyncByteStream` over a fixed ``bytes`` buffer.
+class _GenStream:
+    """An :class:`AsyncByteStream` over an async generator of chunks.
 
-    Used to hand back demultiplexed / transformed content (e.g. a demuxed log
-    tail, a zip archive) through the same async-stream contract the caller uses
-    for live Engine streams. ``on_close`` runs on ``close()`` for helper cleanup.
+    Hands back transformed content (a file cut out of a tar, a zip built from
+    one) as it is produced, so a large volume never sits in memory.
+    ``on_close`` runs on ``close()`` and releases the source and helper.
     """
 
-    def __init__(self, data: bytes, *, on_close: Any = None) -> None:
-        self._buf = io.BytesIO(data)
+    def __init__(self, gen: AsyncIterator[bytes], *, on_close: Any = None) -> None:
+        self._gen = gen
+        self._rest = b""
         self._on_close = on_close
         self._closed = False
 
     async def read(self, n: int = -1) -> bytes:
         if n is None or n < 0:
-            return self._buf.read()
-        return self._buf.read(n)
+            out = bytearray(self._rest)
+            self._rest = b""
+            async for chunk in self._gen:
+                out.extend(chunk)
+            return bytes(out)
+        while not self._rest:
+            try:
+                self._rest = await self._gen.__anext__()
+            except StopAsyncIteration:
+                return b""
+        out, self._rest = self._rest[:n], self._rest[n:]
+        return out
 
     async def __aiter__(self) -> AsyncIterator[bytes]:  # type: ignore[override]
         while True:
-            chunk = self._buf.read(64 * 1024)
+            chunk = await self.read(64 * 1024)
             if not chunk:
                 return
             yield chunk
@@ -299,6 +310,7 @@ class _BytesStream:
         if self._closed:
             return
         self._closed = True
+        await self._gen.aclose()  # type: ignore[attr-defined]
         if self._on_close is not None:
             res = self._on_close()
             if asyncio.iscoroutine(res):
@@ -469,68 +481,67 @@ def _clean_volume_sub_path(sub: str) -> str:
     return p
 
 
-def _list_tar_children(data: bytes, clean: str) -> List[models.VolumeFile]:
-    """Return only the IMMEDIATE children of a docker-cp tar."""
+async def _list_tar_children(src: Any, clean: str) -> List[models.VolumeFile]:
+    """Return only the IMMEDIATE children of a docker-cp tar stream; the rest
+    of the archive is skipped, never buffered."""
+    from .containerfs import AsyncTarReader
+
     # rstrip the trailing slash before basename: at the volume root clean == "/"
     # so the raw path is "/__kowan_vol/", whose posixpath.basename is "" (we want
     # "__kowan_vol"). An empty base would make the child-prefix filter match
     # nothing, so the root listing would come back empty.
     base = posixpath.basename((_VOLUME_MOUNT_BASE + clean).rstrip("/"))
+    prefix = base + "/"
     out: List[models.VolumeFile] = []
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as tr:
-        for h in tr:
-            nm = h.name.rstrip("/")
-            if nm == base:
-                continue
-            prefix = base + "/"
-            if not nm.startswith(prefix):
-                continue
-            rel = nm[len(prefix) :]
-            if rel == "" or "/" in rel:
-                continue
-            out.append(
-                models.VolumeFile(
-                    name=rel,
-                    path=posixpath.join(clean, rel),
-                    size=h.size,
-                    mode=_tar_mode_string(h),
-                    is_dir=h.isdir(),
-                    mod_time=int(h.mtime),
-                )
+    async for h in AsyncTarReader(src):
+        nm = h.name.rstrip("/")
+        if not nm.startswith(prefix):
+            continue
+        rel = nm[len(prefix) :]
+        if rel == "" or "/" in rel:
+            continue
+        out.append(
+            models.VolumeFile(
+                name=rel,
+                path=posixpath.join(clean, rel),
+                size=h.size,
+                mode=_tar_mode_string(h.mode, h.type),
+                is_dir=h.type == tarfile.DIRTYPE,
+                mod_time=int(h.mtime),
             )
+        )
     return out
 
 
-def _tar_mode_string(h: tarfile.TarInfo) -> str:
+def _tar_mode_string(mode: int, kind: bytes) -> str:
     """Render an ``ls -l``-style mode string.
 
     A leading type char (``d`` for dirs, ``-`` otherwise) followed by
     the rwx permission triads. Good enough for the UI, which only distinguishes
     directories from files.
     """
-    perm = h.mode & 0o777
-    kind = "d" if h.isdir() else ("L" if h.issym() else "-")
+    perm = mode & 0o777
+    first = "d" if kind == tarfile.DIRTYPE else ("L" if kind == tarfile.SYMTYPE else "-")
     bits = ""
     for shift in (6, 3, 0):
         triad = (perm >> shift) & 0o7
         bits += "r" if triad & 0o4 else "-"
         bits += "w" if triad & 0o2 else "-"
         bits += "x" if triad & 0o1 else "-"
-    return kind + bits
+    return first + bits
 
 
-def _first_tar_file_content(data: bytes, limit: int) -> bytes:
-    """Return the first regular file's bytes in a docker-cp tar."""
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as tr:
-        for h in tr:
-            if h.isdir():
-                raise Validation("path is a directory")
-            if not h.isreg():
-                continue
-            f = tr.extractfile(h)
-            if f is None:
-                raise NotFound("file not found")
-            return f.read(limit)
+async def _first_tar_file(src: Any) -> Any:
+    """Advance a docker-cp tar stream to its first regular file; return the
+    reader positioned on its content."""
+    from .containerfs import AsyncTarReader
+
+    reader = AsyncTarReader(src)
+    async for h in reader:
+        if h.type == tarfile.DIRTYPE:
+            raise Validation("path is a directory")
+        if h.is_regular:
+            return reader
     raise NotFound("file not found")
 
 
@@ -539,46 +550,78 @@ def _sort_volume_files(files: List[models.VolumeFile]) -> None:
     files.sort(key=lambda f: (not f.is_dir, f.name))
 
 
-def _tar_to_zip(data: bytes, clean: str) -> bytes:
-    """Transcode a docker-cp tar into a zip archive."""
-    # rstrip the trailing slash before basename: at the volume root clean == "/"
-    # so the raw path is "/__kowan_vol/", whose posixpath.basename is "" (we want
-    # "__kowan_vol"). An empty base would make the child-prefix filter match
-    # nothing, so the root listing would come back empty.
+class _ZipSink:
+    """The write end zipfile streams into: it keeps only what was written
+    since the last ``take()`` (no tell/seek, so zipfile writes data
+    descriptors instead of seeking back)."""
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+
+    def write(self, b: Any) -> int:
+        self._buf.extend(b)
+        return len(b)
+
+    def flush(self) -> None:
+        pass
+
+    def take(self) -> bytes:
+        out = bytes(self._buf)
+        self._buf.clear()
+        return out
+
+
+async def _tar_to_zip(src: Any, clean: str) -> AsyncIterator[bytes]:
+    """Transcode a docker-cp tar stream into a zip archive, chunk by chunk."""
+    from .containerfs import AsyncTarReader
+
+    # Same basename rule as _list_tar_children.
     base = posixpath.basename((_VOLUME_MOUNT_BASE + clean).rstrip("/"))
-    out = io.BytesIO()
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as tr, zipfile.ZipFile(
-        out, "w", zipfile.ZIP_DEFLATED
-    ) as zw:
-        for h in tr:
-            name = h.name
+    sink = _ZipSink()
+    reader = AsyncTarReader(src)
+    with zipfile.ZipFile(sink, "w", zipfile.ZIP_DEFLATED) as zw:  # type: ignore[arg-type]
+        async for h in reader:
+            name = h.name.rstrip("/")
             if name.startswith(base):
                 name = name[len(base) :].lstrip("/")
             else:
-                name = posixpath.basename(h.name)
+                name = posixpath.basename(name)
             if name == "":
-                if h.isdir():
+                if h.type == tarfile.DIRTYPE:
                     continue
-                name = posixpath.basename(h.name)
-            if h.isdir():
+                name = posixpath.basename(h.name.rstrip("/"))
+            if h.type == tarfile.DIRTYPE:
                 zw.writestr(name + "/", b"")
-            elif h.isreg():
-                f = tr.extractfile(h)
-                zw.writestr(name, f.read() if f else b"")
-    return out.getvalue()
+            elif h.is_regular:
+                with zw.open(name, "w", force_zip64=True) as dst:
+                    while True:
+                        chunk = await reader.read_data()
+                        if not chunk:
+                            break
+                        dst.write(chunk)
+                        if len(sink._buf) >= 64 * 1024:
+                            yield sink.take()
+            out = sink.take()
+            if out:
+                yield out
+    out = sink.take()
+    if out:
+        yield out
 
 
-def _single_tar_file(data: bytes) -> bytes:
-    """Return the single regular file's bytes in a docker-cp tar."""
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as tr:
-        for h in tr:
-            if h.isdir():
-                raise Validation("path is a directory")
-            if not h.isreg():
-                continue
-            f = tr.extractfile(h)
-            return f.read() if f else b""
-    raise NotFound("file not found")
+class _Bounded:
+    """``read(n)`` over at most ``size`` bytes of an async byte stream."""
+
+    def __init__(self, src: AsyncByteStream, size: int) -> None:
+        self._src = src
+        self._left = size
+
+    async def read(self, n: int = 64 * 1024) -> bytes:
+        if self._left <= 0:
+            return b""
+        chunk = await self._src.read(min(n, self._left))
+        self._left -= len(chunk)
+        return chunk
 
 
 def _parse_bind(bind: str) -> Optional[models.VolumeMapping]:
@@ -1333,10 +1376,7 @@ class LocalClient(Ops):
 
     async def browse_volume(self, name: str, sub_path: str) -> List[models.VolumeFile]:
         clean = _clean_volume_sub_path(sub_path)
-        data = await self._with_volume_mount(
-            name, read_only=True, action=lambda cid: self._copy_from_container(cid, clean)
-        )
-        out = _list_tar_children(data, clean)
+        out = await self._with_volume_archive(name, clean, lambda src: _list_tar_children(src, clean))
         _sort_volume_files(out)
         return out
 
@@ -1344,34 +1384,43 @@ class LocalClient(Ops):
         clean = _clean_volume_sub_path(sub_path)
         if clean == "/":
             raise Validation("not a file")
-        data = await self._with_volume_mount(
-            name, read_only=True, action=lambda cid: self._copy_from_container(cid, clean)
-        )
-        return _first_tar_file_content(data, _MAX_VOLUME_FILE_BYTES)
+
+        async def first(src: Any) -> bytes:
+            reader = await _first_tar_file(src)
+            out = bytearray()
+            while len(out) < _MAX_VOLUME_FILE_BYTES:
+                chunk = await reader.read_data(_MAX_VOLUME_FILE_BYTES - len(out))
+                if not chunk:
+                    break
+                out.extend(chunk)
+            return bytes(out)
+
+        return await self._with_volume_archive(name, clean, first)
 
     async def download_volume_file(self, name: str, sub_path: str) -> AsyncByteStream:
         clean = _clean_volume_sub_path(sub_path)
         if clean == "/":
             raise Validation("not a file")
-        cid, remove = await self._create_volume_helper(name, read_only=True)
+        src, close = await self._open_volume_archive(name, clean)
         try:
-            data = await self._copy_from_container(cid, clean)
-        except Exception:
-            await remove()
+            reader = await _first_tar_file(src)
+        except BaseException:
+            await close()
             raise
-        content = _single_tar_file(data)
-        return _BytesStream(content, on_close=remove)
+
+        async def content() -> AsyncIterator[bytes]:
+            while True:
+                chunk = await reader.read_data()
+                if not chunk:
+                    return
+                yield chunk
+
+        return _GenStream(content(), on_close=close)
 
     async def download_volume_archive(self, name: str, sub_path: str) -> AsyncByteStream:
         clean = _clean_volume_sub_path(sub_path)
-        cid, remove = await self._create_volume_helper(name, read_only=True)
-        try:
-            data = await self._copy_from_container(cid, clean)
-        except Exception:
-            await remove()
-            raise
-        archive = _tar_to_zip(data, clean)
-        return _BytesStream(archive, on_close=remove)
+        src, close = await self._open_volume_archive(name, clean)
+        return _GenStream(_tar_to_zip(src, clean), on_close=close)
 
     async def upload_volume_file(
         self,
@@ -1381,27 +1430,32 @@ class LocalClient(Ops):
         size: int,
         content: AsyncByteStream,
     ) -> None:
+        from . import containerfs
+
         clean_dir = _clean_volume_sub_path(dest_dir)
         fn = posixpath.basename(filename.replace("\\", "/"))
         if fn in (".", "/", "..", ""):
             raise Validation("invalid file name")
 
-        # Read the (size-bounded) content and wrap it in a one-entry tar, then
+        # Wrap the (size-bounded) content in a one-entry tar as it streams and
         # docker-cp it into a read-write helper mount.
-        payload = await self._read_bounded(content, size)
-        tar_buf = io.BytesIO()
-        with tarfile.open(fileobj=tar_buf, mode="w") as tw:
-            info = tarfile.TarInfo(name=fn)
-            info.size = len(payload)
-            info.mode = 0o644
-            tw.addfile(info, io.BytesIO(payload))
-        tar_bytes = tar_buf.getvalue()
+        tar = containerfs.TarFileStream(fn, size, _Bounded(content, size))
 
-        async def _action(cid: str) -> bytes:
-            await self._copy_to_container(cid, _VOLUME_MOUNT_BASE + clean_dir, tar_bytes)
-            return b""
+        async def body() -> AsyncIterator[bytes]:
+            async for chunk in tar:
+                yield chunk
 
-        await self._with_volume_mount(name, read_only=False, action=_action)
+        cid, remove = await self._create_volume_helper(name, read_only=False)
+        try:
+            await self._request(
+                "PUT",
+                f"/containers/{cid}/archive",
+                params={"path": _VOLUME_MOUNT_BASE + clean_dir},
+                data=body(),
+                headers={"Content-Type": "application/x-tar"},
+            )
+        finally:
+            await remove()
 
     # -- plugins ------------------------------------------------------------
 
@@ -2006,45 +2060,32 @@ class LocalClient(Ops):
 
         return cid, _remove
 
-    async def _with_volume_mount(self, name: str, read_only: bool, action) -> bytes:
-        cid, remove = await self._create_volume_helper(name, read_only)
+    async def _open_volume_archive(self, name: str, clean: str) -> Tuple[Any, Callable[[], Awaitable[None]]]:
+        """docker-cp OUT of a read-only helper: the archive stream of ``clean``
+        and a close() that releases it and removes the helper."""
+        cid, remove = await self._create_volume_helper(name, read_only=True)
         try:
-            return await action(cid)
-        finally:
+            src = await self._open_stream(
+                "GET", f"/containers/{cid}/archive", params={"path": _VOLUME_MOUNT_BASE + clean}
+            )
+        except BaseException:
             await remove()
+            raise
 
-    async def _copy_from_container(self, cid: str, clean: str) -> bytes:
-        """docker-cp OUT of the helper: GET /containers/{id}/archive?path=."""
-        _, body = await self._request(
-            "GET",
-            f"/containers/{cid}/archive",
-            params={"path": _VOLUME_MOUNT_BASE + clean},
-        )
-        return body
+        async def close() -> None:
+            try:
+                await src.close()
+            finally:
+                await remove()
 
-    async def _copy_to_container(self, cid: str, path: str, tar_bytes: bytes) -> None:
-        """docker-cp INTO the helper: PUT /containers/{id}/archive?path=."""
-        await self._request(
-            "PUT",
-            f"/containers/{cid}/archive",
-            params={"path": path},
-            data=tar_bytes,
-            headers={"Content-Type": "application/x-tar"},
-        )
+        return src, close
 
-    @staticmethod
-    async def _read_bounded(content: AsyncByteStream, size: int) -> bytes:
-        """Read exactly up to ``size`` bytes from an async stream."""
-        buf = bytearray()
-        remaining = size
-        while remaining > 0:
-            chunk = await content.read(min(remaining, 64 * 1024))
-            if not chunk:
-                break
-            buf.extend(chunk)
-            remaining -= len(chunk)
-        return bytes(buf)
-
+    async def _with_volume_archive(self, name: str, clean: str, action: Callable[[Any], Awaitable[Any]]) -> Any:
+        src, close = await self._open_volume_archive(name, clean)
+        try:
+            return await action(src)
+        finally:
+            await close()
 
     # -- container filesystem (archive API; helpers in containerfs.py) -------
     # Everything goes through GET/PUT/HEAD /containers/{id}/archive so it works

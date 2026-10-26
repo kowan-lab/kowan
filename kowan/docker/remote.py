@@ -265,7 +265,7 @@ class RemoteClient(Ops):
             "read_volume_file", {"name": name, "subPath": sub_path}
         )
         try:
-            return await body.read(-1)
+            return await _read_capped(body, _MAX_VOLUME_FILE_BYTES)
         finally:
             await _close_body(body)
 
@@ -427,7 +427,7 @@ class RemoteClient(Ops):
             "container_read_file", {"id": id, "path": path, "maxBytes": max_bytes}
         )
         try:
-            return await body.read(-1)
+            return await _read_capped(body, max_bytes)
         finally:
             await _close_body(body)
 
@@ -523,6 +523,22 @@ async def _reset(stream: Any) -> None:
             await stream.close()
         except Exception:
             pass
+
+
+# The agent cuts a volume file at 2 MiB (LocalClient.read_volume_file); never
+# take more than the agent should send.
+_MAX_VOLUME_FILE_BYTES = 2 << 20
+
+
+async def _read_capped(body: Any, limit: int) -> bytes:
+    """Read a bounded response, at most ``limit`` bytes whatever the peer sends."""
+    out = bytearray()
+    while len(out) < limit:
+        chunk = await body.read(min(64 * 1024, limit - len(out)))
+        if not chunk:
+            break
+        out.extend(chunk)
+    return bytes(out)
 
 
 async def _close_body(body: Any) -> None:
