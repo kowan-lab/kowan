@@ -24,7 +24,6 @@
   --destructive: #c8102e;
   --tick: #a39d8f;
   --seal: #fa3600;
-  --grid-line: #e6e0d3;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #ece8de;
   --sidebar: #f8f6f0;
@@ -76,7 +75,6 @@
   --destructive: #ff4d5e;
   --tick: #5a554d;
   --seal: #fa3600;
-  --grid-line: #1f1d1a;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #0d0c0b;
   --sidebar: #151412;
@@ -128,7 +126,6 @@
   --destructive: #dc2626;
   --tick: #9a9aa0;
   --seal: #dc2626;
-  --grid-line: #ededef;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #f6f6f7;
   --sidebar: #ffffff;
@@ -180,7 +177,6 @@
   --destructive: #f0524d;
   --tick: #575757;
   --seal: #f0524d;
-  --grid-line: #171717;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #040404;
   --sidebar: #0a0a0a;
@@ -232,7 +228,6 @@
   --destructive: #bf616a;
   --tick: #a0a9b8;
   --seal: #bf616a;
-  --grid-line: #dbe0e9;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #d8dee9;
   --sidebar: #eef1f5;
@@ -284,7 +279,6 @@
   --destructive: #bf616a;
   --tick: #4c566a;
   --seal: #bf616a;
-  --grid-line: #333a47;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #20242c;
   --sidebar: #272c36;
@@ -336,7 +330,6 @@
   --destructive: #cb3a2a;
   --tick: #a9a6c4;
   --seal: #cb3a2a;
-  --grid-line: #e3e2d6;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #e2e0d4;
   --sidebar: #f2f1ea;
@@ -388,7 +381,6 @@
   --destructive: #ff5555;
   --tick: #6272a4;
   --seal: #ff5555;
-  --grid-line: #2d303e;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #191a21;
   --sidebar: #21222c;
@@ -440,7 +432,6 @@
   --destructive: #d20f39;
   --tick: #9ca0b0;
   --seal: #d20f39;
-  --grid-line: #d8dbe3;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #dce0e8;
   --sidebar: #eceef3;
@@ -492,7 +483,6 @@
   --destructive: #f38ba8;
   --tick: #585b70;
   --seal: #f38ba8;
-  --grid-line: #262636;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #11111b;
   --sidebar: #11111b;
@@ -544,7 +534,6 @@
   --destructive: #9d0006;
   --tick: #a89984;
   --seal: #9d0006;
-  --grid-line: #e2d3ad;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #ebdbb2;
   --sidebar: #f2e5bc;
@@ -596,7 +585,6 @@
   --destructive: #fb4934;
   --tick: #665c54;
   --seal: #fb4934;
-  --grid-line: #2e2d2d;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #161819;
   --sidebar: #1a1c1d;
@@ -648,7 +636,6 @@
   --destructive: #f52a65;
   --tick: #9699a3;
   --seal: #f52a65;
-  --grid-line: #ccceda;
   --canvas-image: url("/grain-light.png");
   --surface-sunken: #c9cacf;
   --sidebar: #e1e2e7;
@@ -700,7 +687,6 @@
   --destructive: #f7768e;
   --tick: #3b4261;
   --seal: #f7768e;
-  --grid-line: #202332;
   --canvas-image: url("/grain-dark.png");
   --surface-sunken: #121219;
   --sidebar: #16161e;

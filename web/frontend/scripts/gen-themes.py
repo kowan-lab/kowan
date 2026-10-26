@@ -167,7 +167,6 @@ def block(sel: str, mode: str, v: dict, pattern: str = "cross") -> str:
              f"  --secondary: {v['muted']};", f"  --secondary-foreground: {v['fg']};",
              f"  --destructive: {v['tones']['red'][0]};",
              f"  --tick: {v['tick']};", f"  --seal: {v.get('seal', v['tones']['red'][0])};",
-             f"  --grid-line: {v.get('grid') or mix(v['bg'], v['border'], 0.55)};",
              f"  --canvas-image: {canvas_image(pattern, v['fg'], mode)};", f"  --surface-sunken: {v['sunken']};",
              f"  --sidebar: {v['sidebar']};", f"  --sidebar-foreground: {v['fg']};",
              f"  --sidebar-primary: {v['primary']};", f"  --sidebar-primary-foreground: {v['pfg']};",
