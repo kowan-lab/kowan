@@ -492,8 +492,11 @@ def read_compose(checkout: str, path: str) -> Tuple[str, str]:
     return compose, env_text
 
 
-def render_compose(compose: str, env_text: str) -> str:
-    """Apply the ``.env`` (if any) to the compose text."""
-    if not env_text.strip():
+def render_compose(compose: str, env_text: str, variables: Optional[Mapping[str, str]] = None) -> str:
+    """Apply the ``.env`` (if any) and a deployment's stack variables, which
+    win over the ``.env``, to the compose text."""
+    env = parse_env_file(env_text) if env_text.strip() else {}
+    env.update(variables or {})
+    if not env:
         return compose
-    return interpolate(compose, parse_env_file(env_text))
+    return interpolate(compose, env)

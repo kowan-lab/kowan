@@ -511,6 +511,13 @@ async def _update(svc: "Services", request: web.Request) -> web.Response:
         if existing.connection_ref:
             meta["connectionRef"] = existing.connection_ref
         _apply_conn_ref(meta, body)
+        # A workload's own secret (kowan/deployment/envsecrets.py): its rows
+        # reference it by name, so it keeps both its owner and its name.
+        owner = (existing.meta or {}).get("deploymentId")
+        if owner:
+            if name != existing.name:
+                return error_response(400, "this secret belongs to a workload, whose variables reference it by name: it cannot be renamed")
+            meta["deploymentId"] = owner
         # Skip the external-backend required-field check when the secret delegates
         # to a shared connection (the connection carries the sensitive backend).
         if secrets.is_external(stype) and len(fields) > 0 and not meta.get("connectionRef"):

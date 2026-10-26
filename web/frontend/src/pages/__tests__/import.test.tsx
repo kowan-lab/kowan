@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { reply, requests } from "../../test/api";
+import { mockApi, reply, requests } from "../../test/api";
 import { currentPath, pageRoot, renderApp } from "../../test/render";
 import { choose, press, toast } from "../../test/ui";
 import { readFolder } from "../Import";
@@ -10,9 +10,9 @@ const cand = (over: Record<string, unknown> = {}) => ({
   host: "local", strategy: "standalone", compose: "services:\n  web:\n    image: nginx:1.27\n", git: null, importable: true, warnings: [],
   ...over,
 });
-const env = { secret: "shop-env", values: { TAG: "1.27", DB_PASSWORD: "s3cret" }, inImage: ["TAG"] };
+const variables = [{ key: "TAG", value: "1.27", secret: false }, { key: "DB_PASSWORD", value: "s3cret", secret: true }];
 const found = [
-  cand({ env, compose: "services:\n  web:\n    image: nginx:${TAG}\n    environment: [PASSWORD=${DB_PASSWORD}]\n" }),
+  cand({ variables, compose: "services:\n  web:\n    image: nginx:${TAG}\n    environment:\n      - PASSWORD=${DB_PASSWORD}\n" }),
   cand({ key: "portainer-2", name: "blog", git: { repoUrl: "https://github.com/acme/blog.git", ref: "prod", path: "c.yml" }, compose: "",
          active: false, warnings: ["private repository: pick a git credential after importing"] }),
   cand({ key: "portainer-3", name: "metrics", warnings: ["a deployment with this name exists already"] }),
@@ -37,7 +37,7 @@ describe("reading a folder", () => {
 });
 
 describe("import page", () => {
-  it("scans Portainer with a token and imports the picked stacks", async () => {
+  it("scans Portainer through a saved connection and imports the picked stacks", async () => {
     const { user } = renderApp("/import", {
       api: {
         "POST /import/portainer/scan": found,
@@ -46,31 +46,27 @@ describe("import page", () => {
     });
     const root = pageRoot();
     const scanBtn = await within(root).findByRole("button", { name: "Find stacks" }, { timeout: 10_000 });
-    expect(scanBtn).toBeDisabled();
-    await user.type(screen.getByLabelText("Portainer URL"), "https://portainer.example.com");
-    await user.type(screen.getByLabelText("Access token"), "ptr_x");
-    await user.click(screen.getByRole("switch", { name: /verify the tls certificate/i }));
+    // The only Portainer connection is picked; no address or token to type.
+    await waitFor(() => expect(scanBtn).toBeEnabled());
+    expect(within(root).queryByLabelText("Portainer URL")).toBeNull();
     await user.click(scanBtn);
     expect(await screen.findByRole("list", { name: "Stacks found" })).toBeInTheDocument();
-    expect(requests("POST", "/import/portainer/scan")[0].body).toEqual({ url: "https://portainer.example.com", apiKey: "ptr_x", verifyTls: false });
+    expect(requests("POST", "/import/portainer/scan")[0].body).toEqual({ connectionId: "c-portainer" });
     // Importable and not clashing: picked; existing name and kubernetes: not.
     expect(screen.getByRole("checkbox", { name: "Import shop" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Import blog" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Import metrics" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Import k8s" })).toBeDisabled();
     expect(screen.getAllByText(/· 2 variables/)).toHaveLength(3); // not on the git stack
-    // Every variable goes to the secret unless ticked; values never show.
-    expect(screen.getByText(/go to the encrypted secret/i)).toBeInTheDocument();
-    expect(screen.getByText("shop-env")).toBeInTheDocument();
-    expect(screen.queryByText(/s3cret/)).toBeNull();
-    expect(screen.getByText(/TAG is part of an image/)).toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: "Write TAG into the compose of shop" }));
-    expect(screen.queryByText(/part of an image/)).toBeNull();
-    await user.click(screen.getByRole("checkbox", { name: "Write DB_PASSWORD into the compose of shop" }));
-    expect(screen.getByText(/no secret is created/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: "Write DB_PASSWORD into the compose of shop" }));
     expect(screen.getByText(/stopped in portainer/i)).toBeInTheDocument();
     expect(screen.getByText(/git https:\/\/github.com\/acme\/blog.git @ prod/)).toBeInTheDocument();
+    // The stack's variables: names only, each config or secret as proposed.
+    expect(screen.getByText(/2 stack variables, 1 kept as secret/)).toBeInTheDocument();
+    expect(screen.queryByText(/s3cret/)).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "DB_PASSWORD of shop is a secret" })).toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "TAG of shop is a secret" }));
+    expect(screen.getByText(/2 stack variables, 2 kept as secret/)).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "TAG of shop is a secret" }));
 
     await user.clear(screen.getByLabelText("Name of shop"));
     expect(screen.getByRole("button", { name: "Import 2" })).toBeDisabled();
@@ -80,7 +76,7 @@ describe("import page", () => {
     await toast(/imported 1 of 2/i);
     const items = requests("POST", "/import/apply")[0].body.items;
     expect(items).toEqual([
-      { name: "shop-prod", host: "h-edge", strategy: "standalone", compose: found[0].compose, env: { secret: "shop-env", values: env.values, inline: ["TAG"] } },
+      { name: "shop-prod", host: "h-edge", strategy: "standalone", compose: found[0].compose, variables },
       { name: "blog", host: "local", strategy: "standalone", git: { repoUrl: "https://github.com/acme/blog.git", ref: "prod", path: "c.yml" } },
     ]);
     expect(screen.getByText("unknown host")).toBeInTheDocument();
@@ -88,22 +84,21 @@ describe("import page", () => {
     await waitFor(() => expect(currentPath()).toBe("/workloads/dep~new-0"));
   });
 
-  it("signs in with a password and shows scan errors", async () => {
-    const { user } = renderApp("/import", { api: { "POST /import/portainer/scan": reply(400, { error: "Portainer refused the username or password" }) } });
-    await user.click(await screen.findByRole("switch", { name: /username and password/i }, { timeout: 10_000 }));
-    await user.type(screen.getByLabelText("Portainer URL"), "http://p");
-    await user.type(screen.getByLabelText("Username"), "admin");
-    await user.type(screen.getByLabelText("Password"), "pw");
+  it("shows scan errors, an empty Portainer, and asks for a connection when there is none", async () => {
+    const { user } = renderApp("/import", { api: { "POST /import/portainer/scan": reply(400, { error: "Portainer refused the credentials" }) } });
+    const scanBtn = await within(pageRoot()).findByRole("button", { name: "Find stacks" }, { timeout: 10_000 });
+    await waitFor(() => expect(scanBtn).toBeEnabled());
+    await user.click(scanBtn);
+    expect(await screen.findByText(/refused the credentials/)).toBeInTheDocument();
+    mockApi({ "POST /import/portainer/scan": [] });
     await press(user, "Find stacks");
-    expect(await screen.findByText(/refused the username or password/)).toBeInTheDocument();
-    expect(requests("POST", "/import/portainer/scan")[0].body).toEqual({ url: "http://p", username: "admin", password: "pw", verifyTls: true });
+    await toast(/nothing to import/i);
   });
 
-  it("says when Portainer has no stacks and when the import fails", async () => {
-    const { user } = renderApp("/import", { api: { "POST /import/portainer/scan": [] } });
-    await user.type(await screen.findByLabelText("Portainer URL", {}, { timeout: 10_000 }), "http://p");
-    await user.type(screen.getByLabelText("Access token"), "t{Enter}");
-    await toast(/nothing to import/i);
+  it("offers to create a Portainer connection when none exists", async () => {
+    renderApp("/import", { api: { "GET /credentials": (r: { query: Record<string, string> }) => (r.query.kind === "connection" ? [] : []) } });
+    expect(await screen.findByText(/no portainer credentials yet/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find stacks" })).toBeDisabled();
   });
 
   it("imports compose folders as an operator (Portainer is admin-only)", async () => {

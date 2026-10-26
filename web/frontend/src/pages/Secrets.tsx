@@ -29,8 +29,11 @@ import {
   resolveReferences,
   revealSecret,
   updateSecret,
+  listDeployments,
   listSecrets,
 } from "../api/client";
+import { Link } from "react-router";
+import { appHref } from "../lib/apps";
 import { useAuth } from "../auth/AuthContext";
 import ConfirmModal from "../components/ConfirmModal";
 import ConnectionField from "../components/ConnectionField";
@@ -159,6 +162,9 @@ export default function Secrets({ embedded }: { embedded?: boolean } = {}) {
   const [revealed, setRevealed] = useState<Record<string, string> | null>(null);
   const revealTargetId = useRef<string | null>(null);
 
+  // Names of the workloads that own a secret (their secret variables).
+  const deploymentsQuery = useQuery({ queryKey: ["deployments"], queryFn: listDeployments });
+  const depNames = new Map((deploymentsQuery.data ?? []).map((d) => [d.id, d.name]));
   const secretsQuery = useQuery({
     queryKey: ["secrets"],
     queryFn: listSecrets,
@@ -465,7 +471,15 @@ export default function Secrets({ embedded }: { embedded?: boolean } = {}) {
       cell: (s) => (
         <>
           <Text weight="medium">{s.name}</Text>
-          {s.description ? (
+          {s.deploymentId ? (
+            <Text size="xs" color="muted">
+              Secret variables of{" "}
+              <Link to={appHref(`dep~${s.deploymentId}`, "config")} className="cell-link" onClick={(e) => e.stopPropagation()}>
+                {depNames.get(s.deploymentId) ?? "a workload"}
+              </Link>
+              ; deleted with it
+            </Text>
+          ) : s.description ? (
             <Text size="xs" color="muted">
               {s.description}
             </Text>
@@ -936,6 +950,13 @@ export default function Secrets({ embedded }: { embedded?: boolean } = {}) {
             </Text>
             ? Anything referencing <Code>[[{deleteTarget?.name}]]</Code> will no
             longer resolve. This cannot be undone.
+            {deleteTarget?.deploymentId && (
+              <>
+                {" "}It holds the secret variables of{" "}
+                <Text as="span" weight="semibold">{depNames.get(deleteTarget.deploymentId) ?? "a workload"}</Text>, which
+                then needs their values typed again.
+              </>
+            )}
           </>
         }
       />

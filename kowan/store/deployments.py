@@ -13,6 +13,7 @@ import sqlite3
 from typing import TYPE_CHECKING, Any, Optional
 
 from kowan.models import ContainerSpec, Deployment, GitSource, PreviewInfo
+from kowan.models.deployment import KeyValue
 
 from ._common import NotFoundError, bool_to_int
 
@@ -26,6 +27,12 @@ _DEPLOYMENT_COLUMNS = (
     "id, name, type, strategy, targets, replicas, spec, compose, status, "
     "redeploy_token, protected, enabled, created_at, updated_at, "
     "git_source, deployed_commit, last_sync_at, preview, promote_to"
+)
+
+# Every read joins the stack variables, kept in a table of their own.
+_SELECT = (
+    f"SELECT {_DEPLOYMENT_COLUMNS}, variables FROM deployments "
+    "LEFT JOIN deployment_variables ON deployment_id = id"
 )
 
 
@@ -86,6 +93,7 @@ def _row_to_deployment(row: sqlite3.Row) -> Deployment:
         lastSyncAt=row["last_sync_at"] or "",
         preview=PreviewInfo.model_validate(json.loads(row["preview"])) if row["preview"] else None,
         promoteTo=row["promote_to"] or "",
+        variables=[KeyValue.model_validate(v) for v in json.loads(row["variables"] or "[]")],
         createdAt=row["created_at"],
         updatedAt=row["updated_at"],
     )
@@ -120,18 +128,19 @@ class _DeploymentMixin(_Base):
                 _marshal_git(d), d.deployed_commit, d.last_sync_at, _marshal_preview(d), d.promote_to,
             ),
         )
+        self._save_variables(d)
         self.record_deployment_revision(d, author=author, source=source)
 
     def get_deployment(self, id: str) -> Deployment:
         """Return the deployment with the given id, raising NotFoundError if absent."""
-        row = self._one(f"SELECT {_DEPLOYMENT_COLUMNS} FROM deployments WHERE id = ?", (id,))
+        row = self._one(f"{_SELECT} WHERE id = ?", (id,))
         if row is None:
             raise NotFoundError("get deployment: no rows in result set")
         return _row_to_deployment(row)
 
     def get_deployment_by_name(self, name: str) -> Deployment:
         """Return the deployment with the given (unique) name."""
-        row = self._one(f"SELECT {_DEPLOYMENT_COLUMNS} FROM deployments WHERE name = ?", (name,))
+        row = self._one(f"{_SELECT} WHERE name = ?", (name,))
         if row is None:
             raise NotFoundError("get deployment: no rows in result set")
         return _row_to_deployment(row)
@@ -142,7 +151,7 @@ class _DeploymentMixin(_Base):
         if token == "":
             raise NotFoundError("get deployment: no rows in result set")
         row = self._one(
-            f"SELECT {_DEPLOYMENT_COLUMNS} FROM deployments WHERE redeploy_token = ?", (token,)
+            f"{_SELECT} WHERE redeploy_token = ?", (token,)
         )
         if row is None:
             raise NotFoundError("get deployment: no rows in result set")
@@ -150,7 +159,7 @@ class _DeploymentMixin(_Base):
 
     def list_deployments(self) -> list[Deployment]:
         """Return all deployments ordered by creation time."""
-        rows = self._query(f"SELECT {_DEPLOYMENT_COLUMNS} FROM deployments ORDER BY created_at")
+        rows = self._query(f"{_SELECT} ORDER BY created_at")
         return [_row_to_deployment(r) for r in rows]
 
     def update_deployment(self, d: Deployment, *, author: str = "", source: str = "update", note: str = "") -> None:
@@ -172,12 +181,28 @@ class _DeploymentMixin(_Base):
                 d.deployed_commit, d.last_sync_at, _marshal_preview(d), d.promote_to, d.id,
             ),
         )
+        self._save_variables(d)
         self.record_deployment_revision(d, author=author, source=source, note=note)
 
+    def _save_variables(self, d: Deployment) -> None:
+        if not d.variables:
+            self._execute("DELETE FROM deployment_variables WHERE deployment_id = ?", (d.id,))
+            return
+        self._execute(
+            "INSERT INTO deployment_variables (deployment_id, variables) VALUES (?, ?) "
+            "ON CONFLICT(deployment_id) DO UPDATE SET variables = excluded.variables",
+            (d.id, json.dumps([v.model_dump() for v in d.variables], separators=(",", ":"))),
+        )
+
     def delete_deployment(self, id: str) -> None:
-        """Remove a deployment by id, with its revisions; deployments that
+        """Remove a deployment by id, with its revisions, its stack variables
+        and the secret holding its secret environment values; deployments that
         promoted to it no longer do."""
+        from kowan.deployment import envsecrets
+
+        envsecrets.delete_for(self, id)
         self._execute("DELETE FROM deployments WHERE id = ?", (id,))
+        self._execute("DELETE FROM deployment_variables WHERE deployment_id = ?", (id,))
         self._execute("UPDATE deployments SET promote_to = '' WHERE promote_to = ?", (id,))
         self._execute("DELETE FROM deployment_revisions WHERE deployment_id = ?", (id,))
 

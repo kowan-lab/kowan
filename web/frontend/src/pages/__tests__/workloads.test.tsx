@@ -59,34 +59,38 @@ describe("workload: deployment", () => {
     await waitFor(() => expect(requests("PUT", "/deployments/d-shop")[0].body).toMatchObject({ strategy: "swarm" }));
   });
 
-  it("writes chosen secret values into the compose", async () => {
-    const compose = "services:\n  web:\n    image: nginx:[[shop-env.TAG]]\n    environment: [PASSWORD=[[shop-env.DB_PASSWORD]]]\n";
-    let dep = { ...deployments[0], compose };
+  it("edits stack variables, config and secret", async () => {
+    const compose = "services:\n  web:\n    image: nginx:${TAG}\n";
+    const dep = { ...deployments[0], compose, variables: [{ key: "TAG", value: "1.27" }, { key: "PW", value: "[[shop-env.PW]]", secret: true }] };
     const { user } = await open(SHOP + "?tab=config", "shop", {
-      "GET /deployments": () => [dep, ...deployments.slice(1)],
-      "GET /deployments/:id": () => dep,
-      "POST /deployments/:id/inline-secrets": () => {
-        dep = { ...dep, compose: dep.compose.replace("[[shop-env.TAG]]", "1.27") };
-        return dep;
-      },
+      "GET /deployments": [dep, ...deployments.slice(1)],
+      "GET /deployments/:id": dep,
+      "PUT /deployments/:id": (r: { body: unknown }) => ({ ...dep, ...(r.body as object) }),
     });
-    const panel = await screen.findByRole("region", { name: /secret values in the compose/i }, { timeout: 10_000 });
-    const write = within(panel).getByRole("button", { name: /write into the compose/i });
-    expect(write).toBeDisabled();
-    expect(within(panel).getAllByRole("checkbox")).toHaveLength(2);
-    await user.click(within(panel).getByRole("checkbox", { name: "Write shop-env.TAG into the compose" }));
-    await user.click(write);
-    await toast(/written into the compose/i);
-    expect(requests("POST", "/deployments/d-shop/inline-secrets")[0].body).toEqual({ refs: ["shop-env.TAG"] });
-    await waitFor(() => expect(within(panel).getAllByRole("checkbox")).toHaveLength(1));
-    expect(screen.queryAllByText(/unsaved changes/i)).toHaveLength(0);
-  });
-
-  it("hides the secret values panel from operators", async () => {
-    const dep = { ...deployments[0], compose: "services:\n  web:\n    image: nginx:[[shop-env.TAG]]\n" };
-    renderApp(SHOP + "?tab=config", { role: "operator", api: { "GET /deployments": [dep, ...deployments.slice(1)], "GET /deployments/:id": dep } });
-    await screen.findByRole("button", { name: /^save$/i }, { timeout: 10_000 });
-    expect(screen.queryByRole("region", { name: /secret values in the compose/i })).toBeNull();
+    const name = (n: number) => screen.getByRole("textbox", { name: `Name of variable ${n}` });
+    const value = (n: number) => screen.getByLabelText(`Value of variable ${n}`);
+    await waitFor(() => expect(name(2)).toHaveValue("PW"), { timeout: 10_000 });
+    // A saved secret is never shown: the field is empty and says so.
+    expect(value(2)).toHaveValue("");
+    expect(value(2)).toHaveAttribute("placeholder", "•••••• unchanged");
+    expect(screen.getByRole("button", { name: "Variable 2 is a secret" })).toHaveAttribute("aria-pressed", "true");
+    await user.clear(value(1));
+    await user.type(value(1), "1.28");
+    await press(user, /add variable/i);
+    await user.type(name(3), "API_KEY");
+    await user.click(screen.getByRole("button", { name: "Variable 3 is a secret" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(await screen.findByText(/enter a value for the secret API_KEY/i)).toBeInTheDocument();
+    await user.type(value(3), "k3y");
+    // Changing the variables re-runs the compose check (it knows which ${VAR}s
+    // are set); saving waits for it, so try until it has run.
+    await waitFor(async () => {
+      if (!requests("PUT", "/deployments/d-shop").length) await user.click(screen.getByRole("button", { name: /^save$/i }));
+      expect(requests("PUT", "/deployments/d-shop")).toHaveLength(1);
+    }, { timeout: 5000 });
+    expect(requests("PUT", "/deployments/d-shop")[0].body).toMatchObject({
+      variables: [{ key: "TAG", value: "1.28" }, { key: "PW", value: "[[shop-env.PW]]", secret: true }, { key: "API_KEY", value: "k3y", secret: true }],
+    });
   });
 
   it("shows deployment logs, policies and activity", async () => {

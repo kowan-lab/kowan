@@ -17,11 +17,11 @@ import { useQuery } from "@tanstack/react-query";
 import { listRegistries } from "../api/client";
 import FormSection from "./FormSection";
 import ImageInput from "./ImageInput";
+import EnvEditor, { envRowsFromApi, envRowsToApi, type EnvRow } from "./EnvEditor";
 import { useAuth } from "../auth/AuthContext";
 import { joinWords, splitWords } from "../lib/shellwords";
 import type {
   ContainerSpec,
-  KeyValue,
   PortMapping,
   PortProtocol,
   RestartPolicy,
@@ -38,7 +38,7 @@ import type {
 export interface ContainerSpecFormValue {
   name: string;
   image: string;
-  env: KeyValue[];
+  env: EnvRow[];
   ports: PortMapping[];
   volumes: VolumeMapping[];
   networks: string[];
@@ -111,7 +111,7 @@ export function containerSpecFormFromSpec(
     ...base,
     name,
     image: spec.image ?? "",
-    env: spec.env ?? [],
+    env: envRowsFromApi(spec.env),
     ports: spec.ports ?? [],
     volumes: spec.volumes ?? [],
     networks: spec.networks ?? [],
@@ -164,7 +164,7 @@ export function containerSpecFormToSpec(f: ContainerSpecFormValue): ContainerSpe
     .filter((l) => l.length > 0);
   return {
     image: f.image.trim(),
-    env: f.env,
+    env: envRowsToApi(f.env),
     ports: f.ports,
     volumes: f.volumes,
     networks: f.networks,
@@ -196,12 +196,15 @@ interface ContainerSpecFormProps {
   onChange: (value: ContainerSpecFormValue) => void;
   /** Hide the name field (e.g. when the parent owns naming). Defaults false. */
   hideName?: boolean;
+  /** Offer secret env rows: only a deployment owns the secret they go to. */
+  allowSecrets?: boolean;
 }
 
 export function ContainerSpecForm({
   value,
   onChange,
   hideName = false,
+  allowSecrets = false,
 }: ContainerSpecFormProps) {
   const set = <K extends keyof ContainerSpecFormValue>(
     key: K,
@@ -225,16 +228,6 @@ export function ContainerSpecForm({
 
   // Env ----------------------------------------------------------------------
   const addEnv = () => set("env", [...value.env, { key: "", value: "" }]);
-  const updateEnv = (i: number, patch: Partial<KeyValue>) =>
-    set(
-      "env",
-      value.env.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
-    );
-  const removeEnv = (i: number) =>
-    set(
-      "env",
-      value.env.filter((_, idx) => idx !== i),
-    );
 
   // Ports --------------------------------------------------------------------
   const addPort = () =>
@@ -403,45 +396,16 @@ export function ContainerSpecForm({
         variant="plain"
         horizontal
         title="Environment variables"
-        description="Passed to the container. Reference a secret with [[name]] or [[name.field]] so its value is not stored here."
+        description={allowSecrets
+          ? "Passed to the container. Mark a value Secret to keep it encrypted, or reference a shared secret with [[name.field]]."
+          : "Passed to the container. Reference a secret with [[name]] or [[name.field]] so its value is not stored here."}
         action={
           <Button size="sm" variant="light" iconLeft="add-rounded" onClick={addEnv}>
             Add variable
           </Button>
         }
       >
-        <Box direction="column" gap={2}>
-          {value.env.length === 0 && (
-            <Text size="xs" color="muted">
-              No environment variables.
-            </Text>
-          )}
-          {value.env.map((row, i) => (
-            <Box key={i} direction="row" wrap="nowrap" gap={2} align="end">
-              <TextInput
-                placeholder="KEY"
-                aria-label={`Name of variable ${i + 1}`}
-                value={row.key}
-                onChange={(e) => updateEnv(i, { key: e.target.value })}
-                style={{ flex: 1 }}
-              />
-              <TextInput
-                placeholder="value"
-                aria-label={`Value of variable ${i + 1}`}
-                value={row.value}
-                onChange={(e) => updateEnv(i, { value: e.target.value })}
-                style={{ flex: 1 }}
-              />
-              <Button
-                variant="clear"
-                color="danger"
-                aria-label="Remove env"
-                iconLeft="delete-outline-rounded"
-                onClick={() => removeEnv(i)}
-              />
-            </Box>
-          ))}
-        </Box>
+        <EnvEditor value={value.env} onChange={(rows) => set("env", rows)} allowSecrets={allowSecrets} emptyText="No environment variables." />
       </FormSection>
 
       <Divider />

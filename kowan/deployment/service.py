@@ -484,9 +484,10 @@ class DeploymentService:
                     f"create container on host {host_id!r}: {err}"
                 ) from err
         elif dep.type == DeploymentTypeCompose:
-            # Resolve secret refs in the compose YAML before bringing it up.
+            # Fill in the stack variables, then resolve secret refs (a variable's
+            # value may be one) before bringing it up.
             try:
-                compose = await asyncio.to_thread(self.store.resolve_secrets, dep.compose)
+                compose = await asyncio.to_thread(self.store.resolve_secrets, compose_with_variables(dep))
             except Exception as err:
                 raise Validation(f"resolve secrets for {dep.name!r}: {err}") from err
             try:
@@ -519,7 +520,7 @@ class DeploymentService:
             )
 
         if dep.type == DeploymentTypeCompose:
-            compose = dep.compose
+            compose = compose_with_variables(dep)
         elif dep.type == DeploymentTypeContainer:
             if dep.spec is None:
                 raise Validation(f"deploy {dep.name!r}: container spec is required")
@@ -608,9 +609,9 @@ class DeploymentService:
         if dep.preview is not None:
             # A preview runs next to its parent: no fixed host ports or names.
             run_dep.compose = previews.isolate_compose(
-                gitsource.render_compose(raw, env_text + "\n" + previews.preview_env(dep)))
+                gitsource.render_compose(raw, env_text + "\n" + previews.preview_env(dep), stack_variables(dep)))
         else:
-            run_dep.compose = gitsource.render_compose(raw, env_text)
+            run_dep.compose = gitsource.render_compose(raw, env_text, stack_variables(dep))
         return run_dep, commit
 
     async def remote_commit(self, dep: Deployment) -> str:
@@ -765,9 +766,9 @@ class DeploymentService:
             # was deployed, it does not pull new commits ("Pull & redeploy" does).
             dep, _ = await self._prepare_git(dep.model_copy(deep=True), fetch=False)
         # A Stop runs 'compose down' (removing containers), so Start must
-        # recreate with the resolved secret values, exactly like deploy.
+        # recreate with the variables and resolved secret values, like deploy.
         try:
-            compose = await asyncio.to_thread(self.store.resolve_secrets, dep.compose)
+            compose = await asyncio.to_thread(self.store.resolve_secrets, compose_with_variables(dep))
         except Exception as err:
             raise Validation(f"resolve secrets for {dep.name!r}: {err}") from err
         try:
@@ -1111,3 +1112,15 @@ async def _drain(rc: "AsyncByteStream") -> None:
 
 # Public lifecycle op alias for the api layer.
 LifecycleFn = Callable[[str], Awaitable[None]]
+
+
+def stack_variables(dep: Deployment) -> Dict[str, str]:
+    """A compose deployment's stack variables as a name -> value map."""
+    return {v.key: v.value for v in dep.variables}
+
+
+def compose_with_variables(dep: Deployment) -> str:
+    """The compose text with the stack variables filled in. A git deployment's
+    run copy already has them (with its .env); filling again changes nothing."""
+    variables = stack_variables(dep)
+    return gitsource.interpolate(dep.compose, variables) if variables else dep.compose

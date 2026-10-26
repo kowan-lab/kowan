@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
+from ._serde import drop_empty
 from .container import Port
 
 # Deployment type and strategy constants.
@@ -32,6 +33,13 @@ class KeyValue(BaseModel):
 
     key: str = Field(default="")
     value: str = Field(default="")
+    # An environment row marked secret keeps only a reference here; its value
+    # lives in the deployment's own encrypted secret (kowan/deployment/envsecrets.py).
+    secret: bool = Field(default=False)
+
+    @model_serializer(mode="wrap")
+    def _ser(self, handler):
+        return drop_empty(self, handler(self), "secret")
 
 
 class PortMapping(BaseModel):
@@ -154,6 +162,10 @@ class Deployment(BaseModel):
     replicas: int = Field(default=0)
     spec: Optional[ContainerSpec] = Field(default=None)
     compose: str = Field(default="")
+    # Stack variables of a compose deployment (Portainer's stack env): they
+    # fill the compose's ${VAR}s at deploy time, over a git source's .env, and
+    # a value may be a [[secret]] reference. Empty for container deployments.
+    variables: List[KeyValue] = Field(default_factory=list)
     status: str = Field(default="")
     redeploy_token: str = Field(default="", alias="redeployToken")
     protected: bool = Field(default=False)

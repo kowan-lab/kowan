@@ -280,6 +280,8 @@ export interface Secret {
    * connection whose capabilities include `secretFetch`.
    */
   connectionRef?: string;
+  /** The workload this secret holds the secret variables of (deleted with it). */
+  deploymentId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +387,9 @@ export interface MetricSample {
 export interface KeyValue {
   key: string;
   value: string;
+  /** An environment row whose value is kept in the deployment's own secret;
+   *  the API returns its reference, never the value. */
+  secret?: boolean;
 }
 
 export type PortProtocol = "tcp" | "udp";
@@ -457,6 +462,8 @@ export interface Deployment {
   replicas: number;
   spec: ContainerSpec | null;
   compose: string;
+  /** Stack variables of a compose deployment: they fill its ${VAR}s on deploy. */
+  variables?: KeyValue[];
   status: string;
   redeployToken?: string;
   protected: boolean;
@@ -1675,13 +1682,10 @@ export interface ImportCandidate {
   /** Suggested Kowan host. */
   host: string;
   strategy: "standalone" | "swarm";
-  /** Compose text ("" for git stacks); with `env`, a template whose ${VAR}s
-   *  the import fills in. */
+  /** Compose text as written, ${VAR}s included ("" for git stacks). */
   compose: string;
-  /** The stack's variables. On import the ones in `inline` are written into the
-   *  compose, the others go to one encrypted secret (admin only). `inImage`:
-   *  variables an image line uses. */
-  env?: { secret: string; values: Record<string, string>; inImage: string[] };
+  /** The stack's variables, each proposed as config or secret. */
+  variables?: KeyValue[];
   git: { repoUrl: string; ref: string; path: string } | null;
   importable: boolean;
   warnings: string[];

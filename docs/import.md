@@ -11,27 +11,22 @@ Import stacks).
 
 ## Portainer (admin)
 
-`POST /api/v1/import/portainer/scan {url, apiKey | username+password, verifyTls}`
-reads `/api/endpoints`, `/api/stacks` and each stack's file through
-Portainer's API. The token or password is used for this read and not kept.
-Compose stacks come back as written, with `${VAR}` in place, plus their
-variables (`env {secret, values, inImage}`). The preview lists the variables
-by name (never their values): each one goes to an encrypted Kowan secret,
-`<stack>-env`, by default, or, ticked, is written into the compose. The secret
-gets a field per variable (it is numbered when that name is taken) and the
-compose references it as `[[<stack>-env.VAR]]`, filled in at deploy time.
-Storing a secret needs an admin, as elsewhere; with every variable written in
-there is no secret and an operator can import. If creating the deployment
-fails, the secret is removed again. Variables an `image:` line uses are
-flagged: in the secret, update checks, scans and promotion cannot read which
-image runs.
+`POST /api/v1/import/portainer/scan {connectionId}` reads `/api/endpoints`,
+`/api/stacks` and each stack's file through Portainer's API. The address and
+the access token (or username and password) come from a saved **Portainer
+connection** in Credentials, stored encrypted like any credential: the import
+page picks one, or creates it on the spot, so later imports need nothing
+typed again. The connection's `insecure` field set to `true` accepts a
+self-signed certificate.
 
-Later, the deployment's Config tab (admins) lists the `[[secret.FIELD]]`
-references of its compose and writes the chosen ones in:
-`POST /api/v1/deployments/{id}/inline-secrets {refs: ["shop-env.TAG"]}`.
-What runs does not change, so nothing redeploys; the result is a new
-revision, which a rollback undoes. A value that would break the YAML is
-refused.
+Compose stacks come back as written, with their `${VAR}`s, and the stack's
+environment becomes the deployment's **stack variables**. The preview lists
+them by name (never their values) with a Secret switch, proposed on for
+names that look sensitive (PASS, PWD, SECRET, TOKEN, KEY, CREDENTIAL, AUTH,
+SALT, PRIVATE, DSN, CONNECTION_STRING) and for URLs that carry a user and
+password. A secret variable is kept encrypted in the deployment's own secret,
+exactly like one marked Secret in the deployment form (see "Environment:
+config and secrets" below), so importing needs no admin.
 
 Git stacks come back as git sources (a private repository needs a credential
 after importing, and their Portainer variables belong in the repository's
@@ -43,8 +38,25 @@ environment.
 
 The browser reads the picked folder (only `compose.yaml`, `compose.yml`,
 `docker-compose.y(a)ml` and `.env`, 1 MiB each) and posts the files;
-`POST /api/v1/import/compose/scan {files}` groups them one stack per folder
-and applies the `.env`.
+`POST /api/v1/import/compose/scan {files}` groups them one stack per folder;
+a folder's `.env` becomes the stack variables, proposed as config or secret
+the same way.
+
+## Environment: config and secrets
+
+A workload's environment rows (a compose deployment's stack variables, a
+container deployment's environment) are each **config** or **secret**. A
+config row is stored as written, and may reference a shared secret from the
+Secrets page as `[[name.field]]`. A secret row's value goes to one encrypted
+secret the deployment owns, `<deployment>-env`, a field per row; the row keeps
+only `[[<deployment>-env.KEY]]`, so the value is never in the deployment, its
+revisions or the API, and a saved secret shows as unchanged in the form until
+a new value is typed. Anyone who may edit the workload can set these values;
+only an admin can reveal them, on the Secrets page, where the secret names the
+workload it belongs to and cannot be renamed. It is deleted with the
+deployment. Changing a secret value redeploys a running workload; it is not
+part of the revision history, so a rollback keeps the current value.
+(`kowan/deployment/envsecrets.py`)
 
 ## Apply
 

@@ -7,6 +7,8 @@ export interface ComposeValidationTarget {
   hostId?: string;
   /** Existing deployment: its own containers don't count as conflicts. */
   deploymentId?: string;
+  /** Stack variables: their ${VAR}s count as set. */
+  env?: Record<string, string>;
 }
 
 export interface ComposeValidationState {
@@ -33,7 +35,9 @@ export function useComposeValidation(
     result: null, diagnostics: EMPTY, loading: false, error: null, validatedText: "",
   });
   const ctrl = useRef<AbortController | null>(null);
-  const { hostId, deploymentId } = target;
+  const { hostId, deploymentId, env } = target;
+  // A stable key, so re-renders with an equal map do not re-validate.
+  const envKey = JSON.stringify(env ?? {});
 
   useEffect(() => {
     if (!enabled || compose.trim() === "") {
@@ -46,7 +50,8 @@ export function useComposeValidation(
       ctrl.current?.abort();
       const c = new AbortController();
       ctrl.current = c;
-      validateCompose({ compose, hostId: hostId || undefined, deploymentId: deploymentId || undefined }, c.signal)
+      const vars = JSON.parse(envKey) as Record<string, string>;
+      validateCompose({ compose, hostId: hostId || undefined, deploymentId: deploymentId || undefined, env: Object.keys(vars).length ? vars : undefined }, c.signal)
         .then((result) => {
           if (c.signal.aborted) return;
           setState({ result, diagnostics: result.diagnostics, loading: false, error: null, validatedText: compose });
@@ -61,7 +66,7 @@ export function useComposeValidation(
         });
     }, delayMs);
     return () => window.clearTimeout(timer);
-  }, [compose, hostId, deploymentId, enabled, delayMs]);
+  }, [compose, hostId, deploymentId, envKey, enabled, delayMs]);
 
   useEffect(() => () => ctrl.current?.abort(), []);
   return state;

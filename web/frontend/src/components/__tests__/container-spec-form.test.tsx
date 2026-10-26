@@ -108,11 +108,12 @@ describe("container spec form", () => {
     // Environment: its own section, not a tab.
     expect(screen.queryByRole("tab", { name: /environment/i })).toBeNull();
     await user.click(screen.getByRole("button", { name: /add variable/i }));
-    expect(screen.getByRole("textbox", { name: "Name of variable 1" })).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText("KEY"), "MODE");
-    await user.type(screen.getByPlaceholderText("value"), "prod");
+    await user.type(screen.getByRole("textbox", { name: "Name of variable 1" }), "MODE");
+    await user.type(screen.getByRole("textbox", { name: "Value of variable 1" }), "prod");
     expect(latest.env).toEqual([{ key: "MODE", value: "prod" }]);
-    await user.click(screen.getByRole("button", { name: "Remove env" }));
+    // Outside a deployment there is no secret to keep a value in.
+    expect(screen.queryByRole("button", { name: /is a secret/i })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Remove variable 1" }));
 
     // Networks
     await user.click(screen.getByRole("tab", { name: /networks/i }));

@@ -195,6 +195,8 @@ class Client:
             "compose": dep.get("compose", ""),
             # Without it a git deployment would turn into an inline one on update.
             "git": dep.get("git"),
+            # Likewise, an update must not drop the stack variables.
+            "variables": dep.get("variables") or [],
         }
 
     def create_deployment(self, dep: dict[str, Any]) -> dict[str, Any]:

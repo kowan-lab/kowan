@@ -5,8 +5,8 @@ import { expect, test } from "@playwright/test";
 import { toast, unique, watchErrors } from "./helpers";
 
 // Importing a folder of compose stacks against the real server: the browser
-// reads the folder, the server groups the stacks and applies .env, and the
-// picked one becomes a deployment (created, not deployed).
+// reads the folder, the server groups the stacks and turns .env into stack
+// variables, and the picked one becomes a deployment (created, not deployed).
 test("a compose folder is imported as deployments", async ({ page }) => {
   const errors = watchErrors(page);
   const name = unique("imp");
@@ -31,10 +31,12 @@ test("a compose folder is imported as deployments", async ({ page }) => {
   await page.getByRole("link", { name: `Imported: open ${name}` }).click();
   await expect(page).toHaveURL(/\/workloads\/dep~/);
   const id = decodeURIComponent(page.url().split("dep~")[1]);
-  const compose = await page.evaluate(async (depId) => {
+  const dep = await page.evaluate(async (depId) => {
     const r = await fetch(`/api/v1/deployments/${depId}`, { headers: { Authorization: `Bearer ${localStorage.getItem("kowan_token")}` } });
-    return (await r.json()).compose as string;
+    return (await r.json()) as { compose: string; variables: { key: string; value: string }[] };
   }, id);
-  expect(compose).toContain("image: nginx:1.27"); // .env applied
+  // The compose stays as written; the .env became stack variables.
+  expect(dep.compose).toContain("image: nginx:${TAG}");
+  expect(dep.variables).toEqual([{ key: "TAG", value: "1.27" }]);
   expect(errors).toEqual([]);
 });

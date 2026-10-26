@@ -30,8 +30,8 @@ describe("new deployment", () => {
     await user.type(hostPorts.at(-1)!, "9000");
     await user.type(ctrPorts.at(-1)!, "9000");
     await press(user, /add variable/i, page);
-    await user.type(within(page).getAllByPlaceholderText(/^key$/i).at(-1)!, "MODE");
-    await user.type(within(page).getAllByPlaceholderText(/^value$/i).at(-1)!, "prod");
+    await user.type(within(page).getByRole("textbox", { name: "Name of variable 1" }), "MODE");
+    await user.type(within(page).getByRole("textbox", { name: "Value of variable 1" }), "prod");
     // After creating: protection, webhook, notify on updates, a start/stop schedule.
     await user.click(within(page).getByLabelText(/protect from deletion/i));
     await user.click(within(page).getByLabelText(/create a redeploy webhook/i));

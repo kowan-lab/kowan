@@ -108,7 +108,6 @@ def _registrars() -> list:
     from .api import logarchive as logarchive_api
     from .api import workloadres as workloadres_api
     from .api import imports as imports_api
-    from .api import inline_secrets as inline_secrets_api
     from .api import features as features_api
     from .api import cleanup as cleanup_api
     from .api import digest as digest_api
@@ -150,8 +149,6 @@ def _registrars() -> list:
         logarchive_api.register,
         # import stacks from Portainer and compose folders (after deployments).
         imports_api.register,
-        # write secret values into a deployment's compose.
-        inline_secrets_api.register,
         # guided and scheduled disk cleanup.
         cleanup_api.register,
         # the periodic notification digest.

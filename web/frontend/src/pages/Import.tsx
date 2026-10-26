@@ -7,13 +7,14 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Callout, Checkbox, Code, Icon, InputToggle, Select, Tabs, Text, TextInput } from "@/ui/kit";
+import { Badge, Button, Callout, Checkbox, Icon, Select, Tabs, Text, TextInput } from "@/ui/kit";
 import { applyImport, listHosts, scanComposeFolder, scanPortainer } from "../api/client";
+import ConnectionField from "../components/ConnectionField";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
 import { appHref } from "../lib/apps";
-import type { ImportCandidate, ImportResult } from "../types";
+import type { ImportCandidate, ImportResult, KeyValue } from "../types";
 import { notify } from "../ui/toast";
 import { errorMessage } from "../utils";
 
@@ -34,8 +35,6 @@ interface Row extends ImportCandidate {
   selected: boolean;
   /** The name as found: labels stay put while the name is edited. */
   found: string;
-  /** Variables to write into the compose; the rest go to the secret. */
-  inline: string[];
 }
 
 export default function Import() {
@@ -49,13 +48,13 @@ export default function Import() {
 
   const load = (items: ImportCandidate[]) => {
     setResults(null);
-    setRows(items.map((i) => ({ ...i, found: i.name, inline: [], selected: i.importable && i.warnings.every((w) => !w.includes("exists already")) })));
+    setRows(items.map((i) => ({ ...i, found: i.name, selected: i.importable && i.warnings.every((w) => !w.includes("exists already")) })));
     if (!items.length) notify({ color: "yellow", title: "Nothing to import", message: "No stacks were found." });
   };
 
   const apply = useMutation({
     mutationFn: (items: Row[]) =>
-      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose, ...(r.env ? { env: { secret: r.env.secret, values: r.env.values, inline: r.inline } } : {}) }) }))),
+      applyImport(items.map((r) => ({ name: r.name.trim(), host: r.host, strategy: r.strategy, ...(r.git ? { git: r.git } : { compose: r.compose, ...(r.variables?.length ? { variables: r.variables } : {}) }) }))),
     onSuccess: (res) => {
       setResults(res);
       qc.invalidateQueries({ queryKey: ["deployments"] });
@@ -113,7 +112,7 @@ export default function Import() {
                       {r.source === "portainer" ? `Portainer · ${r.endpoint}` : r.endpoint} · {r.git ? `git ${r.git.repoUrl} @ ${r.git.ref}` : "compose file"}
                       {r.envCount > 0 && !r.git ? ` · ${r.envCount} variables` : ""}
                     </Text>
-                    {r.env && r.importable && <EnvChoice row={r} onChange={(inline) => set(r.key, { inline })} />}
+                    {!!r.variables?.length && r.importable && <VariableChoice row={r} onChange={(variables) => set(r.key, { variables })} />}
                     <div className="flex flex-wrap gap-[6px]">
                       <Badge color={r.kind === "kubernetes" ? "gray" : "blue"} size="sm">{r.kind}</Badge>
                       {!r.active && <Badge color="gray" size="sm">stopped in Portainer</Badge>}
@@ -139,40 +138,31 @@ export default function Import() {
 }
 
 function PortainerForm({ onScan }: { onScan: (items: ImportCandidate[]) => void }) {
-  const [url, setUrl] = useState("");
-  const [login, setLogin] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [verifyTls, setVerifyTls] = useState(true);
+  const [connectionId, setConnectionId] = useState("");
   const [error, setError] = useState("");
   const scan = useMutation({
-    mutationFn: () => scanPortainer(login ? { url, username, password, verifyTls } : { url, apiKey, verifyTls }),
+    mutationFn: () => scanPortainer(connectionId),
     onSuccess: (items) => {
       setError("");
       onScan(items);
     },
     onError: (e) => setError(errorMessage(e, "Scan failed")),
   });
-  const ready = url.trim() && (login ? username && password : apiKey);
   return (
-    <SectionCard title="Portainer" description="Kowan reads the stacks, their compose files and variables. The token or password is used for this read and not kept.">
-      <form className="flex max-w-[560px] flex-col gap-[12px]" onSubmit={(e) => { e.preventDefault(); if (ready) scan.mutate(); }}>
-        <TextInput label="Portainer URL" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://portainer.example.com" />
-        <InputToggle label="Sign in with a username and password instead of an access token" checked={login} onChange={(e) => setLogin(e.target.checked)} />
-        {login ? (
-          <>
-            <TextInput label="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />
-            <TextInput label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
-          </>
-        ) : (
-          <TextInput label="Access token" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off"
-            description="My account → Access tokens in Portainer." />
-        )}
-        <InputToggle label="Verify the TLS certificate" checked={verifyTls} onChange={(e) => setVerifyTls(e.target.checked)} />
+    <SectionCard title="Portainer" description="Kowan reads the stacks, their compose files and variables through a saved Portainer connection: its address and token stay encrypted in Credentials.">
+      <form className="flex max-w-[560px] flex-col gap-[12px]" onSubmit={(e) => { e.preventDefault(); if (connectionId) scan.mutate(); }}>
+        <ConnectionField
+          capability="httpBearer"
+          types={["portainer"]}
+          emptyLabel="Portainer"
+          label="Portainer connection"
+          description="Address plus an access token (My account → Access tokens) or a username and password."
+          value={connectionId}
+          onChange={setConnectionId}
+        />
         {error && <Callout color="danger" title="Not scanned">{error}</Callout>}
         <div>
-          <Button type="submit" loading={scan.isPending} disabled={!ready}>Find stacks</Button>
+          <Button type="submit" loading={scan.isPending} disabled={!connectionId}>Find stacks</Button>
         </div>
       </form>
     </SectionCard>
@@ -216,46 +206,33 @@ function FolderForm({ onScan }: { onScan: (items: ImportCandidate[]) => void }) 
 }
 
 /**
- * The variables of an imported stack: each one goes to the encrypted secret
- * (the default) or, ticked, into the compose. Values are never shown.
+ * The variables of an imported stack, which become its stack variables: each
+ * one config, or secret (kept encrypted in the deployment's own secret). The
+ * proposal comes from the scan; values are never shown.
  */
-function EnvChoice({ row, onChange }: { row: Row; onChange: (inline: string[]) => void }) {
-  const env = row.env!;
-  const names = Object.keys(env.values);
-  const inline = new Set(row.inline);
-  const toSecret = names.filter((n) => !inline.has(n));
-  const toggle = (name: string, on: boolean) => onChange(on ? [...row.inline, name] : row.inline.filter((n) => n !== name));
+function VariableChoice({ row, onChange }: { row: Row; onChange: (variables: KeyValue[]) => void }) {
+  const vars = row.variables ?? [];
+  const secrets = vars.filter((v) => v.secret).length;
+  const toggle = (key: string, secret: boolean) => onChange(vars.map((v) => (v.key === key ? { ...v, secret } : v)));
   return (
     <fieldset className="m-0 mt-[4px] flex min-w-0 flex-col gap-[6px] border-0 p-0">
       <legend className="mb-[4px] p-0">
         <Text size="xs" color="muted">
-          {toSecret.length
-            ? <>Variables go to the encrypted secret <Code>{env.secret}</Code>; tick the ones to write into the compose.</>
-            : "Every variable is written into the compose: no secret is created."}
+          {vars.length} stack variable{vars.length === 1 ? "" : "s"}{secrets ? `, ${secrets} kept as secret` : ""}. Tick the ones that are secrets.
         </Text>
       </legend>
       <div className="flex flex-wrap gap-x-[16px] gap-y-[6px]">
-        {names.map((n) => (
+        {vars.map((v) => (
           <Checkbox
-            key={n}
+            key={v.key}
             size="sm"
-            label={
-              <span className="font-mono text-[12px]">
-                {n}
-                {env.inImage.includes(n) && <span className="ml-[6px] text-[var(--tone-amber-text)]">image</span>}
-              </span>
-            }
-            aria-label={`Write ${n} into the compose of ${row.found}`}
-            checked={inline.has(n)}
-            onChange={(e) => toggle(n, e.target.checked)}
+            label={<span className="font-mono text-[12px]">{v.key}</span>}
+            aria-label={`${v.key} of ${row.found} is a secret`}
+            checked={!!v.secret}
+            onChange={(e) => toggle(v.key, e.target.checked)}
           />
         ))}
       </div>
-      {env.inImage.some((n) => !inline.has(n)) && (
-        <Text size="xs" color="warning">
-          {env.inImage.filter((n) => !inline.has(n)).join(", ")} {env.inImage.filter((n) => !inline.has(n)).length === 1 ? "is" : "are"} part of an image: in the secret, update checks, scans and promotion cannot read which image runs.
-        </Text>
-      )}
     </fieldset>
   );
 }

@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Callout,
   Checkbox,
   Divider,
@@ -32,6 +33,7 @@ import { ComposeBuilder } from "./ComposeBuilder";
 import type { ComposeDiagnostic } from "../types";
 import { warningsSignature } from "./compose/useComposeValidation";
 import FormSection from "./FormSection";
+import EnvEditor, { envRowsFromApi, envRowsProblem, envRowsToApi, type EnvRow } from "./EnvEditor";
 
 // Short, accurate explanations of each deployment type/strategy combination,
 // shown beneath the type selector and updated with the current selection.
@@ -72,6 +74,8 @@ export interface DeploymentFormValue {
   compose: string;
   source: ComposeSource;
   git: GitFormValue;
+  /** Stack variables (compose): fill the compose's ${VAR}s on deploy. */
+  variables: EnvRow[];
   /** Existing deployment id (edit flow): its own containers are not conflicts. */
   deploymentId?: string;
   /** Latest live-validation findings for the inline compose. */
@@ -102,6 +106,7 @@ export interface DeploymentInputLike {
   spec: ContainerSpec | null;
   compose: string;
   git: GitFormValue | null;
+  variables: import("../types").KeyValue[];
 }
 
 /** A blank deployment form value, ready for the create flow. */
@@ -116,6 +121,7 @@ export function emptyDeploymentForm(): DeploymentFormValue {
     compose: "",
     source: "inline",
     git: emptyGitForm(),
+    variables: [],
   };
 }
 
@@ -130,6 +136,7 @@ export function deploymentFormFromDeployment(d: Deployment): DeploymentFormValue
     spec: containerSpecFormFromSpec(d.spec, d.name),
     compose: d.compose ?? "",
     source: d.git?.repoUrl ? "git" : "inline",
+    variables: envRowsFromApi(d.variables),
     deploymentId: d.id,
     git: d.git
       ? {
@@ -167,12 +174,16 @@ export function deploymentFormToInput(f: DeploymentFormValue): DeploymentInputLi
             autoDeploy: f.git.autoDeploy,
           }
         : null,
+    // Rows without a name are dropped, like the server does.
+    variables: f.type === "compose" ? envRowsToApi(f.variables) : [],
   };
 }
 
 /** Return a human-readable validation error, or null when the form is valid. */
 export function validateDeploymentForm(f: DeploymentFormValue): string | null {
   if (f.name.trim().length === 0) return "Name is required";
+  const envProblem = f.type === "compose" ? envRowsProblem(f.variables, { strictNames: true }) : envRowsProblem(f.spec.env);
+  if (envProblem) return envProblem;
   if (f.type === "container" && f.spec.image.trim().length === 0) {
     return "Image is required for container deployments";
   }
@@ -334,6 +345,7 @@ export function DeploymentForm({ value, onChange, mode }: DeploymentFormProps) {
 
       {value.type === "container" ? (
         <ContainerSpecForm
+          allowSecrets
           value={value.spec}
           onChange={(v) => set("spec", v)}
           hideName
@@ -361,6 +373,7 @@ export function DeploymentForm({ value, onChange, mode }: DeploymentFormProps) {
                 validation={{
                   hostId: value.targets[0],
                   deploymentId: value.deploymentId,
+                  env: Object.fromEntries(value.variables.filter((v) => v.key.trim()).map((v) => [v.key.trim(), v.value])),
                   onDiagnostics: (d, pending) =>
                     onChange({ ...value, composeDiagnostics: d, composePending: pending }),
                 }}
@@ -375,6 +388,13 @@ export function DeploymentForm({ value, onChange, mode }: DeploymentFormProps) {
             </Tabs.Panel>
           </Tabs>
         </FormSection>
+      )}
+
+      {value.type === "compose" && (
+        <>
+          <Divider />
+          <StackVariables value={value.variables} onChange={(v) => set("variables", v)} git={value.source === "git"} />
+        </>
       )}
     </Box>
   );
@@ -501,5 +521,28 @@ function ComposeWarningsAck({
         onChange={(e) => onChange({ ...value, composeAck: e.currentTarget.checked ? sig : "" })}
       />
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// StackVariables: the compose deployment's own variables (Portainer's stack
+// env). They fill the compose's ${VAR}s when it deploys, over a git repo's .env.
+// ---------------------------------------------------------------------------
+
+function StackVariables({ value, onChange, git }: { value: EnvRow[]; onChange: (v: EnvRow[]) => void; git: boolean }) {
+  return (
+    <FormSection
+      variant="plain"
+      horizontal
+      title="Stack variables"
+      description={`Fill the compose's \${VAR}s when it deploys${git ? ", over the repository's .env" : ""}. Mark a value Secret to keep it encrypted, or reference a shared secret with [[name.field]].`}
+      action={
+        <Button size="sm" variant="light" iconLeft="add-rounded" onClick={() => onChange([...value, { key: "", value: "" }])}>
+          Add variable
+        </Button>
+      }
+    >
+      <EnvEditor value={value} onChange={onChange} strictNames emptyText="No stack variables." />
+    </FormSection>
   );
 }

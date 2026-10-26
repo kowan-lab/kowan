@@ -75,14 +75,16 @@ async def deployment_gate(
     targets: Any,
     deployment_id: str = "",
     project: str = "",
+    env: Optional[Dict[str, str]] = None,
 ) -> Optional[web.Response]:
-    """``None`` when the deployment may proceed, else a 400 response."""
+    """``None`` when the deployment may proceed, else a 400 response. ``env``:
+    the stack variables, known to be set when the compose is deployed."""
     if not gate_enabled() or type_ != "compose" or has_git or not (compose or "").strip():
         return None
     host_id = targets[0] if targets else ""
     try:
         res = await validate_for_target(
-            svc, compose, host_id=host_id, deployment_id=deployment_id, project=project,
+            svc, compose, host_id=host_id, deployment_id=deployment_id, project=project, env=env or None,
         )
     except Exception as err:  # noqa: BLE001 - never let the validator break CRUD
         log.warning("compose validation failed unexpectedly: %s", err)

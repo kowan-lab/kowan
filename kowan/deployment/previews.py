@@ -239,6 +239,9 @@ class PreviewManager:
         dep = Deployment(
             id=str(uuid.uuid4()), name=name, type=parent.type, strategy=parent.strategy,
             targets=list(parent.targets), status="stopped", git=git, createdAt=now, updatedAt=now,
+            # The parent's stack variables, so the preview runs like it does; its
+            # secret rows become plain references to the parent's secret.
+            variables=[v.model_copy(update={"secret": False}) for v in parent.variables],
             preview=PreviewInfo(parentId=parent.id, ref=branch, pullRequest=pr, title=title, url=url,
                                 createdBy=author or ("pull request" if pr else "push"), lastActivityAt=now),
         )

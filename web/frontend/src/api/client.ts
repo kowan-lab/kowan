@@ -472,6 +472,7 @@ function toSecret(c: RawCredential): Secret {
     description: String(m.description ?? ""),
     fields: c.configKeys ?? [],
     connectionRef: m.connectionRef ? String(m.connectionRef) : undefined,
+    deploymentId: m.deploymentId ? String(m.deploymentId) : undefined,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
   };
@@ -1025,12 +1026,6 @@ export async function createDeployment(
   body: DeploymentInput,
 ): Promise<Deployment> {
   const { data } = await api.post<Deployment>("/deployments", body);
-  return data;
-}
-
-/** Write the values of some [[secret]] references into a compose (admin). */
-export async function inlineSecrets(id: string, refs: string[]): Promise<Deployment> {
-  const { data } = await api.post<Deployment>(`/deployments/${id}/inline-secrets`, { refs });
   return data;
 }
 
@@ -1928,13 +1923,14 @@ export async function getWorkloadResources(workload: string, hours: number): Pro
 // ---------------------------------------------------------------------------
 // Imports
 // ---------------------------------------------------------------------------
-export async function scanPortainer(body: { url: string; apiKey?: string; username?: string; password?: string; verifyTls: boolean }): Promise<import("../types").ImportCandidate[]> {
-  return (await api.post<import("../types").ImportCandidate[]>("/import/portainer/scan", body)).data;
+/** Scan the Portainer instance of a saved `portainer` connection. */
+export async function scanPortainer(connectionId: string): Promise<import("../types").ImportCandidate[]> {
+  return (await api.post<import("../types").ImportCandidate[]>("/import/portainer/scan", { connectionId })).data;
 }
 export async function scanComposeFolder(files: Record<string, string>): Promise<import("../types").ImportCandidate[]> {
   return (await api.post<import("../types").ImportCandidate[]>("/import/compose/scan", { files })).data;
 }
-export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; env?: { secret: string; values: Record<string, string>; inline: string[] } }[]): Promise<import("../types").ImportResult[]> {
+export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; variables?: import("../types").KeyValue[] }[]): Promise<import("../types").ImportResult[]> {
   return (await api.post<import("../types").ImportResult[]>("/import/apply", { items })).data;
 }
 

@@ -115,6 +115,13 @@ CREATE TABLE IF NOT EXISTS deployments (
     promote_to      TEXT NOT NULL DEFAULT ''
 );
 
+-- A compose deployment's stack variables, as a JSON list of {key, value}. A
+-- table of its own so databases created before it gain it without a migration.
+CREATE TABLE IF NOT EXISTS deployment_variables (
+    deployment_id TEXT PRIMARY KEY,
+    variables     TEXT NOT NULL DEFAULT '[]'
+);
+
 -- Numbered snapshots of what a deployment runs (kowan/deployment/revisions.py):
 -- recorded on every save that changes it, kept up to revisions.KEEP each.
 CREATE TABLE IF NOT EXISTS deployment_revisions (

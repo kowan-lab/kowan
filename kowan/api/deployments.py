@@ -19,13 +19,14 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 from aiohttp import web
 
 from kowan.auth import require_role
 from kowan.auth.middleware import user_from
-from kowan.deployment import previews
+from kowan.deployment import envsecrets, previews
 from kowan.deployment import promotion
 from kowan.deployment import revisions as revs
 from kowan.redact import MASK, redact_compose, strip_userinfo
@@ -51,6 +52,7 @@ from kowan.models import (
     DeploymentTypeCompose,
     DeploymentTypeContainer,
 )
+from kowan.models.deployment import KeyValue
 from kowan.web import (
     SERVICES_KEY,
     add_public_route,
@@ -64,6 +66,9 @@ log = logging.getLogger("kowan.api.deployments")
 
 
 _RECONCILE_TASK_KEY = web.AppKey("deployment_reconcile_task", object)
+
+# A stack variable name, as compose interpolation reads it.
+_VAR_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def register(app: web.Application, svc) -> None:
     """Mount the deployment routes and attach the DeploymentService singleton.
@@ -175,7 +180,7 @@ def _load(svc, dep_id: str) -> Deployment:
 class _Request:
     """The mutable fields accepted by create and update."""
 
-    __slots__ = ("name", "type", "strategy", "targets", "replicas", "spec", "compose", "git")
+    __slots__ = ("name", "type", "strategy", "targets", "replicas", "spec", "compose", "git", "variables")
 
     def __init__(self, body: dict) -> None:
         self.name = str(body.get("name") or "").strip()
@@ -205,6 +210,17 @@ class _Request:
             g.credential_id = (g.credential_id or "").strip()
             g.webhook_secret = ""  # server-generated, never client-set
             self.git = g
+        # Stack variables (compose): rows with an empty name are dropped.
+        raw_vars = body.get("variables") or []
+        self.variables: List[KeyValue] = []
+        if isinstance(raw_vars, list):
+            for v in raw_vars:
+                if isinstance(v, dict) and str(v.get("key") or "").strip():
+                    self.variables.append(KeyValue(key=str(v["key"]).strip(), value=str(v.get("value") or ""),
+                                                   secret=v.get("secret") is True))
+
+    def env(self) -> Dict[str, str]:
+        return {v.key: v.value for v in self.variables}
 
 
 def _validate(req: _Request) -> str:
@@ -236,6 +252,16 @@ def _validate(req: _Request) -> str:
                 return "preview environments need a standalone deployment"
     if req.type == DeploymentTypeCompose and req.compose == "" and req.git is None:
         return "compose deployments require a compose file or a git source"
+    if req.variables:
+        if req.type != DeploymentTypeCompose:
+            return "stack variables are only for compose deployments; containers have spec.env"
+        seen = set()
+        for v in req.variables:
+            if not _VAR_NAME.match(v.key):
+                return f"variable name {v.key!r} must be letters, digits and _ (not starting with a digit)"
+            if v.key in seen:
+                return f"variable {v.key} is set twice"
+            seen.add(v.key)
 
     # Both strategies run on a single host: standalone on one Docker host,
     # swarm on one manager. Fan-out across many hosts was removed — a named
@@ -300,6 +326,8 @@ def _for_reader(request: web.Request, dep):
             dep.spec.extra_args = [MASK for _ in dep.spec.extra_args or []]
         if dep.compose:
             dep.compose = redact_compose(dep.compose)
+        for kv in dep.variables:
+            kv.value = MASK
     return dep
 
 
@@ -377,7 +405,8 @@ async def create_from_body(svc, body: Any, *, author: str, source: str = "create
     if msg:
         raise Validation(msg)
     gate = await deployment_gate(svc, type_=req.type, compose=req.compose, has_git=req.git is not None,
-                                 targets=req.targets, project=Deployment(name=req.name).resource_name())
+                                 targets=req.targets, project=Deployment(name=req.name).resource_name(),
+                                 env=req.env())
     if gate is not None:
         return gate
 
@@ -404,6 +433,7 @@ async def create_from_body(svc, body: Any, *, author: str, source: str = "create
         replicas=req.replicas,
         spec=req.spec,
         compose=req.compose,
+        variables=req.variables,
         status=STATUS_STOPPED,
         createdAt=now,
         updatedAt=now,
@@ -415,7 +445,12 @@ async def create_from_body(svc, body: Any, *, author: str, source: str = "create
         dep.git = req.git
         dep.redeploy_token = _generate_redeploy_token()
     authz.check_deployment(dep, authz.LEVEL_MANAGE)
-    svc.store.create_deployment(dep, author=author, source=source)
+    envsecrets.apply(svc.store, dep, now)
+    try:
+        svc.store.create_deployment(dep, author=author, source=source)
+    except Exception:
+        envsecrets.delete_for(svc.store, dep.id)
+        raise
     return dep
 
 
@@ -437,6 +472,7 @@ def _runtime_signature(dep: Deployment) -> tuple:
         dep.compose if git is None else "",
         json.dumps(spec, sort_keys=True) if spec is not None else "",
         git,
+        tuple((v.key, v.value) for v in dep.variables),
     )
 
 
@@ -453,7 +489,8 @@ async def _update(request: web.Request) -> web.Response:
     if msg:
         raise Validation(msg)
     gate = await deployment_gate(svc, type_=req.type, compose=req.compose, has_git=req.git is not None,
-                                 targets=req.targets, deployment_id=dep_id, project=dep.resource_name())
+                                 targets=req.targets, deployment_id=dep_id, project=dep.resource_name(),
+                                 env=req.env())
     if gate is not None:
         return gate
 
@@ -479,6 +516,7 @@ async def _update(request: web.Request) -> web.Response:
     dep.targets = req.targets
     dep.replicas = req.replicas
     dep.spec = req.spec
+    dep.variables = req.variables
     had_git = dep.git is not None
     if req.git is not None:
         # Keep the existing push secret; mint one when git is newly added.
@@ -497,6 +535,7 @@ async def _update(request: web.Request) -> web.Response:
     dep.git = req.git
     dep.updated_at = _now_rfc3339()
     authz.check_deployment(dep, authz.LEVEL_MANAGE)  # new targets must be in scope too
+    secrets_changed = envsecrets.apply(svc.store, dep, dep.updated_at)
 
     svc.store.update_deployment(dep, author=_author(request), source="edit")
     if had_git and dep.git is None:
@@ -505,7 +544,7 @@ async def _update(request: web.Request) -> web.Response:
     # Force on update: a runtime-affecting change to an enabled, currently-deployed
     # deployment redeploys in the background so the running state converges to the
     # new config. Paused (disabled) or not-yet-deployed records just save.
-    drifted = _runtime_signature(dep) != before
+    drifted = _runtime_signature(dep) != before or secrets_changed
     if drifted and dep.enabled and dep.status == STATUS_DEPLOYED:
         try:
             dep = await _dep_svc(request).dispatch_deploy(dep_id, redeploy=True)

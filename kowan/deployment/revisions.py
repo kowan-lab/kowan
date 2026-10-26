@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from kowan.models import ContainerSpec, Deployment
+from kowan.models.deployment import KeyValue
 from kowan.redact import MASK, redact_compose, strip_userinfo
 
 # Keep this many revisions per deployment; older ones are dropped.
@@ -61,6 +62,8 @@ def snapshot(dep: Deployment) -> Dict[str, Any]:
         out["commit"] = dep.deployed_commit or ""
     elif dep.type == "compose":
         out["compose"] = dep.compose or ""
+    if dep.type == "compose" and dep.variables:
+        out["variables"] = [{"key": v.key, "value": v.value} for v in dep.variables]
     return out
 
 
@@ -82,6 +85,9 @@ def redact(config: Dict[str, Any]) -> Dict[str, Any]:
             c["extraArgs"] = [MASK for _ in c["extraArgs"]]
     if out.get("compose"):
         out["compose"] = redact_compose(out["compose"])
+    for kv in out.get("variables") or []:
+        if isinstance(kv, dict):
+            kv["value"] = MASK
     g = out.get("git")
     if isinstance(g, dict) and g.get("repoUrl"):
         g["repoUrl"] = strip_userinfo(g["repoUrl"])
@@ -147,6 +153,7 @@ def apply(dep: Deployment, config: Dict[str, Any]) -> bool:
     dep.replicas = int(config.get("replicas") or 0)
     c = config.get("container")
     dep.spec = ContainerSpec.model_validate(c) if dep.type == "container" and c is not None else None
+    dep.variables = [KeyValue.model_validate(v) for v in config.get("variables") or []] if dep.type == "compose" else []
     pinned = False
     g = config.get("git")
     if g:
