@@ -17,6 +17,7 @@ import LogHistory from "../components/logs/LogHistory";
 import LogViewer from "../components/logs/LogViewer";
 import type { LogSource } from "../components/logs/logStream";
 import { listContainers, logsWebSocketURL } from "../api/client";
+import { isKowanContainer, useFeatures } from "../lib/features";
 import { useHost, isAllHosts } from "../HostContext";
 import { useHostScopedList, type WithHost } from "../useHostScopedList";
 import type { Container } from "../types";
@@ -85,6 +86,7 @@ function LiveLogs() {
   const { hostId } = useHost();
   const aggregated = isAllHosts(hostId);
 
+  const showSystem = useFeatures().systemContainers;
   const containersQuery = useHostScopedList<Container>(
     "containers",
     hostId,
@@ -92,8 +94,8 @@ function LiveLogs() {
     { refetchInterval: 8000 },
   );
   const containers = useMemo(
-    () => containersQuery.data ?? [],
-    [containersQuery.data],
+    () => (showSystem ? containersQuery.data ?? [] : (containersQuery.data ?? []).filter((c) => !isKowanContainer(c.labels))),
+    [containersQuery.data, showSystem],
   );
 
   // Container picker state.

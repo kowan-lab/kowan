@@ -2,8 +2,10 @@
 
 Each feature lists the request paths it owns. While it is off those answer
 404 with a message saying so, its public webhooks included, and the UI hides
-it; GitOps also stops its periodic sync. Everything is on by default; the
-state is one JSON setting.
+it; GitOps also stops its periodic sync. ``systemContainers`` owns no paths:
+it only decides whether the UI lists Kowan's own containers (the server,
+agents and their helpers), and is the one off by default. The state is one
+JSON setting.
 """
 
 from __future__ import annotations
@@ -16,24 +18,26 @@ from aiohttp import web
 
 _KEY = "features"
 
-# id -> (label, paths it owns, as regular expressions on the request path)
-FEATURES: Dict[str, Tuple[str, Tuple[str, ...]]] = {
-    "templates": ("Templates", (r"^/api/v1/templates(/|$)",)),
-    "networkMap": ("Network map", (r"^/api/v1/netmap$", r"^/api/v1/hosts/[^/]+/netmap$")),
-    "gitops": ("GitOps", (r"^/api/v1/gitops(/|$)", r"^/hooks/gitops/")),
+# id -> (label, paths it owns as regular expressions on the request path, default)
+FEATURES: Dict[str, Tuple[str, Tuple[str, ...], bool]] = {
+    "templates": ("Templates", (r"^/api/v1/templates(/|$)",), True),
+    "networkMap": ("Network map", (r"^/api/v1/netmap$", r"^/api/v1/hosts/[^/]+/netmap$"), True),
+    "gitops": ("GitOps", (r"^/api/v1/gitops(/|$)", r"^/hooks/gitops/"), True),
+    "systemContainers": ("Kowan's own containers", (), False),
 }
-_PATHS = {fid: tuple(re.compile(p) for p in paths) for fid, (_, paths) in FEATURES.items()}
+_PATHS = {fid: tuple(re.compile(p) for p in paths) for fid, (_, paths, _) in FEATURES.items()}
 
 
 def get(store: Any) -> Dict[str, bool]:
-    """``{feature id: enabled}`` for every feature (on unless turned off)."""
+    """``{feature id: enabled}`` for every feature (its default unless set)."""
     try:
         saved = json.loads(store.get_setting(_KEY) or "{}")
     except (ValueError, TypeError):
         saved = {}
     if not isinstance(saved, dict):
         saved = {}
-    return {fid: saved.get(fid) is not False for fid in FEATURES}
+    return {fid: saved[fid] if isinstance(saved.get(fid), bool) else default
+            for fid, (_, _, default) in FEATURES.items()}
 
 
 def enabled(store: Any, feature: str) -> bool:

@@ -5,6 +5,7 @@ import { LineChart, Text } from "@/ui/kit";
 import {
   containerAction, getDiskUsage, getMetrics, getSystem, listAlerts, listContainers, listDeployments, listHosts, resolveAlert,
 } from "../api/client";
+import { useContainerFilter } from "../lib/features";
 import type { Alert, MetricSample } from "../types";
 import { useAuth } from "../auth/AuthContext";
 import { ALL_HOSTS, useHost } from "../HostContext";
@@ -56,7 +57,8 @@ export default function Overview() {
   const diskQuery = useQuery({ queryKey: ["disk-usage", hostId], queryFn: () => getDiskUsage(hostId), enabled: !!focus?.online });
   const updates = useContainerUpdates(hostId, { enabled: hosts.length > 0 });
 
-  const containers: HostContainer[] = containerQs.flatMap((q, i) => (q.data ?? []).map((c) => ({ ...c, _host: online[i].id })));
+  const visible = useContainerFilter();
+  const containers: HostContainer[] = visible(containerQs.flatMap((q, i) => (q.data ?? []).map((c) => ({ ...c, _host: online[i].id }))));
   const inScope = (id: string) => scopeIds.includes(id);
   const deployments = (deploymentsQuery.data ?? []).filter((d) => d.targets.some(inScope));
   const scopedAlerts = (alertsQuery.data ?? []).filter((a) => inScope(a.hostId));

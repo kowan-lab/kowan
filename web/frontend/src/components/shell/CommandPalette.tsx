@@ -11,7 +11,7 @@ import { Icon } from "@/ui/kit";
 import { StatePill } from "@/ui/kit";
 import { useTheme } from "@/ui/theme";
 import { visibleNav } from "./nav";
-import { useFeatures } from "../../lib/features";
+import { useContainerFilter, useFeatures } from "../../lib/features";
 
 const ITEM =
   "flex h-14 cursor-default items-center gap-[8px] rounded-md px-[8px] text-[13px] outline-none select-none data-[selected=true]:bg-accent";
@@ -40,6 +40,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
     staleTime: 10_000,
   });
   const deployments = useQuery({ queryKey: ["deployments"], queryFn: listDeployments, enabled: open });
+  const shownContainers = useContainerFilter()(containers.data ?? []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,9 +82,9 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
             <Command.List className="max-h-[56vh] overflow-y-auto p-[4px]">
               <Command.Empty className="px-5 py-12 text-center text-sm text-muted-foreground">No matches for “{q}”.</Command.Empty>
 
-              {(containers.data?.length ?? 0) > 0 && (
+              {shownContainers.length > 0 && (
                 <Command.Group heading={`Containers · ${hostId === ALL_HOSTS ? "local" : scopedHost}`} className={GROUP}>
-                  {containers.data!.slice(0, q ? 50 : 6).map((c) => {
+                  {shownContainers.slice(0, q ? 50 : 6).map((c) => {
                     const name = (c.names[0] ?? c.id).replace(/^\//, "");
                     return (
                       <Command.Item key={c.id} value={`container ${name} ${c.image}`} onSelect={() => go(`/containers/${c.id}?host=${c.hostId || scopedHost}`)} className={ITEM}>

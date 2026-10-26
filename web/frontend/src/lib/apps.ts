@@ -23,6 +23,7 @@ import { useHostScopedList } from "../useHostScopedList";
 import type { Container, ContainerUpdateStatus, Deployment, Host } from "../types";
 import { LIVE_REFETCH_MS } from "./live";
 import { containerOrigin, serviceOf, stackOf } from "./containerOrigin";
+import { isKowanContainer, useFeatures } from "./features";
 import { updateKey, useContainerUpdates } from "./updates";
 
 export type AppKind = "deployment" | "stack" | "container";
@@ -504,17 +505,19 @@ export function useApps(hostScope: string) {
   const updates = useContainerUpdates(hostScope);
 
   const hosts = hostsQuery.data;
+  const showSystem = useFeatures().systemContainers;
   const apps = useMemo(() => {
     if (!containersQuery.data && !containersQuery.isError) return undefined;
     const scopeHosts = hosts ? (aggregated ? hosts : hosts.filter((h) => h.id === hostScope)) : null;
+    const containers = containersQuery.data ?? [];
     return buildApps({
-      containers: containersQuery.data ?? [],
+      containers: showSystem ? containers : containers.filter((c) => !isKowanContainer(c.labels)),
       fallbackHost: hostScope,
       deployments: deploymentsQuery.data ?? [],
       scopeHosts,
       updates: updates.data ? (h, id) => updates.data!.get(updateKey(h, id)) : undefined,
     });
-  }, [containersQuery.data, containersQuery.isError, deploymentsQuery.data, updates.data, hosts, aggregated, hostScope]);
+  }, [containersQuery.data, containersQuery.isError, deploymentsQuery.data, updates.data, hosts, aggregated, hostScope, showSystem]);
 
   return {
     apps,

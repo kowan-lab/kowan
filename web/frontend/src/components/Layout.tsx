@@ -1,11 +1,12 @@
 import { Suspense, useEffect, useState } from "react";
 import { DropdownMenu as M } from "radix-ui";
-import { ArrowLeft, ChevronDown, LogOut, Search, Settings } from "lucide-react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { ArrowLeft, ChevronDown, LogOut, Search } from "lucide-react";
+import { Link, Outlet, useLocation } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -43,15 +44,14 @@ function Brand() {
   );
 }
 
-/** Top-bar account menu: who you are, theme and palette, settings, log out. */
+/** Top-bar account menu: who you are, theme and palette, log out. */
 function UserMenu() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const initials = (user?.username ?? "?").slice(0, 2).toUpperCase();
   return (
     <M.Root modal={false}>
       <M.Trigger
-        aria-label="Account, theme and settings"
+        aria-label="Account and theme"
         className="flex h-18 items-center gap-4 pr-2 pl-[2px] text-left outline-none hover:bg-muted data-[state=open]:bg-muted"
       >
         <span className="flex size-16 shrink-0 items-center justify-center bg-foreground font-mono text-[12px] font-bold text-background">{initials}</span>
@@ -75,9 +75,6 @@ function UserMenu() {
             <ThemePanel />
           </div>
           <M.Separator className="-mx-4 my-2 h-px bg-border" />
-          <M.Item onSelect={() => navigate("/settings")} className="flex h-16 cursor-default items-center gap-4 px-3 text-[13px] outline-none data-[highlighted]:bg-accent">
-            <Settings className="size-8 text-muted-foreground" strokeWidth={1.5} /> Settings
-          </M.Item>
           <M.Item onSelect={logout} className="flex h-16 cursor-default items-center gap-4 px-3 text-[13px] text-[var(--tone-red-text)] outline-none data-[highlighted]:bg-accent">
             <LogOut className="size-8" strokeWidth={1.5} /> Log out
           </M.Item>
@@ -114,6 +111,7 @@ function NavRow({ item, active, sub, onNavigate }: { item: NavItem; active: bool
 }
 
 const LAST_PAGE_KEY = "kowan-last-page";
+const SETTINGS_ROW: NavItem = { label: "Settings", to: "/settings", icon: "settings-outline-rounded" };
 
 function AppSidebar() {
   const { user } = useAuth();
@@ -204,6 +202,12 @@ function AppSidebar() {
               </SidebarGroup>
             ))}
           </SidebarContent>
+          {/* Settings opens its own area of the sidebar (with a Back row). */}
+          <SidebarFooter className="px-4 py-4 shadow-[inset_0_1px_0_var(--sidebar-border)] group-data-[collapsible=icon]:px-4">
+            <SidebarMenu className="gap-0">
+              <NavRow item={SETTINGS_ROW} active={false} onNavigate={onNavigate} />
+            </SidebarMenu>
+          </SidebarFooter>
         </>
       )}
     </Sidebar>

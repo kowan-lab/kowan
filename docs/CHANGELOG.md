@@ -1,5 +1,10 @@
 # Kowan — Changelog
 
+## Unreleased
+
+- **Settings at the bottom of the sidebar**, instead of in the account menu; it opens the same Settings area.
+- **Kowan's own containers hidden** from Workloads, the dashboard, Logs and search: the server, the agents and their helpers (updates, scans, volume browsing, backups). Settings → Features shows them again (`systemContainers`, off by default).
+
 ## 0.1.2 — 2026-10-26
 
 - **New release notices**: every 6 hours the server checks the published versions and, when one is newer than its own, posts "Kowan X.Y.Z is available" to the bell, once per version. `KOWAN_RELEASE_REPOSITORY` sets where it looks (empty turns it off).

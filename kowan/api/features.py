@@ -1,7 +1,7 @@
 """Platform features on/off (kowan/features.py).
 
-  GET /features  {templates, networkMap, gitops: bool}   (any signed-in user:
-                                                          the UI hides what is off)
+  GET /features  {templates, networkMap, gitops, systemContainers: bool}
+                 (any signed-in user: the UI hides what is off)
   PUT /features  {<feature>: bool, ...} -> the new state (admin)
 """
 
