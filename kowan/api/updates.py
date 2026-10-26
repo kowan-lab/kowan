@@ -238,7 +238,12 @@ class DigestCache:
         return e
 
     def put(self, key: str, digest: str, error: str = "") -> CacheEntry:
-        e = CacheEntry(digest=digest, error=error, checked_at=now_rfc3339(), stored=self._clock())
+        now = self._clock()
+        # Expired entries are as good as absent: drop them here, or every image
+        # ref ever checked (old tags, removed images) would stay in memory.
+        for k in [k for k, old in self._entries.items() if now - old.stored > (self.error_ttl if old.error else self.ttl)]:
+            del self._entries[k]
+        e = CacheEntry(digest=digest, error=error, checked_at=now_rfc3339(), stored=now)
         self._entries[key] = e
         return e
 

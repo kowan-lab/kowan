@@ -237,6 +237,8 @@ class Monitor:
             log.error("monitor: list alert rules: %s", err)
             return
 
+        self._forget_deleted({h.id for h in hosts}, {r.id for r in rules})
+
         # Only enabled rules participate. Metrics are still recorded even with no
         # rules, so we do not return early here.
         enabled = [r for r in rules if r.enabled]
@@ -771,6 +773,17 @@ class Monitor:
         suffixes = tuple(f"|{host_id}|{cid}" for cid in gone)
         for key in [k for k in self._cond if k.endswith(suffixes)]:
             if not self._cond[key].firing:
+                del self._cond[key]
+
+    def _forget_deleted(self, host_ids: set, rule_ids: set) -> None:
+        """Drop the state of deleted hosts and rules: nothing reads it again."""
+        for state in (self._seen_running, self._host_online):
+            for hid in [h for h in state if h not in host_ids]:
+                del state[hid]
+        self._host_seen &= host_ids
+        for key in list(self._cond):
+            rule_id, host_id, _ = key.split("|", 2)
+            if rule_id not in rule_ids or host_id not in host_ids:
                 del self._cond[key]
 
     def _seen_running_snapshot(self, host_id: str) -> Dict[str, Container]:

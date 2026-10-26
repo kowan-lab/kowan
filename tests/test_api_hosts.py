@@ -29,6 +29,9 @@ class TestHostsApi(ServerCase):
         await self.call("GET", "/hosts/local/edge-command", "admin", expect=400)
         await self.call("DELETE", "/hosts/local", "admin", expect=400)
         await self.call("DELETE", "/hosts/missing", "admin", expect=404)
+        with mock.patch.object(self.svc.docker, "forget") as forget:
+            await self.call("DELETE", f"/hosts/{hid}", "admin", expect=200)
+        forget.assert_called_once_with(hid)
 
     async def test_rename(self):
         await self.roles("PATCH", "/hosts/local", "admin", json={"name": "nas"})

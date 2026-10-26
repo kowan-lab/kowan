@@ -75,6 +75,11 @@ class ImageListCache:
             # new callers won't join it.
             self._inflight.pop(h, None)
 
+    def forget(self, host_id: str) -> None:
+        """Drop everything kept for a deleted host."""
+        for state in (self._entries, self._gen, self._inflight):
+            state.pop(host_id, None)
+
     def peek(self, host_id: str) -> Optional[List[Any]]:
         """Return the fresh cached list for ``host_id`` without fetching, or None."""
         e = self._entries.get(host_id)
@@ -82,6 +87,8 @@ class ImageListCache:
             return None
         fetched_at, gen, images = e
         if gen != self.generation(host_id) or self._clock() - fetched_at >= self.ttl:
+            # Stale: don't keep a whole image list around for an idle host.
+            self._entries.pop(host_id, None)
             return None
         return list(images)
 

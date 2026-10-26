@@ -107,6 +107,12 @@ class Provider:
             )
         return _authz_wrap(host, self._edge_ops(host_id, token))
 
+    def forget(self, host_id: str) -> None:
+        """Drop the cached client and image list of a deleted host."""
+        with self._lock:
+            self._tunnels.pop(host_id, None)
+        self.image_cache.forget(host_id)
+
     def _edge_ops(self, host_id: str, token: str) -> Ops:
         """Return the tunnel-backed client for an edge host.
 

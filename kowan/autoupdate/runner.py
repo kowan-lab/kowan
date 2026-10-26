@@ -196,7 +196,11 @@ class AutoUpdater:
         interval = float(cfg["intervalSeconds"])
         loop_now = asyncio.get_running_loop().time()
         pending_hosts = self._pending_hosts()
-        for host in self.store.list_hosts():
+        hosts = self.store.list_hosts()
+        ids = {h.id for h in hosts}
+        for hid in [h for h in self._next_check if h not in ids]:
+            del self._next_check[hid]
+        for host in hosts:
             due_at = self._next_check.get(host.id)
             if due_at is None:
                 due_at = self._started_at + stagger_offset(host.id, interval)

@@ -90,6 +90,22 @@ class TestRuleTypes(MonitorCase):
 
 
 class TestMonitorResilience(MonitorCase):
+    async def test_state_of_deleted_hosts_and_rules_is_forgotten(self):
+        self.engine.add_container("web")
+        r = await self.rule(type="container_down", severity="critical")
+        await self.monitor._tick()
+        host_ids = set(self.monitor._seen_running)
+        self.monitor._seen_running["gone-host"] = {}
+        self.monitor._host_online["gone-host"] = True
+        self.monitor._host_seen.add("gone-host")
+        self.monitor._cond["gone-rule|%s|c" % next(iter(host_ids))] = object()
+        self.monitor._cond["%s|gone-host|c" % r["id"]] = object()
+        await self.monitor._tick()
+        self.assertEqual(set(self.monitor._seen_running), host_ids)
+        self.assertEqual(set(self.monitor._host_online), host_ids)
+        self.assertEqual(self.monitor._host_seen, host_ids)
+        self.assertFalse([k for k in self.monitor._cond if "gone" in k])
+
     async def test_store_and_daemon_failures_never_break_a_tick(self):
         from unittest import mock
 

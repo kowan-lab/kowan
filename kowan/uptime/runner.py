@@ -83,7 +83,13 @@ class UptimeRunner:
         if now - self._pruned_at >= _PRUNE_EVERY:
             self._pruned_at = now
             self.prune()
-        for c in self._store.list_uptime_checks():
+        checks = self._store.list_uptime_checks()
+        # Forget deleted checks.
+        ids = {c["id"] for c in checks} | self._running
+        for state in (self._next, self._cert_at, self._locks):
+            for k in [k for k in state if k not in ids]:
+                del state[k]
+        for c in checks:
             if not c["enabled"] or c["id"] in self._running:
                 continue
             if self._next.get(c["id"], 0.0) > now:

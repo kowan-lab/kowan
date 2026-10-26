@@ -348,6 +348,7 @@ async def _delete_host(request: web.Request) -> web.Response:
     _load_host(svc, host_id)
 
     svc.store.delete_host(host_id)
+    svc.docker.forget(host_id)
     return json_response({"status": "deleted"})
 
 

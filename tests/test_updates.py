@@ -139,6 +139,18 @@ class TestDigestCache(unittest.TestCase):
         self.assertEqual((e1.digest, e1.error), ("", "registry down"))
         self.assertEqual(len(calls), 2)
 
+    def test_put_drops_expired_entries(self):
+        clock = _Clock()
+        cache = DigestCache(ttl=600, error_ttl=60, clock=clock)
+        cache.put("old", "sha256:a")
+        cache.put("failed", "", "registry down")
+        clock.t += 61
+        cache.put("new", "sha256:b")
+        self.assertEqual(sorted(cache._entries), ["new", "old"])  # the error entry expired
+        clock.t += 540
+        cache.put("newer", "sha256:c")
+        self.assertEqual(sorted(cache._entries), ["new", "newer"])
+
     def test_concurrent_lookups_share_one_fetch(self):
         cache = DigestCache()
         calls = []

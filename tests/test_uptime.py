@@ -322,6 +322,12 @@ class TestRunner(UptimeApiCase):
         self.svc.store.add_uptime_result(c["id"], "2000-01-01T00:00:00Z", True, 1, 200, "")
         runner.prune()
         self.assertEqual(len(self.svc.store.list_uptime_results(c["id"], "0")), 2)
+        # A deleted check is forgotten on the next tick.
+        runner._cert_at["gone"] = runner._next["gone"] = 1.0
+        runner._locks["gone"] = asyncio.Lock()
+        runner.tick()
+        self.assertNotIn("gone", {**runner._next, **runner._cert_at, **runner._locks})
+        self.assertIn(c["id"], runner._next)
         runner.start()
         runner.start()  # idempotent
         await runner.stop()

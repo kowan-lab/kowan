@@ -201,6 +201,19 @@ class TestImageListCache(unittest.TestCase):
 
         _run(go())
 
+    def test_stale_and_forgotten_lists_are_dropped(self):
+        async def go():
+            await self.ops.list_images()
+            self.clock.t = 31
+            self.assertIsNone(self.cache.peek("h1"))
+            self.assertNotIn("h1", self.cache._entries)
+            await self.ops.list_images()
+            self.cache.invalidate("h1")
+            self.cache.forget("h1")
+            self.assertEqual((self.cache._entries, self.cache._gen, self.cache._inflight), ({}, {}, {}))
+
+        _run(go())
+
 
 class _Host:
     def __init__(self, id, type="local"):
