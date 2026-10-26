@@ -6,6 +6,10 @@ updates:
   - package-ecosystem: npm
     directory: /web/frontend
     schedule: { interval: weekly }
+    ignore:
+      # Follows the Node major of the build (Dockerfile, ci.yml); moved by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend:
         patterns: ["*"]

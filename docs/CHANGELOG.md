@@ -8,6 +8,7 @@
 - **Two-level stacks** in Workloads: unmanaged containers group into a stack when they come from a swarm stack (`com.docker.stack.namespace`) too, not only from a compose project; opening a stack lists its services, and each service shows its containers (its replicas, for swarm) with a summary state. Retained logs, resource history and disk cleanup use the same rule.
 - CI: `coverage` 7.16.2 on Python 3.10 (7.17 needs 3.11), and the end-to-end test with Docker matches the Overview tab.
 - Documentation, the changelog and the Makefile are in English.
+- The frontend builds with **Node 26** (LTS from October 28; 24 moved to maintenance): the image's build stage, CI (`actions/setup-node` v7) and `@types/node` 26. Dependabot leaves `@types/node` majors alone: they follow the build's Node.
 
 ## 0.1.0 — 2026-10-26
 

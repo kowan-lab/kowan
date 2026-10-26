@@ -29,8 +29,8 @@
 # Python 3.14: 3.15 is out, but pyyaml and frozenlist publish no musl wheels for
 # it yet, and this build installs prebuilt wheels only. Pinned by digest.
 ARG PYTHON_IMAGE=python:3.14.9-alpine3.24@sha256:dbeb11d16bb95c3a7e3c25c842cb9f20cbc8c18f8be0461a4a0dcc861ad386a0
-# Node 24: the current LTS (26 is not LTS yet). Pinned by digest.
-ARG NODE_IMAGE=node:24.22.1-alpine3.24@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+# Node 26 (LTS from 2026-10-28; 24 is in maintenance). Pinned by digest.
+ARG NODE_IMAGE=node:26.12.1-alpine3.24@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
 
 # --- frontend: build the SPA -----------------------------------------------------
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS frontend

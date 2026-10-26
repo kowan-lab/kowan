@@ -42,9 +42,9 @@ jobs:
         working-directory: web/frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
           cache-dependency-path: web/frontend/package-lock.json
       - run: npm ci
@@ -64,9 +64,9 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
           cache-dependency-path: web/frontend/package-lock.json
       # playwright.config.ts starts the server from .venv.
