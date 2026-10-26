@@ -99,3 +99,15 @@ test("the local host is online and its containers are listed", async ({ page }) 
   await page.goto("/workloads");
   await expect(page.getByText(/workloads/).first()).toBeVisible();
 });
+
+test("the local host is renamed and named back", async ({ page }) => {
+  await page.goto("/hosts/local");
+  for (const name of ["home-server", "local"]) {
+    await page.getByRole("button", { name: "Rename" }).click();
+    const d = dialog(page, "Rename host");
+    await d.getByLabel("Name").fill(name);
+    await d.getByRole("button", { name: "Rename" }).click();
+    await toast(page, "Host renamed");
+    await expect(page.getByRole("row", { name: `Name ${name}` })).toBeVisible();
+  }
+});

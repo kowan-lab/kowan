@@ -18,6 +18,7 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getHostSwarm, listHosts } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import RenameHostDialog from "../components/hosts/RenameHostDialog";
 import UpdatePanel from "../components/updates/UpdatePanel";
 import StatusBadge from "../components/StatusBadge";
 import { useAuth } from "../auth/AuthContext";
@@ -39,6 +40,7 @@ export default function HostDetail() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [tab, setTab] = useState("overview");
+  const [renaming, setRenaming] = useState(false);
 
   // There is no getHost(id) endpoint — derive the host from the shared
   // ["hosts"] list (the same cache the Hosts page fills) by id. Poll it live so
@@ -133,6 +135,11 @@ export default function HostDetail() {
         }
         actions={
           <Box direction="row" gap={2}>
+            {isAdmin && (
+              <Button variant="outline" color="neutral" iconLeft="edit-outline-rounded" onClick={() => setRenaming(true)}>
+                Rename
+              </Button>
+            )}
             {host.online && (
               <Link to={`/hosts/${encodeURIComponent(host.id)}/cleanup`} style={{ textDecoration: "none" }}>
                 <Button variant="outline" color="neutral" iconLeft="mop-outline-rounded">Disk cleanup</Button>
@@ -142,6 +149,8 @@ export default function HostDetail() {
           </Box>
         }
       />
+
+      <RenameHostDialog host={renaming ? host : null} onClose={() => setRenaming(false)} />
 
       <Card variant="raised">
         <Card.Body>

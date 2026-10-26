@@ -1,6 +1,6 @@
 """Hosts REST: create validation, join commands (edge/agent, external URL and
-X-Forwarded-Proto), the swarm view, liveness when the daemon fails, and the
-protected local host."""
+X-Forwarded-Proto), renaming (the local host too), the swarm view, liveness
+when the daemon fails, and the protected local host."""
 
 import unittest
 from unittest import mock
@@ -29,6 +29,32 @@ class TestHostsApi(ServerCase):
         await self.call("GET", "/hosts/local/edge-command", "admin", expect=400)
         await self.call("DELETE", "/hosts/local", "admin", expect=400)
         await self.call("DELETE", "/hosts/missing", "admin", expect=404)
+
+    async def test_rename(self):
+        await self.roles("PATCH", "/hosts/local", "admin", json={"name": "nas"})
+        _, h = await self.call("PATCH", "/hosts/local", "admin", json={"name": "  home-server  "}, expect=200)
+        self.assertEqual((h["id"], h["name"], h["type"]), ("local", "home-server", "local"))
+        self.assertTrue(h["online"])
+        _, hosts = await self.call("GET", "/hosts", "viewer", expect=200)
+        self.assertEqual([x["name"] for x in hosts if x["id"] == "local"], ["home-server"])
+        for bad in ([1], {}, {"name": ""}, {"name": "   "}, {"name": 5}, {"name": "x" * 65},
+                    {"name": "a\tb"}, {"name": "x", "id": "other"}):
+            await self.call("PATCH", "/hosts/local", "admin", json=bad, expect=400)
+        await self.call("PATCH", "/hosts/missing", "admin", json={"name": "x"}, expect=404)
+
+        _, created = await self.call("POST", "/hosts", "admin", json={"name": "edge1", "mode": "edge"}, expect=201)
+        hid = created["host"]["id"]
+        # A name may not repeat another host's name or id: GitOps files refer
+        # to hosts by either.
+        await self.call("PATCH", f"/hosts/{hid}", "admin", json={"name": "Home-Server"}, expect=409)
+        await self.call("PATCH", f"/hosts/{hid}", "admin", json={"name": "LOCAL"}, expect=409)
+        await self.call("POST", "/hosts", "admin", json={"name": "edge1", "mode": "edge"}, expect=409)
+        await self.call("PATCH", "/hosts/local", "admin", json={"name": hid}, expect=409)
+        # Keeping its own name (in another case) is fine.
+        _, h = await self.call("PATCH", f"/hosts/{hid}", "admin", json={"name": "EDGE1"}, expect=200)
+        self.assertEqual(h["name"], "EDGE1")
+        _, h = await self.call("PATCH", "/hosts/local", "admin", json={"name": "local"}, expect=200)
+        self.assertEqual(h["name"], "local")
 
     async def test_swarm_and_liveness(self):
         _, sw = await self.call("GET", "/hosts/local/swarm", "viewer", expect=200)

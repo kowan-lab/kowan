@@ -133,6 +133,26 @@ describe("hosts page", () => {
     await waitFor(() => expect(currentPath()).toBe("/hosts/h-b"));
   });
 
+  it("renames a host from its row", async () => {
+    const { user } = renderApp("/hosts", { api: { ...api, "PATCH /hosts/:id": (r) => ({ ...hosts[2], name: r.body.name }) } });
+    await ready();
+    await user.click(within(pageRoot()).getByRole("button", { name: "Rename agent-a" }));
+    const d = await dialog(/rename host/i);
+    const input = within(d).getByLabelText(/^name/i);
+    expect(input).toHaveValue("agent-a");
+    await user.clear(input);
+    await user.type(input, "rack-1");
+    await user.click(within(d).getByRole("button", { name: /^rename$/i }));
+    await toast(/host renamed/i);
+    expect(requests("PATCH", "/hosts/h-a")[0].body).toEqual({ name: "rack-1" });
+  });
+
+  it("offers rename only to admins", async () => {
+    renderApp("/hosts", { role: "viewer", api });
+    await ready();
+    expect(within(pageRoot()).queryByRole("button", { name: /^rename /i })).toBeNull();
+  });
+
   it("shows a load error", async () => {
     renderApp("/hosts", { api: { "GET /hosts": reply(500, { error: "db down" }) } });
     expect(await screen.findAllByText(/db down/i, {}, { timeout: 10_000 })).not.toHaveLength(0);

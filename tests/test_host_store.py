@@ -30,6 +30,13 @@ class TestHostStore(unittest.TestCase):
         store.set_host_last_seen("h1", "2026-07-09T10:00:00Z")
         self.assertEqual(store.get_host("h1").last_seen, "2026-07-09T10:00:00Z")
 
+    def test_rename_host_changes_only_the_name(self):
+        store = self._fresh_store()
+        store.create_host(Host(id="h1", name="old", type="agent", mode="edge", address="", token="t", lastSeen="s", createdAt="c"))
+        store.rename_host("h1", "new")
+        h = store.get_host("h1")
+        self.assertEqual((h.id, h.name, h.mode, h.token, h.last_seen), ("h1", "new", "edge", "t", "s"))
+
 
 
 if __name__ == "__main__":

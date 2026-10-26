@@ -52,6 +52,45 @@ describe("host detail", () => {
     expect(await screen.findByText(/agent runs outside docker/i, {}, { timeout: 10_000 })).toBeInTheDocument();
   });
 
+  it("renames the local host", async () => {
+    const fx = (await import("../../test/fixtures")).hosts;
+    let list = fx.map((h) => ({ ...h }));
+    const { user } = renderApp("/hosts/local", {
+      api: {
+        "GET /hosts/:id/swarm": { active: false, nodes: [] },
+        "GET /hosts": () => list,
+        "PATCH /hosts/:id": (r) => {
+          if (r.body.name === "agent-a") return reply(409, { error: 'another host is already called "agent-a"' });
+          list = list.map((h) => (h.id === r.params.id ? { ...h, name: r.body.name } : h));
+          return list.find((h) => h.id === r.params.id);
+        },
+      },
+    });
+    await within(pageRoot()).findByRole("tab", { name: /swarm/i }, { timeout: 10_000 });
+    await press(user, /^rename$/i, pageRoot());
+    const d = await dialog(/rename host/i);
+    const input = within(d).getByLabelText(/^name/i);
+    expect(input).toHaveValue("local");
+    await user.clear(input);
+    await user.click(within(d).getByRole("button", { name: /^rename$/i }));
+    expect(await within(d).findByText(/enter a name/i)).toBeInTheDocument();
+    await user.type(input, "agent-a");
+    await user.click(within(d).getByRole("button", { name: /^rename$/i }));
+    expect(await within(d).findByText(/already called "agent-a"/i)).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, "  home-server ");
+    await user.click(within(d).getByRole("button", { name: /^rename$/i }));
+    await toast(/host renamed/i);
+    expect(requests("PATCH", "/hosts/local").map((r) => r.body)).toEqual([{ name: "agent-a" }, { name: "home-server" }]);
+    expect(await within(pageRoot()).findAllByText("home-server")).not.toHaveLength(0);
+  });
+
+  it("hides rename from non-admins", async () => {
+    renderApp("/hosts/local", { role: "operator", api: { "GET /hosts/:id/swarm": { active: false, nodes: [] } } });
+    await screen.findByRole("tab", { name: /swarm/i }, { timeout: 10_000 });
+    expect(within(pageRoot()).queryByRole("button", { name: /^rename$/i })).toBeNull();
+  });
+
   it("handles a missing host and a load error", async () => {
     renderApp("/hosts/nope");
     expect(await screen.findByText(/host not found/i, {}, { timeout: 10_000 })).toBeInTheDocument();

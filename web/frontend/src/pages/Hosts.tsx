@@ -29,6 +29,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useHost } from "../HostContext";
 import { notify } from "../ui/toast";
 import ConfirmModal from "../components/ConfirmModal";
+import RenameHostDialog from "../components/hosts/RenameHostDialog";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
@@ -73,6 +74,7 @@ export default function Hosts() {
     }
   }, [params, setParams, isAdmin]);
   const [deleteTarget, setDeleteTarget] = useState<Host | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Host | null>(null);
   const [updateTarget, setUpdateTarget] = useState<Host | null>(null);
   const [enrollment, setEnrollment] = useState<EnrollResponse | null>(null);
 
@@ -365,6 +367,17 @@ export default function Hosts() {
           />
         </Tooltip>
         {isAdmin && (
+          <Tooltip content="Rename host">
+            <Button
+              variant="clear"
+              color="neutral"
+              iconLeft="edit-outline-rounded"
+              aria-label={`Rename ${host.name}`}
+              onClick={() => setRenameTarget(host)}
+            />
+          </Tooltip>
+        )}
+        {isAdmin && (
           <Tooltip content="Remove host">
             <Button
               variant="clear"
@@ -585,6 +598,8 @@ export default function Hosts() {
           )}
         </Popup.Content>
       </Popup>
+
+      <RenameHostDialog host={renameTarget} onClose={() => setRenameTarget(null)} />
 
       {/* Delete confirmation modal */}
       <ConfirmModal

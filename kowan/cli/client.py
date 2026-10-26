@@ -121,6 +121,9 @@ class Client:
     def list_hosts(self) -> list[dict[str, Any]]:
         return self._do("GET", "/api/v1/hosts") or []
 
+    def rename_host(self, id_: str, name: str) -> dict[str, Any]:
+        return self._do("PATCH", f"/api/v1/hosts/{id_}", {"name": name}) or {}
+
     # --- Users ---
 
     def list_users(self) -> list[dict[str, Any]]:

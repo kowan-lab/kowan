@@ -93,6 +93,18 @@ class CLICase(unittest.TestCase):
         return out.getvalue(), err.getvalue()
 
 
+class TestHostCommands(CLICase):
+    def test_rename_by_id_or_name(self):
+        out, _ = self.run_cli("hosts", "rename", "local", "nas")
+        self.assertIn("Renamed host local to nas", out)
+        out, _ = self.run_cli("hosts", "ls")
+        self.assertIn("nas", out)
+        out, _ = self.run_cli("hosts", "rename", "nas", "local")
+        self.assertIn("to local", out)
+        _, err = self.run_cli("hosts", "rename", "missing", "x", code=1)
+        self.assertIn("no host with id or name", err)
+
+
 class TestReadCommands(CLICase):
     def test_lists(self):
         out, _ = self.run_cli("hosts", "ls")

@@ -21,7 +21,7 @@ from aiohttp import web
 
 from kowan.auth import require_role
 from kowan.auth import authorize as authz
-from kowan.errors import BadGateway, NotFound, Validation
+from kowan.errors import BadGateway, Conflict, NotFound, Validation
 from kowan.models import Host
 from kowan.models.host import (
     HostModeAgent,
@@ -43,6 +43,9 @@ log = logging.getLogger("kowan.api.hosts")
 # LocalHostID is the fixed identifier used for the local Docker daemon host row.
 LocalHostID = "local"
 
+# Longest host name accepted; names show in the host picker and in tables.
+MAX_NAME_LENGTH = 64
+
 # Bounds each per-host liveness probe so a single unreachable agent
 # cannot stall the whole list response.
 _PING_TIMEOUT = 3.0
@@ -58,6 +61,7 @@ def register(app: web.Application, svc) -> None:
     api_route(app, "POST", "/hosts", require_role("admin")(_create_host))
     api_route(app, "GET", "/hosts/{hostID}", _get_host)
     api_route(app, "GET", "/hosts/{hostID}/swarm", _swarm)
+    api_route(app, "PATCH", "/hosts/{hostID}", require_role("admin")(_rename_host))
     api_route(app, "DELETE", "/hosts/{hostID}", require_role("admin")(_delete_host))
     api_route(
         app,
@@ -231,9 +235,7 @@ async def _create_host(request: web.Request) -> web.Response:
     # Only name/mode/address are accepted now — the token is server-generated.
     reject_unknown_fields(body, {"name", "mode", "address"})
 
-    name = body.get("name") or ""
-    if name == "":
-        raise Validation("name is required")
+    name = _check_name(svc, body.get("name"))
 
     mode = body.get("mode") or HostModeAgent
     if mode not in (HostModeAgent, HostModeEdge):
@@ -291,6 +293,47 @@ async def _edge_command(request: web.Request) -> web.Response:
 
 
 # --- delete ---------------------------------------------------------------
+
+
+def _check_name(svc, raw, host_id: str = "") -> str:
+    """Validate a host name for create (``host_id`` empty) or rename.
+
+    GitOps files refer to a host by id or by name, so a name may not repeat
+    another host's name or id (compared case-insensitively).
+    """
+    if raw is not None and not isinstance(raw, str):
+        raise Validation("name must be a string")
+    name = (raw or "").strip()
+    if name == "":
+        raise Validation("name is required")
+    if len(name) > MAX_NAME_LENGTH:
+        raise Validation(f"name must be at most {MAX_NAME_LENGTH} characters")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in name):
+        raise Validation("name must not contain control characters")
+    key = name.casefold()
+    for other in svc.store.list_hosts():
+        if other.id == host_id:
+            continue
+        if key in (other.name.casefold(), other.id.casefold()):
+            raise Conflict(f'another host is already called "{name}"')
+    return name
+
+
+async def _rename_host(request: web.Request) -> web.Response:
+    """Rename a host, the local one included. Only the display name changes:
+    the id, and everything keyed on it (deployments, permissions, history),
+    stays the same."""
+    svc = _svc(request)
+    host_id = request.match_info["hostID"]
+    h = _load_host(svc, host_id)
+    body = await read_json(request)
+    if not isinstance(body, dict):
+        raise Validation("invalid request body")
+    reject_unknown_fields(body, {"name"})
+    h.name = _check_name(svc, body.get("name"), h.id)
+    svc.store.rename_host(h.id, h.name)
+    h.online = await _ping(svc, h)
+    return json_response(h)
 
 
 async def _delete_host(request: web.Request) -> web.Response:

@@ -233,6 +233,11 @@ export async function getHostSwarm(hostId: string): Promise<HostSwarm> {
   return data;
 }
 
+export async function renameHost(id: string, name: string): Promise<Host> {
+  const { data } = await api.patch<Host>(`/hosts/${id}`, { name });
+  return data;
+}
+
 export async function deleteHost(id: string): Promise<void> {
   await api.delete(`/hosts/${id}`);
 }

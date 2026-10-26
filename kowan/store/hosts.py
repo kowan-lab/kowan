@@ -51,6 +51,11 @@ class _HostMixin(_Base):
         UI's "last seen" — reflect the last real contact rather than enroll time."""
         self._execute("UPDATE hosts SET last_seen = ? WHERE id = ?", (ts, id))
 
+    def rename_host(self, id: str, name: str) -> None:
+        """Set a host's display name. The id, which everything else keys on,
+        never changes."""
+        self._execute("UPDATE hosts SET name = ? WHERE id = ?", (name, id))
+
     def get_host(self, id: str) -> Host:
         """Return the host with the given id, raising NotFoundError if absent."""
         row = self._one(f"SELECT {_HOST_COLUMNS} FROM hosts WHERE id = ?", (id,))

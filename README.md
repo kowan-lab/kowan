@@ -76,6 +76,8 @@ In **Hosts → Add host**, Kowan shows a one-line `docker run` command for the a
 - **Edge:** the agent dials the server. Use it for hosts behind NAT or a firewall.
 - **Direct:** the server dials the agent. Use it when the server can reach the host.
 
+Admins can rename any host, the local one included, from its page, the Hosts list or `kowanctl hosts rename`. Only the displayed name changes: deployments, permissions and history stay attached to the host.
+
 ### Configuration
 
 The server works without configuration. These environment variables are the ones you are most likely to set:
