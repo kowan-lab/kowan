@@ -3,6 +3,7 @@
 ## Non rilasciato
 
 - **Rinomina degli host**, compreso il local: dalla pagina dell'host, dalla lista Hosts (solo admin) o con `kowanctl hosts rename <id-o-nome> <nuovo-nome>`; API `PATCH /api/v1/hosts/{id}`. Cambia solo il nome mostrato: id, deployment, permessi e storico restano gli stessi. Un nome non può ripetere il nome o l'id di un altro host (i file GitOps li usano entrambi), vale anche alla creazione.
+- **Stack su due livelli** in Workloads: i container non gestiti si raggruppano per stack anche quando vengono da uno stack Swarm (`com.docker.stack.namespace`), non solo da un progetto compose; aprendo uno stack compaiono i servizi, e ogni servizio mostra i propri container (le repliche, per Swarm) con uno stato riassuntivo. Log conservati, storico risorse e pulizia del disco usano la stessa regola.
 - CI: `coverage` 7.16.2 su Python 3.10 (la 7.17 richiede 3.11) e test end-to-end con Docker allineato alla scheda Overview.
 
 ## 0.1.0 — 2026-10-26

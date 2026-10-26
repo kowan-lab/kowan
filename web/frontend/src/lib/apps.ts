@@ -7,8 +7,8 @@
  *    `kowan.deployment.id` label (container type) or the compose project label
  *    equal to the deployment's resource name (compose type, as the server
  *    matches them in kowan/deployment/service.py).
- *  - "stack": a compose project discovered from `com.docker.compose.project`
- *    that no deployment owns.
+ *  - "stack": a compose project (`com.docker.compose.project`) or swarm stack
+ *    (`com.docker.stack.namespace`) that no deployment owns.
  *  - "container": a lone container is an app of one.
  *
  * App ids are a URL contract (other pages link to them):
@@ -22,7 +22,7 @@ import { isAllHosts } from "../HostContext";
 import { useHostScopedList } from "../useHostScopedList";
 import type { Container, ContainerUpdateStatus, Deployment, Host } from "../types";
 import { LIVE_REFETCH_MS } from "./live";
-import { containerOrigin, LABEL_COMPOSE_PROJECT, LABEL_COMPOSE_SERVICE } from "./containerOrigin";
+import { containerOrigin, serviceOf, stackOf } from "./containerOrigin";
 import { updateKey, useContainerUpdates } from "./updates";
 
 export type AppKind = "deployment" | "stack" | "container";
@@ -160,7 +160,7 @@ function ownerDeployment(
   const labels = c.labels ?? {};
   const origin = containerOrigin(labels);
   if (origin.kind === "deployment") return deployments?.find((d) => d.id === origin.deploymentId);
-  const project = labels[LABEL_COMPOSE_PROJECT];
+  const project = stackOf(labels);
   if (!project || !deployments) return undefined;
   return deployments.find(
     (d) => d.type === "compose" && (d.targets?.[0] ?? "") === hostId && resourceName(d) === project,
@@ -178,7 +178,7 @@ export function appIdForContainer(c: Container, hostId: string, deployments?: De
   if (origin.kind === "deployment" && origin.deploymentId) return appId({ kind: "deployment", deploymentId: origin.deploymentId });
   const owner = ownerDeployment(c, hostId, deployments);
   if (owner) return appId({ kind: "deployment", deploymentId: owner.id });
-  const project = labels[LABEL_COMPOSE_PROJECT];
+  const project = stackOf(labels);
   if (project) return appId({ kind: "stack", hostId, project });
   return appId({ kind: "container", hostId, name: nameOf(c) });
 }
@@ -362,7 +362,7 @@ export function buildApps(opts: {
       container: c,
       hostId,
       name,
-      service: labels[LABEL_COMPOSE_SERVICE] || name,
+      service: serviceOf(labels) || name,
       ...describeContainer(c),
       update: updates?.(hostId, c.id),
     };
@@ -371,7 +371,7 @@ export function buildApps(opts: {
       depApps.set(owner.id, [...(depApps.get(owner.id) ?? []), ac]);
       continue;
     }
-    const project = labels[LABEL_COMPOSE_PROJECT];
+    const project = stackOf(labels);
     if (project) {
       const key = `${hostId}~${project}`;
       const s = stacks.get(key) ?? { hostId, project, cs: [] };
@@ -441,6 +441,37 @@ export function buildApps(opts: {
     );
   }
   return apps.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+/** One service of a stack (or compose deployment) and its containers: replicas
+ *  for swarm, usually one for compose. */
+export interface AppService {
+  name: string;
+  containers: AppContainer[];
+  tone: AppTone;
+  label: string;
+}
+
+/**
+ * A stack's containers grouped by service, in service order; null for a lone
+ * container or a container deployment, which have no services.
+ */
+export function servicesOf(app: App): AppService[] | null {
+  if (app.kind === "container" || app.deployment?.type === "container") return null;
+  const groups = new Map<string, AppContainer[]>();
+  for (const c of app.containers) groups.set(c.service, [...(groups.get(c.service) ?? []), c]);
+  return [...groups].map(([name, cs]) => {
+    if (cs.length === 1) return { name, containers: cs, tone: cs[0].tone, label: cs[0].label };
+    const running = cs.filter((c) => c.container.state === "running").length;
+    const worst = cs.reduce<AppTone>((w, c) => (TONE_RANK[c.tone] > TONE_RANK[w] ? c.tone : w), "g");
+    const of = `${running}/${cs.length}`;
+    const label =
+      worst === "r" ? `Degraded · ${of}`
+        : worst === "a" ? `${cs.find((c) => c.tone === "a")!.label.split(" · ")[0]} · ${of}`
+          : running === 0 ? "Stopped"
+            : `Running · ${of}`;
+    return { name, containers: cs, tone: running === 0 && worst === "g" ? "n" : worst, label };
+  });
 }
 
 // ---------------------------------------------------------------------------

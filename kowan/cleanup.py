@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from kowan.events import Event
 from kowan.models import DiskUsage
-from kowan.workloads import LABEL_DEPLOYMENT, LABEL_PROJECT, compose_deployments
+from kowan.workloads import LABEL_DEPLOYMENT, compose_deployments, stack_of
 
 log = logging.getLogger("kowan.cleanup")
 
@@ -39,8 +39,9 @@ _CHECK_EVERY = 600.0
 
 def _managed_by(labels: Dict[str, str], host_id: str, compose_deps: Dict[Any, str]) -> str:
     dep = labels.get(LABEL_DEPLOYMENT, "")
-    if not dep and labels.get(LABEL_PROJECT):
-        dep = compose_deps.get((host_id, labels[LABEL_PROJECT]), "")
+    project = stack_of(labels)
+    if not dep and project:
+        dep = compose_deps.get((host_id, project), "")
     return dep
 
 

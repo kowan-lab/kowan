@@ -38,6 +38,30 @@ describe("workloads list", () => {
     await waitFor(() => expect(currentPath()).toMatch(/^\/containers\//));
   });
 
+  it("nests a discovered swarm stack: stack, services, containers", async () => {
+    const swarm = (name: string, svc: string) => ({
+      ...containers[2], id: name.padEnd(64, "0"), names: [`/${name}`], image: `${svc}:1`, state: "running", status: "Up 1 hour",
+      labels: { "com.docker.stack.namespace": "mon", "com.docker.swarm.service.name": `mon_${svc}` },
+    });
+    const { user } = renderApp("/workloads?view=table", {
+      api: { "GET /hosts/:id/containers": [...containers, swarm("mon_web.1.a", "web"), swarm("mon_web.2.b", "web"), swarm("mon_db.1.c", "db")] },
+    });
+    await ready();
+    await user.click(within(screen.getByRole("group", { name: /^view$/i })).getAllByRole("button")[1]);
+    await user.click(await screen.findByRole("button", { name: /show containers of mon$/i }));
+    const web = screen.getByRole("button", { name: /show containers of service web/i });
+    expect(screen.getByRole("button", { name: /show containers of service db/i })).toBeInTheDocument();
+    const replica = screen.getByText("mon_web.2.b").closest("tr")!;
+    expect(replica).toHaveAttribute("aria-hidden", "true");
+    expect(within(web.closest("tr")!).getByText("Running · 2/2")).toBeInTheDocument();
+    await user.click(web);
+    expect(screen.getByRole("button", { name: /hide containers of service web/i })).toHaveAttribute("aria-expanded", "true");
+    expect(replica).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByText("mon_db.1.c").closest("tr")).toHaveAttribute("aria-hidden", "true");
+    await user.click(screen.getByText("mon_web.2.b"));
+    await waitFor(() => expect(currentPath()).toMatch(/^\/containers\//));
+  });
+
   it("remembers the table view", async () => {
     localStorage.setItem("kowan-workloads-view", "table");
     renderApp("/workloads");

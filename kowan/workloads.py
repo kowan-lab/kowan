@@ -1,7 +1,7 @@
 """Workload ids shared by the server-side features that group containers the
 way the UI does: ``dep~<deployment id>`` for a deployment's containers,
-``stack~<host>~<project>`` for a compose project nobody deployed through
-Kowan, ``ctr~<host>~<name>`` for a lone container."""
+``stack~<host>~<project>`` for a compose project or swarm stack nobody
+deployed through Kowan, ``ctr~<host>~<name>`` for a lone container."""
 
 from __future__ import annotations
 
@@ -9,6 +9,14 @@ from typing import Any, Dict, Tuple
 
 LABEL_DEPLOYMENT = "kowan.deployment.id"
 LABEL_PROJECT = "com.docker.compose.project"
+LABEL_SWARM_STACK = "com.docker.stack.namespace"
+
+
+def stack_of(labels: Dict[str, str]) -> str:
+    """The compose project or swarm stack a container belongs to, or ""
+    (the same rule authorization uses)."""
+    labels = labels or {}
+    return labels.get(LABEL_PROJECT) or labels.get(LABEL_SWARM_STACK) or ""
 
 
 def compose_deployments(store: Any) -> Dict[Tuple[str, str], str]:
@@ -24,7 +32,7 @@ def workload_of(labels: Dict[str, str], host_id: str, name: str, compose_deps: D
     """``(workload, stack, deployment_id)`` of a container."""
     labels = labels or {}
     dep = labels.get(LABEL_DEPLOYMENT, "")
-    project = labels.get(LABEL_PROJECT, "")
+    project = stack_of(labels)
     if not dep and project:
         dep = compose_deps.get((host_id, project), "")
     if dep:

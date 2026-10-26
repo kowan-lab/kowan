@@ -69,7 +69,7 @@ import { useAuth } from "../auth/AuthContext";
 import { notify } from "../ui/toast";
 import { useHost, isAllHosts } from "../HostContext";
 import { LIVE_REFETCH_MS, errorStatus, liveUnlessGone } from "../lib/live";
-import { containerOrigin, isManaged, LABEL_COMPOSE_PROJECT, type ContainerOrigin } from "../lib/containerOrigin";
+import { containerOrigin, isManaged, stackOf, type ContainerOrigin } from "../lib/containerOrigin";
 import { appHref, appIdForContainer } from "../lib/apps";
 import { describeUpdate, useContainerUpdates, useUpdateContainer } from "../lib/updates";
 import { errorMessage, formatBytes, formatDate, formatPercent, shortId, timeAgo } from "../utils";
@@ -1221,7 +1221,7 @@ function OriginFact({ origin, hostId, selfId, appTo }: { origin: ContainerOrigin
   }
   if (origin.kind === "stack") {
     const siblings = (siblingsQuery.data ?? [])
-      .filter((c) => c.labels?.[LABEL_COMPOSE_PROJECT] === origin.name)
+      .filter((c) => stackOf(c.labels) === origin.name)
       .sort((a, b) => (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
     return (
       <span className="flex min-w-0 flex-col gap-[4px]">

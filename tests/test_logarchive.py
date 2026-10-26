@@ -53,6 +53,11 @@ class TestHelpers(unittest.TestCase):
                          ("dep~d2", "shop", "d2"))
         self.assertEqual(workload_of({"com.docker.compose.project": "shop"}, "h", "n", {}), ("stack~h~shop", "shop", ""))
         self.assertEqual(workload_of(None, "h", "web", {}), ("ctr~h~web", "", ""))
+        # A swarm stack groups like a compose project, and a Kowan swarm
+        # deployment (namespace = its resource name) stays its deployment.
+        swarm = {"com.docker.stack.namespace": "mon", "com.docker.swarm.service.name": "mon_grafana"}
+        self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {}), ("stack~h~mon", "mon", ""))
+        self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {("h", "mon"): "d3"}), ("dep~d3", "mon", "d3"))
         self.assertEqual(parse_workload("stack~h~shop"), ("stack", "h", "shop"))
         self.assertEqual(parse_workload("dep~d1"), ("dep", "", "d1"))
 

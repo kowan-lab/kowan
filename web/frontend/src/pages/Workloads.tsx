@@ -9,7 +9,7 @@ import { formatBytes } from "../utils";
 import { notify } from "../ui/toast";
 import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
-import { appHref, kindShort, useApps, type App } from "../lib/apps";
+import { appHref, kindShort, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
 import { cn } from "@/lib/utils";
 import { useCanOperate } from "../components/deployment/shared";
@@ -418,9 +418,32 @@ const TD = "h-[40px] px-[12px] align-middle text-[13px] leading-[18px] whitespac
 function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; showHost: boolean; hostName: (id: string) => string; hostOnline: (id: string) => boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const toggle = (key: string) => setOpen((o) => ({ ...o, [key]: !o[key] }));
   const go = (to: string) => navigate(to);
   const onRowKey = (e: KeyboardEvent, to: string) => {
     if (e.key === "Enter" && e.target === e.currentTarget) go(to);
+  };
+  const containerRow = (c: AppContainer, visible: boolean, depth: 1 | 2) => {
+    const to = `/containers/${c.container.id}?host=${encodeURIComponent(c.hostId)}`;
+    return (
+      <tr
+        key={c.container.id}
+        tabIndex={visible ? 0 : -1}
+        aria-hidden={!visible || undefined}
+        className={cn("cursor-pointer outline-none [&>td]:h-[36px] [&>td]:bg-muted hover:[&>td]:bg-[var(--popover)] focus-visible:[&>td]:bg-[var(--popover)]", !visible && "[visibility:collapse]")}
+        onClick={() => go(to)}
+        onKeyDown={(e) => onRowKey(e, to)}
+      >
+        <td className={cn(TD, "font-mono", depth === 1 ? "first:pl-[44px]" : "first:pl-[70px]")}>{c.name}</td>
+        <td className={TD}><Pill tone={c.tone}>{c.label}</Pill></td>
+        <td className={TD} />
+        {showHost && <td className={TD} />}
+        <td className={cn(TD, "font-mono text-muted-foreground")}>{c.container.image}</td>
+        <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts([c])}</td>
+        <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
+        <td className={TD} />
+      </tr>
+    );
   };
   return (
     <section className="min-w-0 overflow-x-auto bg-card shadow-[inset_0_0_0_1px_var(--border)]">
@@ -456,7 +479,7 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                       aria-label={`${isOpen ? "Hide" : "Show"} containers of ${a.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setOpen((o) => ({ ...o, [a.id]: !o[a.id] }));
+                        toggle(a.id);
                       }}
                       className="mr-[6px] inline-flex size-[20px] items-center justify-center align-[-5px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--signal)]"
                     >
@@ -483,31 +506,56 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                 </tr>
                 {/* Child rows stay in the DOM when closed: `visibility: collapse` hides
                     them but keeps them in the column-width pass, so expanding a
-                    workload never resizes the table. */}
-                {a.containers.map((c) => {
-                    const to = `/containers/${c.container.id}?host=${encodeURIComponent(c.hostId)}`;
+                    workload never resizes the table. A stack nests a second level:
+                    its services, each opening onto its containers. */}
+                {(() => {
+                  const services = servicesOf(a);
+                  if (!services) return a.containers.map((c) => containerRow(c, isOpen, 1));
+                  return services.map((svc) => {
+                    const key = `${a.id}::${svc.name}`;
+                    const svcOpen = isOpen && !!open[key];
                     return (
-                      <tr
-                        key={c.container.id}
-                        tabIndex={isOpen ? 0 : -1}
-                        aria-hidden={!isOpen || undefined}
-                        className={cn("cursor-pointer outline-none [&>td]:h-[36px] [&>td]:bg-muted hover:[&>td]:bg-[var(--popover)] focus-visible:[&>td]:bg-[var(--popover)]", !isOpen && "[visibility:collapse]")}
-                        onClick={() => go(to)}
-                        onKeyDown={(e) => onRowKey(e, to)}
-                      >
-                        <td className={cn(TD, "font-mono first:pl-[44px]")}>{c.name}</td>
-                        <td className={TD}><Pill tone={c.tone}>{c.label}</Pill></td>
-                        <td className={TD} />
-                        {showHost && <td className={TD} />}
-                        <td className={cn(TD, "font-mono text-muted-foreground")}>{c.container.image}</td>
-                        <td className={cn(TD, "font-mono text-muted-foreground")}>
-                          {(c.container.ports ?? []).filter((p) => p.publicPort).map((p) => `:${p.publicPort}`).filter((v, i, s) => s.indexOf(v) === i).join(" ") || "—"}
-                        </td>
-                        <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
-                        <td className={TD} />
-                      </tr>
+                      <Fragment key={key}>
+                        <tr
+                          tabIndex={isOpen ? 0 : -1}
+                          aria-hidden={!isOpen || undefined}
+                          className={cn("cursor-pointer outline-none [&>td]:h-[36px] [&>td]:bg-muted hover:[&>td]:bg-[var(--popover)] focus-visible:[&>td]:bg-[var(--popover)]", !isOpen && "[visibility:collapse]")}
+                          onClick={() => toggle(key)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && e.target === e.currentTarget) toggle(key);
+                          }}
+                        >
+                          <td className={cn(TD, "font-mono first:pl-[30px]")}>
+                            <button
+                              type="button"
+                              tabIndex={isOpen ? 0 : -1}
+                              aria-expanded={svcOpen}
+                              aria-label={`${svcOpen ? "Hide" : "Show"} containers of service ${svc.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggle(key);
+                              }}
+                              className="mr-[6px] inline-flex size-[20px] items-center justify-center align-[-5px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--signal)]"
+                            >
+                              <ChevronRight className={cn("size-[16px] transition-transform duration-[120ms] motion-reduce:transition-none", svcOpen && "rotate-90")} strokeWidth={1.5} aria-hidden />
+                            </button>
+                            {svc.name}
+                          </td>
+                          <td className={TD}><Pill tone={svc.tone}>{svc.label}</Pill></td>
+                          <td className={TD}>
+                            <span className="inline-flex flex-nowrap"><StateSquares tones={svc.containers.map((c) => c.tone)} /></span>
+                          </td>
+                          {showHost && <td className={TD} />}
+                          <td className={cn(TD, "font-mono text-muted-foreground")}>{svc.containers[0]?.container.image}</td>
+                          <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts(svc.containers)}</td>
+                          <td className={TD}>{svc.containers.some((c) => c.update?.updateAvailable) ? <Pill tone="a">Update</Pill> : null}</td>
+                          <td className={TD} />
+                        </tr>
+                        {svc.containers.map((c) => containerRow(c, svcOpen, 2))}
+                      </Fragment>
                     );
-                  })}
+                  });
+                })()}
               </Fragment>
             );
           })}
@@ -517,3 +565,8 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
   );
 }
 
+/** ":80 :443": the distinct public ports of some containers, or "—". */
+function publicPorts(cs: AppContainer[]): string {
+  const ports = cs.flatMap((c) => (c.container.ports ?? []).filter((p) => p.publicPort).map((p) => `:${p.publicPort}`));
+  return [...new Set(ports)].join(" ") || "—";
+}

@@ -5,8 +5,8 @@ import type { Color } from "@/ui/kit";
  * backend stamps these; compose stamps its own). No server round-trip needed.
  *
  *  - "deployment" — created by a Kowan deployment (label `kowan.deployment.id`).
- *  - "stack"      — part of a docker-compose project (`com.docker.compose.project`),
- *    even if created outside Kowan.
+ *  - "stack"      — part of a docker-compose project (`com.docker.compose.project`)
+ *    or a swarm stack (`com.docker.stack.namespace`), even if created outside Kowan.
  *  - "plain"      — a standalone container, ours to edit/recreate freely.
  */
 export type ContainerOriginKind = "deployment" | "stack" | "plain";
@@ -17,7 +17,7 @@ export interface ContainerOrigin {
   name: string;
   /** For deployment origin, the Kowan deployment id (used to link to it). */
   deploymentId?: string;
-  /** For stack origin, the compose service name, when present. */
+  /** For stack origin, the compose or swarm service name, when present. */
   service?: string;
 }
 
@@ -25,6 +25,26 @@ export const LABEL_DEPLOYMENT_ID = "kowan.deployment.id";
 export const LABEL_DEPLOYMENT_NAME = "kowan.deployment.name";
 export const LABEL_COMPOSE_PROJECT = "com.docker.compose.project";
 export const LABEL_COMPOSE_SERVICE = "com.docker.compose.service";
+export const LABEL_SWARM_STACK = "com.docker.stack.namespace";
+export const LABEL_SWARM_SERVICE = "com.docker.swarm.service.name";
+
+/** The compose project or swarm stack of a container, or "" (same rule as the server). */
+export function stackOf(labels: Record<string, string> | undefined): string {
+  const l = labels ?? {};
+  return l[LABEL_COMPOSE_PROJECT] || l[LABEL_SWARM_STACK] || "";
+}
+
+/**
+ * The service a container runs inside its stack, or "": the compose service,
+ * or the swarm service without the "<stack>_" prefix swarm gives it.
+ */
+export function serviceOf(labels: Record<string, string> | undefined): string {
+  const l = labels ?? {};
+  if (l[LABEL_COMPOSE_SERVICE]) return l[LABEL_COMPOSE_SERVICE];
+  const svc = l[LABEL_SWARM_SERVICE] ?? "";
+  const ns = l[LABEL_SWARM_STACK];
+  return ns && svc.startsWith(`${ns}_`) ? svc.slice(ns.length + 1) : svc;
+}
 
 export function containerOrigin(
   labels: Record<string, string> | undefined,
@@ -38,9 +58,9 @@ export function containerOrigin(
       deploymentId,
     };
   }
-  const project = l[LABEL_COMPOSE_PROJECT];
+  const project = stackOf(l);
   if (project) {
-    return { kind: "stack", name: project, service: l[LABEL_COMPOSE_SERVICE] };
+    return { kind: "stack", name: project, service: serviceOf(l) || undefined };
   }
   return { kind: "plain", name: "" };
 }

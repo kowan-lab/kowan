@@ -1,8 +1,8 @@
 // Pure helpers: workload grouping, ids and status text; log filters and
 // highlighting; formatting; safe redirects; container origin; small maps.
 import { describe, expect, it } from "vitest";
-import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, statusAge } from "../apps";
-import { containerOrigin, isManaged, originBadge } from "../containerOrigin";
+import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge } from "../apps";
+import { containerOrigin, isManaged, originBadge, serviceOf, stackOf } from "../containerOrigin";
 import { realTags, truncate } from "../images";
 import { errorStatus, liveUnlessGone, setEventsLive, LIVE_REFETCH_MS } from "../live";
 import { safeLocalPath } from "../safePath";
@@ -156,6 +156,33 @@ describe("formatting and misc", () => {
     for (const bad of ["", null, "https://evil", "//evil.com", "/\\evil.com", "/a\u0000b", "relative"]) {
       expect(safeLocalPath(bad as string)).toBe("/");
     }
+  });
+
+  it("groups swarm stacks and stacks by service", () => {
+    const swarm = (name: string, svc: string, state = "running", status = "Up 1 hour") =>
+      c({ id: name.padEnd(64, "0"), names: [`/${name}`], state, status, labels: { "com.docker.stack.namespace": "mon", "com.docker.swarm.service.name": `mon_${svc}` } });
+    expect(stackOf(swarm("a", "web").labels)).toBe("mon");
+    expect(serviceOf(swarm("a", "web").labels)).toBe("web");
+    expect(serviceOf({ "com.docker.swarm.service.name": "solo" })).toBe("solo");
+    expect(stackOf({})).toBe("");
+    expect(containerOrigin(swarm("a", "web").labels)).toMatchObject({ kind: "stack", name: "mon", service: "web" });
+    expect(appIdForContainer(swarm("a", "web"), "local")).toBe("stack~local~mon");
+
+    const cs = [
+      swarm("mon_web.1.x", "web"), swarm("mon_web.2.y", "web", "exited", "Exited (1) 3 minutes ago"),
+      swarm("mon_db.1.z", "db"), swarm("mon_cron.1.w", "cron", "exited", "Exited (0) 1 hour ago"),
+      swarm("mon_cron.2.v", "cron", "exited", "Exited (0) 1 hour ago"),
+    ];
+    const [mon] = buildApps({ containers: cs, fallbackHost: "local", deployments: [], scopeHosts: null });
+    expect(mon).toMatchObject({ kind: "stack", name: "mon", total: 5 });
+    const svcs = servicesOf(mon)!;
+    expect(svcs.map((s) => [s.name, s.containers.length, s.tone, s.label])).toEqual([
+      ["cron", 2, "n", "Stopped"],
+      ["db", 1, "g", svcs[1].containers[0].label],
+      ["web", 2, "r", "Degraded · 1/2"],
+    ]);
+    const [lone] = buildApps({ containers: [c({ names: ["/solo"] })], fallbackHost: "local", deployments: [], scopeHosts: null });
+    expect(servicesOf(lone)).toBeNull();
   });
 
   it("container origins", () => {
