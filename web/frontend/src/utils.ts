@@ -135,3 +135,16 @@ export function errorMessage(err: unknown, fallback: string): string {
     fallback
   );
 }
+
+/**
+ * A container's ports in a fixed order: container port, protocol, host port,
+ * then IPv4 before IPv6. Docker lists them from a Go map, in a different order
+ * on every call; the server sorts them the same way.
+ */
+export function sortPorts<T extends { privatePort: number; publicPort: number; type: string; ip: string }>(ports: T[] | null | undefined): T[] {
+  // Plain code-unit order, as the server's sort: "0.0.0.0" before "::".
+  const cmp = (x = "", y = "") => (x < y ? -1 : x > y ? 1 : 0);
+  return [...(ports ?? [])].sort(
+    (a, b) => a.privatePort - b.privatePort || cmp(a.type, b.type) || a.publicPort - b.publicPort || cmp(a.ip, b.ip),
+  );
+}

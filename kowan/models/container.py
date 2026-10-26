@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # LabelSupport marks a container as an internal support/sidecar container. Ones
 # carrying this label set to "true" are hidden from the default container list.
@@ -40,6 +40,14 @@ class Container(BaseModel):
     ports: List[Port] = Field(default_factory=list)
     labels: Dict[str, str] = Field(default_factory=dict)
     host_id: str = Field(default="", alias="hostId")
+
+    @field_validator("ports")
+    @classmethod
+    def _sorted_ports(cls, ports: List[Port]) -> List[Port]:
+        # Docker lists a container's ports from a Go map, in a different order
+        # on every call: sort them so every list shows them the same way
+        # (container port, protocol, host port, then IPv4 before IPv6).
+        return sorted(ports, key=lambda p: (p.private_port, p.type, p.public_port, p.ip))
 
 
 class Image(BaseModel):

@@ -756,7 +756,7 @@ function parseInspect(insp: ContainerInspect | undefined) {
           destination: asString(r.Destination),
           rw: r.RW !== false,
         };
-      })
+      }).sort((a, b) => a.destination.localeCompare(b.destination))
     : [];
 
   const networks: NetworkInfo[] = Object.entries(asRecord(networkSettings.Networks)).map(([netName, v]) => {
@@ -767,9 +767,9 @@ function parseInspect(insp: ContainerInspect | undefined) {
       ip: asString(r.IPAddress),
       gateway: asString(r.Gateway),
       mac: asString(r.MacAddress),
-      aliases: asStringArray(r.Aliases),
+      aliases: [...asStringArray(r.Aliases)].sort(),
     };
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const ports: PublishedPort[] = Object.entries(asRecord(networkSettings.Ports))
     .map(([containerPort, v]) => ({
@@ -781,9 +781,13 @@ function parseInspect(insp: ContainerInspect | undefined) {
             const port = asString(r.HostPort);
             return ip && ip !== "0.0.0.0" && ip !== "::" ? `${ip.includes(":") ? `[${ip}]` : ip}:${port}` : port;
           })
+          // IPv4 and IPv6 bind the same port twice: show it once.
+          .filter((b, i, all) => all.indexOf(b) === i)
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
         : [],
     }))
-    .sort((a, b) => parseInt(a.containerPort, 10) - parseInt(b.containerPort, 10));
+    // Docker keys ports as "443/tcp": by number, then protocol.
+    .sort((a, b) => parseInt(a.containerPort, 10) - parseInt(b.containerPort, 10) || a.containerPort.localeCompare(b.containerPort));
 
   const labels: Record<string, string> = {};
   for (const [k, v] of Object.entries(asRecord(config.Labels))) if (typeof v === "string") labels[k] = v;

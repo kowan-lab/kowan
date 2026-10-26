@@ -211,6 +211,17 @@ class TestCheckHost(unittest.TestCase):
             self.assertTrue(r["checkedAt"])
 
 
+class TestContainerPortsOrder(unittest.TestCase):
+    def test_ports_sorted_whatever_docker_returns(self):
+        raw = [{"privatePort": 443, "publicPort": 8443, "type": "tcp", "ip": "::"},
+               {"privatePort": 80, "publicPort": 8080, "type": "udp", "ip": "0.0.0.0"},
+               {"privatePort": 80, "publicPort": 8080, "type": "tcp", "ip": "::"},
+               {"privatePort": 80, "publicPort": 8080, "type": "tcp", "ip": "0.0.0.0"}]
+        c = Container.model_validate({"id": "a", "ports": raw})
+        self.assertEqual([(p.private_port, p.type, p.ip) for p in c.ports],
+                         [(80, "tcp", "0.0.0.0"), (80, "tcp", "::"), (80, "udp", "0.0.0.0"), (443, "tcp", "::")])
+
+
 class _FakeRemoteOps:
     """Remote-style Ops (no clone_recreate): spec round-trip recreate."""
 
