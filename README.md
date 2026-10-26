@@ -117,7 +117,7 @@ The built-in MCP server is described in [docs/mcp.md](docs/mcp.md). The **AI ass
 
 ## Documentation
 
-- [Architecture](docs/architecture.md), in Italian for now
+- [Architecture](docs/architecture.md)
 - [Updates and rollback](docs/updates-design.md)
 - [Vulnerability scanning](docs/scanning.md)
 - [Exposure and HTTPS](docs/exposure.md)
@@ -126,11 +126,11 @@ The built-in MCP server is described in [docs/mcp.md](docs/mcp.md). The **AI ass
 - [Deployment history](docs/deployment-history.md), [previews and promotion](docs/previews-and-promotion.md), [import](docs/import.md)
 - [Uptime](docs/uptime.md), [retained logs](docs/retained-logs.md), [resource history](docs/resource-history.md)
 - [Disk cleanup](docs/disk-cleanup.md), [the digest](docs/digest.md), [phone and installed app](docs/mobile-pwa.md)
-- [Testing](docs/testing.md), in Italian
+- [Testing](docs/testing.md)
 - [Permissions](docs/permissions.md) and [SSO](docs/sso.md)
 - [MCP server](docs/mcp.md)
 - [Connections](docs/connections-design.md), a design note on typed credentials
-- [Changelog](docs/CHANGELOG.md), in Italian
+- [Changelog](docs/CHANGELOG.md)
 
 ## Contributing
 

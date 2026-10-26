@@ -1,100 +1,103 @@
-# Test
+# Tests
 
-Kowan ha tre livelli di test. Tutti girano in locale con un comando e in CI
-(`.github/workflows/ci.yml`) a ogni push e pull request.
+Kowan has three levels of tests. Each runs locally with one command, and in CI
+(`.github/workflows/ci.yml`) on every push and pull request.
 
-| Livello | Cosa prova | Comando | Dove |
+| Level | What it covers | Command | Where |
 |---|---|---|---|
-| Backend | API REST, store, auth, mux/tunnel, agent, Docker (Engine finto), CLI, workflow, GitOps, notifiche | `make test` / `make coverage` | `tests/` |
-| Frontend | ogni pagina e componente della SPA in jsdom, contro un backend finto | `make test-ui` / `make coverage-ui` | `web/frontend/src/**/__tests__/` |
-| End-to-end | la SPA buildata contro un server reale, nel browser | `make e2e` | `web/frontend/e2e/` |
+| Backend | REST API, store, auth, mux/tunnel, agent, Docker (a fake Engine), CLI, workflows, GitOps, notifications | `make test` / `make coverage` | `tests/` |
+| Frontend | every page and component of the SPA in jsdom, against a fake backend | `make test-ui` / `make coverage-ui` | `web/frontend/src/**/__tests__/` |
+| End to end | the built SPA against a real server, in a browser | `make e2e` | `web/frontend/e2e/` |
 
-`make test-all` li esegue tutti e tre. `make deps-dev` installa `coverage` e il
-browser di Playwright.
+`make test-all` runs all three. `make deps-dev` installs `coverage` and
+Playwright's browser.
 
 ## Backend
 
-`unittest` della libreria standard, nessun plugin. Le classi di base:
+The standard library's `unittest`, no plugins. The base pieces:
 
-- `tests/apicase.py::ServerCase` monta l'app completa (middleware, moduli,
-  store SQLite in una cartella temporanea) e offre `call(method, path, role=…)`
-  e `roles()` per provare ogni endpoint con ogni ruolo.
-- `tests/fakeengine.py::FakeEngine` è un Docker Engine in memoria servito su un
-  socket unix: container, immagini, volumi, reti, exec, log, stats, eventi,
-  pull con digest (`registry`), errori iniettati (`fail`, `fail_once`) e
-  container che terminano con un codice (`runners`).
-- Finti anche registry, server di secret (Vault, Infisical, Phase), SMTP e
-  ricevitori HTTP; `httpx` è sostituito con `MockTransport`.
-- L'agent gira davvero: `test_agent_e2e.py` lo collega al server in modalità
-  edge e diretta, `test_remote_client.py` ripete la suite del client locale
-  attraverso il tunnel.
+- `tests/apicase.py::ServerCase` mounts the whole app (middleware, modules, a
+  SQLite store in a temporary folder) and offers `call(method, path, role=…)`
+  and `roles()` to try every endpoint with every role.
+- `tests/fakeengine.py::FakeEngine` is an in-memory Docker Engine served on a
+  unix socket: containers, images, volumes, networks, exec, logs, stats,
+  events, pulls with digests (`registry`), injected errors (`fail`,
+  `fail_once`) and containers that exit with a code (`runners`).
+- Registries, secret servers (Vault, Infisical, Phase), SMTP and HTTP receivers
+  are fakes too; `httpx` is swapped for a `MockTransport`.
+- The agent runs for real: `test_agent_e2e.py` connects it to the server in
+  edge and direct mode, and `test_remote_client.py` repeats the local client's
+  suite through the tunnel.
 
-`make coverage` scrive `coverage.json` e `htmlcov/` e fallisce sotto la soglia
-`fail_under` di `.coveragerc` (righe + rami). Sono esclusi solo gli stub
-`raise NotImplementedError`, la guardia `if __name__ == "__main__":` e gli
-import `if TYPE_CHECKING:`.
+`make coverage` writes `coverage.json` and `htmlcov/` and fails below the
+`fail_under` threshold in `.coveragerc` (lines + branches). Only
+`raise NotImplementedError` stubs, the `if __name__ == "__main__":` guard and
+`if TYPE_CHECKING:` imports are excluded.
 
 ## Frontend
 
-Vitest + Testing Library in jsdom. I test montano l'app vera (router, auth,
-host, react-query, tema) con `renderApp(path, { role, api })` e la usano come
-un utente: click, digitazione, select, dialog, toast.
+Vitest + Testing Library in jsdom. The tests mount the real app (router, auth,
+host, react-query, theme) with `renderApp(path, { role, api })` and use it the
+way a person would: clicks, typing, selects, dialogs, toasts.
 
-- `src/test/api.ts` sostituisce `fetch`, `WebSocket` ed `EventSource`. Le rotte
-  sono `"METHOD /percorso"` relative a `/api/v1` (`:param`, `*`); un handler è il
-  corpo da restituire o una funzione della richiesta, `reply(status, body,
-  headers)` per errori e header. Ogni richiesta finisce in `calls`;
-  `requests(method, pattern)` le filtra. `socket(part)` restituisce il WebSocket
-  aperto dalla pagina per mandargli messaggi.
-- `src/test/render.tsx::baseApi` dà a ogni test un backend plausibile
-  (`fixtures.ts`, più i cataloghi reali del server in `catalog.json`: tipi di
-  credenziali, plugin dei volumi, trigger, regole di allarme, template).
-- `src/test/ui.ts` ha gli aiuti per il kit: `dialog`, `choose` (Select),
+- `src/test/api.ts` replaces `fetch`, `WebSocket` and `EventSource`. Routes are
+  `"METHOD /path"` relative to `/api/v1` (`:param`, `*`); a handler is the body
+  to return or a function of the request, and `reply(status, body, headers)`
+  covers errors and headers. Every request lands in `calls`;
+  `requests(method, pattern)` filters them. `socket(part)` returns the
+  WebSocket the page opened, to send it messages.
+- `src/test/render.tsx::baseApi` gives every test a plausible backend
+  (`fixtures.ts`, plus the server's real catalogs in `catalog.json`: credential
+  types, volume plugins, triggers, alert rules, templates).
+- `src/test/ui.ts` has helpers for the kit: `dialog`, `choose` (Select),
   `press`, `toast`.
-- Dopo ogni test il setup aspetta che le query e le mutation in volo finiscano
-  (un toast in ritardo non deve finire nel test successivo) e fallisce se una
-  stessa richiesta è partita più di 150 volte: è il segno di un loop di refetch.
+- After each test, the setup waits for in-flight queries and mutations to
+  settle (a late toast must not leak into the next test) and fails if the same
+  request went out more than 150 times: the sign of a refetch loop.
 
-`make coverage-ui` fallisce sotto le soglie di `vitest.config.ts`.
-`npm run typecheck:test` controlla i tipi dei test e degli spec e2e
-(`tsconfig.test.json`; il build dell'app li esclude).
+`make coverage-ui` fails below the thresholds in `vitest.config.ts`.
+`npm run typecheck:test` checks the types of the tests and the e2e specs
+(`tsconfig.test.json`; the app build leaves them out).
 
-## End-to-end
+## End to end
 
-Playwright (`web/frontend/playwright.config.ts`) avvia `kowan.server` su
-`127.0.0.1:18777` con una cartella dati nuova (`e2e/.data`, cancellata a ogni
-avvio) e un token di setup fisso, e apre la SPA buildata in `web/dist`
-(`make e2e` la builda prima).
+Playwright (`web/frontend/playwright.config.ts`) starts `kowan.server` on
+`127.0.0.1:18777` with a fresh data folder (`e2e/.data`, wiped at every start)
+and a fixed setup token, and opens the SPA built into `web/dist` (`make e2e`
+builds it first).
 
-- `setup.e2e.ts` fa il primo avvio dalla UI (token sbagliato, poi giusto),
-  crea l'admin e salva la sessione per gli altri spec.
-- `smoke.e2e.ts` apre ogni pagina e fallisce su errori JavaScript o di console.
-- `flows.e2e.ts`: un viewer creato dall'admin vede la console in sola lettura,
-  un secret cifrato si rivela e risolve mascherato, un workflow esegue uno
-  script e ne mostra l'output, una regola di allarme si crea, disattiva e
-  cancella.
-- Uno spec per funzione: `history` (revisioni e rollback), `uptime` (controllo
-  sul server stesso e pagina di stato pubblica), `logs` (retention e ricerca),
-  `previews` (anteprime su un repository `.invalid`, quindi nessuna rete),
-  `promotion` (staging → produzione senza deploy), `import` (una cartella
-  compose letta dal browser), `digest` (pianificazione e anteprima, senza la
-  sezione aggiornamenti che interrogherebbe i registry).
-- `mobile.e2e.ts`: a 390 × 844 nessuna pagina scorre di lato, le tabelle
-  diventano schede, il menu è un drawer; manifest, icone e service worker,
-  e l'avvio offline della console installata.
-- `docker.e2e.ts` (solo con `KOWAN_E2E_DOCKER=1`, attivo in CI) deploya un
-  container `alpine` chiamato `kowan-e2e-*`, controlla pannello risorse e
-  "Keep logs", lo ferma e lo rimuove.
+- `setup.e2e.ts` goes through the first run in the UI (a wrong token, then the
+  right one), creates the admin and saves the session for the other specs.
+- `smoke.e2e.ts` opens every page and fails on JavaScript or console errors.
+- `flows.e2e.ts`: a viewer created by the admin sees the console read-only, an
+  encrypted secret is revealed and resolves masked, a workflow runs a script and
+  shows its output, an alert rule is created, disabled and deleted, and the
+  local host is renamed and named back.
+- One spec per feature: `history` (revisions and rollback), `uptime` (a check
+  on the server itself and the public status page), `logs` (retention and
+  search), `previews` (previews of a `.invalid` repository, so no network),
+  `promotion` (staging → production without deploying), `import` (a compose
+  folder read by the browser), `digest` (schedule and preview, without the
+  updates section that would query registries).
+- `clipboard.e2e.ts` opens the server as `http://kowan.internal:18777`, which is
+  not a secure context, and copies the join command without the Clipboard API.
+- `mobile.e2e.ts`: at 390 × 844 no page scrolls sideways, tables become cards,
+  the menu is a drawer; the manifest, icons and service worker, and the
+  installed console starting offline.
+- `docker.e2e.ts` (only with `KOWAN_E2E_DOCKER=1`, on in CI) deploys an `alpine`
+  container named `kowan-e2e-*`, checks the resources panel and "Keep logs",
+  stops it and removes it.
 
-Il server usa il Docker locale: gli spec lo leggono e basta, tranne
-`docker.e2e.ts`, che tocca solo il container che crea. Nessuno spec fa prune:
-la pagina di pulizia del disco è solo aperta, mai eseguita, e nessuno spec
-attiva la pulizia programmata.
+The server uses the local Docker: the specs only read from it, except
+`docker.e2e.ts`, which touches only the container it creates. No spec prunes:
+the disk cleanup page is opened, never run, and no spec turns on scheduled
+cleanup.
 
-## Scrivere un test nuovo
+## Writing a new test
 
-- Un endpoint: un metodo in un `ServerCase`, con `roles()` se cambia per ruolo.
-- Una pagina: `renderApp("/percorso", { api: { "GET /…": dati } })`, poi
-  interazioni con `user` e asserzioni su `requests(...)` e sul testo visibile.
-  Le rotte passate in `api` vincono su quelle di default.
-- Un bug: prima il test che lo riproduce, poi la correzione.
+- An endpoint: a method in a `ServerCase`, with `roles()` if it depends on the
+  role.
+- A page: `renderApp("/path", { api: { "GET /…": data } })`, then interactions
+  with `user` and assertions on `requests(...)` and on the visible text. Routes
+  passed in `api` win over the defaults.
+- A bug: first the test that reproduces it, then the fix.
