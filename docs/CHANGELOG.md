@@ -1,6 +1,6 @@
 # Kowan — Changelog
 
-## Unreleased
+## 0.1.1 — 2026-10-26
 
 - **Rename hosts**, the local one included: from the host's page, the Hosts list (admins) or `kowanctl hosts rename <id-or-name> <new-name>`; API `PATCH /api/v1/hosts/{id}`. Only the displayed name changes: the id, deployments, permissions and history stay the same. A name may not repeat another host's name or id (GitOps files use either), and the same check now applies when a host is created.
 - **Copy buttons over HTTP**: opening Kowan as `http://<address>` (neither HTTPS nor localhost), the browser offers no Clipboard API, and copy buttons did nothing (a host's join command, API keys, secrets, URLs). They now fall back to the classic copy and, if that fails too, say so.
