@@ -46,7 +46,7 @@ export interface HookCmd {
   container: string;
   command: string;
 }
-export interface Hooks {
+interface Hooks {
   stopContainers?: boolean;
   pre?: HookCmd[];
   post?: HookCmd[];
@@ -126,8 +126,6 @@ export const updateRepo = async (id: string, b: Partial<RepoInput>) => (await ap
 export const deleteRepo = async (id: string) => { await api.delete(`${B}/repos/${id}`); };
 export const testRepo = async (id: string, hostId = "") =>
   (await api.post<{ ok: boolean; initialized: boolean; log: string }>(`${B}/repos/${id}/test`, { hostId })).data;
-export const repoSnapshots = async (id: string, params: { hostId?: string; volume?: string; fresh?: boolean } = {}) =>
-  (await api.get<Snapshot[]>(`${B}/repos/${id}/snapshots`, { params })).data;
 export const browseSnapshot = async (repoId: string, snap: string, path: string, hostId = "") =>
   (await api.get<{ path: string; entries: SnapshotEntry[]; truncated: boolean }>(`${B}/repos/${repoId}/snapshots/${snap}/ls`, { params: { path, hostId } })).data;
 

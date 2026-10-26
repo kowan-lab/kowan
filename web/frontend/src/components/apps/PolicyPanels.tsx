@@ -18,13 +18,13 @@ import { cn } from "@/lib/utils";
 const ICON = "size-[16px] shrink-0";
 
 /** Anonymous volumes are 64-hex names: show the first 12 like Docker does. */
-export function volLabel(v: string): string {
+function volLabel(v: string): string {
   return /^[0-9a-f]{64}$/.test(v) ? `${v.slice(0, 12)} (anonymous)` : v;
 }
 
 // ── knobs (shared by the strip and the sections) ────────────────────────
 
-export function UpdatesKnob({ app, pc, showOptions }: { app: App; pc: PolicyControls; showOptions?: boolean }) {
+function UpdatesKnob({ app, pc, showOptions }: { app: App; pc: PolicyControls; showOptions?: boolean }) {
   const u = pc.updates;
   if (u.mode === "mixed") {
     return (
@@ -48,7 +48,7 @@ export function UpdatesKnob({ app, pc, showOptions }: { app: App; pc: PolicyCont
   );
 }
 
-export function BackupsKnob({ app, pc }: { app: App; pc: PolicyControls }) {
+function BackupsKnob({ app, pc }: { app: App; pc: PolicyControls }) {
   const b = pc.backups;
   const noVolumes = b.volumes !== undefined && b.volumes.length === 0 && b.jobs.length === 0;
   return (
@@ -63,7 +63,7 @@ export function BackupsKnob({ app, pc }: { app: App; pc: PolicyControls }) {
   );
 }
 
-export function ScheduleKnob({ app, pc }: { app: App; pc: PolicyControls }) {
+function ScheduleKnob({ app, pc }: { app: App; pc: PolicyControls }) {
   const s = pc.schedule;
   const labelOnly = s.schedules.length > 0 && s.manual.length === 0;
   return (
@@ -104,7 +104,7 @@ function Cell({ label, children, control }: { label: string; children: ReactNode
   );
 }
 
-export function sourceText(app: App): string {
+function sourceText(app: App): string {
   const d = app.deployment;
   if (d) {
     if (d.git?.repoUrl) return `Git · ${d.git.repoUrl.replace(/^[a-z+]+:\/\//i, "").replace(/\.git$/, "")}`;

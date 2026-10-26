@@ -10,7 +10,7 @@ import { notify } from "../../ui/toast";
 import { errorMessage, formatDate } from "../../utils";
 import SectionCard from "../SectionCard";
 
-export const SECTION_LABELS: Record<DigestSection, string> = {
+const SECTION_LABELS: Record<DigestSection, string> = {
   updates: "Container updates waiting",
   cves: "Images with critical or high vulnerabilities",
   backups: "Backups that failed",

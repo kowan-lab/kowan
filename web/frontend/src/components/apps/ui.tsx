@@ -10,7 +10,7 @@ import { isAllHosts } from "../../HostContext";
 import { cn } from "@/lib/utils";
 import type { AppTone } from "../../lib/apps";
 
-export const TONE_VAR: Record<AppTone, string> = { g: "green", a: "amber", r: "red", n: "gray" };
+const TONE_VAR: Record<AppTone, string> = { g: "green", a: "amber", r: "red", n: "gray" };
 
 /** D's `.lbl`: mono uppercase panel label. */
 export const LBL = "font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] uppercase text-muted-foreground";

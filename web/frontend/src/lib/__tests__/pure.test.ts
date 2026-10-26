@@ -5,7 +5,7 @@ import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseA
 import { buildNeeds } from "../../components/overview/NeedsYou";
 import { trouble } from "../../components/overview/model";
 import { MAX_REPLICAS, scaledInput, scaleRule } from "../scale";
-import { containerOrigin, isManaged, originBadge, serviceOf, stackOf } from "../containerOrigin";
+import { containerOrigin, isManaged, serviceOf, stackOf } from "../containerOrigin";
 import { realTags, truncate } from "../images";
 import { errorStatus, liveUnlessGone, setEventsLive, LIVE_REFETCH_MS } from "../live";
 import { safeLocalPath } from "../safePath";
@@ -141,9 +141,6 @@ describe("formatting and misc", () => {
     expect(u.containerName([])).toBe("-");
     expect(u.shortId("sha256:" + "f".repeat(64))).toBe("ffffffffffff");
     expect(u.shortId(undefined)).toBe("-");
-    for (const [s, col] of [["running", "green"], ["paused", "yellow"], ["exited", "red"], ["weird", "gray"]]) {
-      expect(u.stateColor(s)).toBe(col);
-    }
     for (const [l, col] of [["critical", "red"], ["warning", "yellow"], ["info", "blue"], [undefined, "gray"]] as const) {
       expect(u.levelColor(l)).toBe(col);
     }
@@ -282,12 +279,10 @@ describe("formatting and misc", () => {
     const dep = containerOrigin({ "kowan.deployment.id": "d1" });
     expect(dep).toMatchObject({ kind: "deployment", name: "d1" });
     expect(isManaged(dep)).toBe(true);
-    expect(originBadge(dep).group).toBe("Deployments");
     const stack = containerOrigin({ "com.docker.compose.project": "p", "com.docker.compose.service": "s" });
-    expect(originBadge(stack).label).toBe("Stack");
+    expect(stack).toMatchObject({ kind: "stack" });
     const plain = containerOrigin(undefined);
     expect(isManaged(plain)).toBe(false);
-    expect(originBadge(plain).label).toBe("Standalone");
   });
 
   it("images, live polling, updates, labels, colours", () => {

@@ -4,7 +4,7 @@ import { Badge, Box, Select, Text, TextInput } from "@/ui/kit";
 import { listContainers, listDeployments, listHosts } from "../api/client";
 import type { Grant, GrantInput, GrantScope, PermissionLevel } from "../types";
 
-export const SCOPE_OPTIONS: { value: GrantScope; label: string; description: string }[] = [
+const SCOPE_OPTIONS: { value: GrantScope; label: string; description: string }[] = [
   { value: "all_hosts", label: "All hosts", description: "Every host and everything on it, plus fleet-wide objects (workflows)." },
   { value: "host", label: "One host", description: "Everything on one host: containers, images, volumes, networks, deployments." },
   { value: "deployment", label: "Deployment", description: "One deployment and the containers, volumes and networks it runs." },
@@ -12,7 +12,7 @@ export const SCOPE_OPTIONS: { value: GrantScope; label: string; description: str
   { value: "labels", label: "Label selector", description: "Containers, volumes and networks carrying a key=value label." },
 ];
 
-export const LEVEL_OPTIONS: { value: PermissionLevel; label: string; description: string }[] = [
+const LEVEL_OPTIONS: { value: PermissionLevel; label: string; description: string }[] = [
   { value: "read", label: "Read", description: "See, inspect, logs, stats." },
   { value: "operate", label: "Operate", description: "Read + start, stop, restart, exec, deploy." },
   { value: "manage", label: "Manage", description: "Operate + create, update and delete." },
@@ -20,7 +20,7 @@ export const LEVEL_OPTIONS: { value: PermissionLevel; label: string; description
 
 export const EMPTY_GRANT: GrantInput = { scope: "host", hostId: "", target: "", level: "read" };
 
-export function levelColor(level: string): "gray" | "blue" | "amber" {
+function levelColor(level: string): "gray" | "blue" | "amber" {
   return level === "manage" ? "amber" : level === "operate" ? "blue" : "gray";
 }
 

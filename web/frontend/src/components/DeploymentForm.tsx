@@ -59,10 +59,10 @@ const SWARM_HINT =
 // ---------------------------------------------------------------------------
 
 /** Where a compose deployment's YAML comes from. */
-export type ComposeSource = "inline" | "git";
+type ComposeSource = "inline" | "git";
 
 /** Editable git source fields (webhookSecret is server-owned). */
-export type GitFormValue = Omit<GitSource, "webhookSecret">;
+type GitFormValue = Omit<GitSource, "webhookSecret">;
 
 export interface DeploymentFormValue {
   name: string;

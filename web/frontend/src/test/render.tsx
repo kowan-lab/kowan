@@ -60,7 +60,6 @@ export function baseApi(role: Role = "admin"): void {
       hostId: r.params.id, images: [], containers: {}, totals: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
       scanned: 0, imageCount: 0,
     }),
-    "GET /scans/summary": [],
     "GET /hosts/:id/images/:img/scan": (r: { params: Record<string, string> }) => ({
       imageId: r.params.img, running: false, fresh: false, result: null,
       scanner: { image: "aquasec/trivy:0.75.0", version: "0.75.0" },
@@ -85,9 +84,7 @@ export function baseApi(role: Role = "admin"): void {
     "GET /volume-plugins": catalog.volumePlugins,
     "GET /workflow-trigger-types": catalog.triggerTypes,
     "GET /alert-rule-types": catalog.alertRuleTypes,
-    "GET /gitops/kinds": catalog.gitopsKinds,
     "GET /volbackups/info": catalog.volbackupInfo,
-    "GET /autoupdate/settings": catalog.autoupdateSettings,
     "GET /sso/settings": catalog.ssoSettings,
     "GET /templates": catalog.templates,
     "GET /users": Object.values(fx.users),

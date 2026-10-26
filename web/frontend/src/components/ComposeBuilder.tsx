@@ -826,4 +826,3 @@ function ServiceCard({ service, onChange, onRemove }: ServiceCardProps) {
   );
 }
 
-export default ComposeBuilder;

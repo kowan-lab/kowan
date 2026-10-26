@@ -12,7 +12,7 @@ import {
 
 const LABEL_PROJECT = "com.docker.compose.project";
 
-export function blankJob(partial: Partial<JobInput> = {}): JobInput {
+function blankJob(partial: Partial<JobInput> = {}): JobInput {
   return {
     name: "", hostId: "local", repoId: "", selector: { mode: "names", volumes: [] }, schedule: "0 3 * * *", timezone: "",
     retention: { keepDaily: 7, keepWeekly: 4, keepMonthly: 6 }, hooks: { stopContainers: false, pre: [], post: [] }, tags: [], enabled: true,

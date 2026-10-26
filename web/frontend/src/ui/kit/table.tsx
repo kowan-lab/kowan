@@ -45,7 +45,7 @@ export interface Column<T extends object = Record<string, unknown>> {
   href?: (row: T) => string | undefined;
   link?: { color?: Color; target?: string; onClick?: (row: T, e: MouseEvent<HTMLElement>) => void; label?: (row: T) => ReactNode };
 }
-export interface SortRule { key: string; dir: "asc" | "desc" }
+interface SortRule { key: string; dir: "asc" | "desc" }
 type RowKey = string | number;
 
 interface DataProps<T extends object, G> {

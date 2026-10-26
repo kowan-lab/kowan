@@ -1,6 +1,6 @@
 import { api } from "../../api/client";
 
-export interface ExposureRisk {
+interface ExposureRisk {
   kind: "database" | "admin" | "docker";
   label: string;
 }
@@ -42,7 +42,7 @@ export interface ExposedDomain extends Owner {
   managedByKowan: boolean;
 }
 
-export interface ProxyInfo {
+interface ProxyInfo {
   kind: "traefik";
   containerId: string;
   name: string;

@@ -1,7 +1,5 @@
-import { Check, Monitor, Moon, Palette as PaletteIcon, Sun } from "lucide-react";
-import { Popover as Pop } from "radix-ui";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip } from "@/ui/kit";
 import { PALETTES, useTheme } from "@/ui/theme";
 
 const MODES = [
@@ -65,27 +63,5 @@ export function ThemePanel() {
         })}
       </ul>
     </div>
-  );
-}
-
-/** Top-bar button that opens the theme panel. */
-export default function ThemePicker() {
-  return (
-    <Pop.Root>
-      <Tooltip content="Theme">
-        <Pop.Trigger
-          aria-label="Theme"
-          className="flex size-12 items-center justify-center text-muted-foreground outline-none transition-colors duration-100 hover:bg-accent hover:text-foreground focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal data-[state=open]:bg-accent data-[state=open]:text-foreground"
-        >
-          <PaletteIcon className="size-6" />
-        </Pop.Trigger>
-      </Tooltip>
-      <Pop.Portal>
-        <Pop.Content align="end" sideOffset={6} className="anim-pop z-50 w-108 border bg-popover p-5 text-popover-foreground shadow-[0_12px_32px_-8px_rgb(0_0_0/0.35)]">
-          <p className="m-0 mb-[8px] text-[12px] font-medium tracking-[0.06em] text-muted-foreground font-mono uppercase">Theme</p>
-          <ThemePanel />
-        </Pop.Content>
-      </Pop.Portal>
-    </Pop.Root>
   );
 }

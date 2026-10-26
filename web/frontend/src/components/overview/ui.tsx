@@ -52,7 +52,7 @@ export function PlusIcon() {
 }
 
 /* ── severity label: CRITICAL / WARNING / WAITING ─────────────────────── */
-export const SEV_TEXT: Record<Sev, string> = {
+const SEV_TEXT: Record<Sev, string> = {
   critical: "text-[var(--tone-red-text)]",
   warning: "text-[var(--tone-amber-text)]",
   waiting: "text-muted-foreground",
@@ -143,7 +143,7 @@ export function SectHead({ title, label, right, standalone }: { title: ReactNode
   );
 }
 
-export function Lbl({ children, className }: { children: ReactNode; className?: string }) {
+function Lbl({ children, className }: { children: ReactNode; className?: string }) {
   return <span className={cn("font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] uppercase text-muted-foreground", className)}>{children}</span>;
 }
 

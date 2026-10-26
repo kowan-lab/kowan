@@ -40,7 +40,7 @@ function px(v?: number | string) {
   return typeof v === "number" ? `${v}px` : v;
 }
 
-export function Field({ id, label, description, errorText, required, fullWidth, width, minWidth, maxWidth, style, className, children }: FieldProps) {
+function Field({ id, label, description, errorText, required, fullWidth, width, minWidth, maxWidth, style, className, children }: FieldProps) {
   return (
     <div
       className={cn("flex min-w-0 flex-col gap-[4px]", fullWidth && "w-full max-w-[640px]", className)}

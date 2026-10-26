@@ -46,7 +46,7 @@ export interface AppContainer {
   update?: ContainerUpdateStatus;
 }
 
-export interface AppPort {
+interface AppPort {
   publicPort: number;
   privatePort: number;
   protocol: string;
@@ -55,7 +55,7 @@ export interface AppPort {
   container: string;
 }
 
-export interface AppAttention {
+interface AppAttention {
   tone: "r" | "a" | "n";
   text: string;
   /** Container the problem is about, when there is one. */
@@ -284,7 +284,7 @@ function describeContainer(c: Container, all: Container[]): Pick<AppContainer, "
   return { tone: "n", label: state ? state[0].toUpperCase() + state.slice(1) : "Unknown", health, exitCode };
 }
 
-export interface ComposeService {
+interface ComposeService {
   name: string;
   /** deploy.replicas, else scale, else 1. */
   replicas: number;
@@ -296,7 +296,7 @@ const composeCache = new Map<string, ComposeService[]>();
 
 /** The services a compose file starts by default (not behind a profile, not
  *  scaled to 0), as the server judges a compose target. [] when it does not parse. */
-export function composeSpec(text: string | undefined): ComposeService[] {
+function composeSpec(text: string | undefined): ComposeService[] {
   if (!text) return [];
   const hit = composeCache.get(text);
   if (hit) return hit;

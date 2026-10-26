@@ -1,6 +1,6 @@
 import { api } from "../../api/client";
 
-export type NetNodeKind = "container" | "network" | "port" | "domain";
+type NetNodeKind = "container" | "network" | "port" | "domain";
 
 export interface NetNode {
   id: string;

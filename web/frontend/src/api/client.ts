@@ -176,23 +176,12 @@ export async function deleteUser(id: string): Promise<void> {
 //
 // Admin-managed, role-scoped keys that authenticate API requests (kowanctl,
 // webhook scripts, CI) without a login. Keys are stored hashed: the list/create
-// endpoints never return the full secret except createApiKey, which returns it
+// endpoints never return the full secret except createScopedApiKey, which returns it
 // EXACTLY ONCE at creation. Afterwards only the `prefix` is shown.
 // ---------------------------------------------------------------------------
 
 export async function listApiKeys(): Promise<APIKey[]> {
   const { data } = await api.get<APIKey[]>("/apikeys");
-  return data;
-}
-
-export async function createApiKey(
-  name: string,
-  role: string,
-): Promise<{ apiKey: APIKey; secret: string }> {
-  const { data } = await api.post<{ apiKey: APIKey; secret: string }>(
-    "/apikeys",
-    { name, role },
-  );
   return data;
 }
 
@@ -1070,10 +1059,6 @@ export async function deployDeployment(id: string): Promise<void> {
   await api.post(`/deployments/${id}/deploy`);
 }
 
-export async function redeployDeployment(id: string): Promise<void> {
-  await api.post(`/deployments/${id}/redeploy`);
-}
-
 export async function stopDeployment(id: string): Promise<void> {
   await api.post(`/deployments/${id}/stop`);
 }
@@ -1558,11 +1543,6 @@ export async function updateContainer(
 // App templates (catalog)
 // ---------------------------------------------------------------------------
 
-export type AppTemplateInput = Pick<
-  import("../types").AppTemplate,
-  "name" | "description" | "category" | "icon" | "type" | "spec" | "compose" | "inputs" | "website"
->;
-
 export async function listTemplates(): Promise<import("../types").AppTemplate[]> {
   const { data } = await api.get<import("../types").AppTemplate[]>("/templates");
   return data;
@@ -1577,19 +1557,6 @@ export async function renderTemplate(
     `/templates/${encodeURIComponent(id)}/render`,
     body,
   );
-  return data;
-}
-
-export async function createTemplate(body: AppTemplateInput): Promise<import("../types").AppTemplate> {
-  const { data } = await api.post<import("../types").AppTemplate>("/templates", body);
-  return data;
-}
-
-export async function updateTemplate(
-  id: string,
-  body: AppTemplateInput,
-): Promise<import("../types").AppTemplate> {
-  const { data } = await api.put<import("../types").AppTemplate>(`/templates/${encodeURIComponent(id)}`, body);
   return data;
 }
 
@@ -1667,9 +1634,6 @@ export async function startImageScan(hostId: string, imageId: string, force = fa
 export async function getHostScans(hostId: string): Promise<import("../types").HostScans> {
   return (await api.get<import("../types").HostScans>(`/hosts/${hostId}/scans`)).data;
 }
-export async function getScanSummary(): Promise<import("../types").HostScanSummary[]> {
-  return (await api.get<import("../types").HostScanSummary[]>("/scans/summary")).data;
-}
 
 // ---------------------------------------------------------------------------
 // Auto-update policies (kowan/api/autoupdate.py)
@@ -1679,9 +1643,6 @@ export interface UpdatePolicyBody {
   window?: string;
   minAge?: string;
   scanBlock?: string;
-}
-export async function getAutoUpdateSettings(): Promise<import("../types").AutoUpdateSettings> {
-  return (await api.get<import("../types").AutoUpdateSettings>("/autoupdate/settings")).data;
 }
 export async function putAutoUpdateSettings(body: Partial<import("../types").AutoUpdateSettings>): Promise<import("../types").AutoUpdateSettings> {
   return (await api.put<import("../types").AutoUpdateSettings>("/autoupdate/settings", body)).data;
@@ -1737,10 +1698,6 @@ export async function addTeamMember(teamId: string, userId: string): Promise<imp
 }
 export async function removeTeamMember(teamId: string, userId: string): Promise<void> {
   await api.delete(`/teams/${teamId}/members/${userId}`);
-}
-export async function listGrants(subjectType?: string, subjectId?: string): Promise<import("../types").Grant[]> {
-  const params = subjectType ? { subjectType, subjectId } : undefined;
-  return (await api.get<import("../types").Grant[]>("/grants", { params })).data;
 }
 export async function createGrant(
   body: import("../types").GrantInput & { subjectType: import("../types").GrantSubjectType; subjectId: string },
@@ -1819,9 +1776,6 @@ export async function validateCompose(body: {
 export async function listGitOpsSyncs(): Promise<import("../types").GitOpsSync[]> {
   return (await api.get<import("../types").GitOpsSync[]>("/gitops/syncs")).data;
 }
-export async function getGitOpsSync(id: string): Promise<import("../types").GitOpsSync> {
-  return (await api.get<import("../types").GitOpsSync>(`/gitops/syncs/${id}`)).data;
-}
 export async function createGitOpsSync(body: import("../types").GitOpsSyncInput): Promise<import("../types").GitOpsSync> {
   return (await api.post<import("../types").GitOpsSync>("/gitops/syncs", body)).data;
 }
@@ -1851,9 +1805,6 @@ export async function listGitOpsManaged(id: string): Promise<import("../types").
 }
 export async function rotateGitOpsWebhook(id: string): Promise<import("../types").GitOpsSync> {
   return (await api.post<import("../types").GitOpsSync>(`/gitops/syncs/${id}/webhook`)).data;
-}
-export async function listGitOpsKinds(): Promise<import("../types").GitOpsKindInfo[]> {
-  return (await api.get<import("../types").GitOpsKindInfo[]>("/gitops/kinds")).data;
 }
 export async function listGitOpsResources(): Promise<import("../types").GitOpsResourceRef[]> {
   return (await api.get<import("../types").GitOpsResourceRef[]>("/gitops/resources")).data;

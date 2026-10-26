@@ -3,7 +3,7 @@ import type { ImageScan, ScanCounts, ScanSeverity } from "../../types";
 import { formatDate } from "../../utils";
 
 /** One colour per severity; colour carries meaning only (DESIGN.md). */
-export const SEVERITY_COLOR: Record<ScanSeverity, Color> = {
+const SEVERITY_COLOR: Record<ScanSeverity, Color> = {
   CRITICAL: "red",
   HIGH: "orange",
   MEDIUM: "amber",

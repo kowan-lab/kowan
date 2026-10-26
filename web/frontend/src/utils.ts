@@ -79,31 +79,6 @@ export function shortId(id: string | undefined): string {
   return id.replace(/^sha256:/, "").slice(0, 12);
 }
 
-/** Pick a badge colour for a container/stack state. */
-export function stateColor(state: string | undefined): string {
-  switch ((state || "").toLowerCase()) {
-    case "running":
-    case "up":
-    case "active":
-    case "deployed":
-      return "green";
-    case "paused":
-    case "restarting":
-    case "created":
-      return "yellow";
-    case "exited":
-    case "dead":
-    case "down":
-    case "stopped":
-    case "degraded":
-    case "error":
-    case "failed":
-      return "red";
-    default:
-      return "gray";
-  }
-}
-
 /** Pick a badge colour for an alert level. */
 export function levelColor(level: string | undefined): string {
   switch ((level || "").toLowerCase()) {

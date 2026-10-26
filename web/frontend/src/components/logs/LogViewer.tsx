@@ -515,5 +515,4 @@ function FilterRow({ code, desc }: { code: string; desc: string }) {
 }
 
 /** Build a container-logs source for the shared viewer. */
-export { TAG_COLORS };
 export type { LogSource };

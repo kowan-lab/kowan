@@ -37,7 +37,7 @@ export interface KnobProps<V extends string = string> {
 }
 
 /** Pointer angle: -120deg (≈8 o'clock) for the first position, 60deg (≈2 o'clock) for the last. */
-export function knobAngle(index: number, count: number): number {
+function knobAngle(index: number, count: number): number {
   if (count <= 1) return -120;
   return -120 + (180 * index) / (count - 1);
 }

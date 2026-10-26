@@ -95,9 +95,3 @@ export function ComposeDiagnostics({ diagnostics, result, loading, error, onJump
     </div>
   );
 }
-
-export function countBySeverity(diags: ComposeDiagnostic[]): Record<DiagnosticSeverity, number> {
-  const c = { error: 0, warning: 0, info: 0 };
-  for (const d of diags) c[d.severity] += 1;
-  return c;
-}

@@ -33,4 +33,3 @@ export function notify(input: NotifyInput): void {
   pick(input.color)(head, description ? { description } : undefined);
 }
 
-export { toast };

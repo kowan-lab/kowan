@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 
-export function useOnline(): boolean {
+function useOnline(): boolean {
   const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
   useEffect(() => {
     const on = () => setOnline(true);

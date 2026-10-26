@@ -14,7 +14,7 @@ import { toneVars, type Color } from "./tone";
  * Numeric spacing follows a compact 3px step (1 = 3px … 6 = 18px), matching the scale
  * the pages were written against. Strings pass through as CSS lengths. */
 const NAMED: Record<string, string> = { xs: "4px", sm: "6px", md: "10px", lg: "12px", xl: "18px" };
-export function space(v: number | string | undefined): string | undefined {
+function space(v: number | string | undefined): string | undefined {
   if (v === undefined) return undefined;
   if (typeof v === "number") return `${2 * Math.floor((v * 3 + 1) / 2)}px`; // even whole pixels only
   return NAMED[v] ?? v;
@@ -236,31 +236,5 @@ export function Progress({ value = 0, color }: { value?: number; color?: Color |
     >
       <div className="h-full rounded-full bg-[var(--t-solid)] transition-[width] duration-500" style={{ width: `${v}%` }} />
     </div>
-  );
-}
-
-/* ── Sparkline ───────────────────────────────────────────────────────────*/
-export function Sparkline({
-  data, height = 40, type = "area", color, strokeWidth = 1.5, max,
-}: { data: number[]; height?: number; type?: "line" | "area"; color?: Color | string; strokeWidth?: number; max?: number }) {
-  const w = 120;
-  const pts = data.length > 1 ? data : [data[0] ?? 0, data[0] ?? 0];
-  const top = max ?? Math.max(1, ...pts);
-  const step = w / (pts.length - 1);
-  const xy = pts.map((v, i) => [i * step, height - 2 - (Math.max(0, v) / top) * (height - 4)] as const);
-  const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  return (
-    <svg
-      viewBox={`0 0 ${w} ${height}`}
-      preserveAspectRatio="none"
-      width="100%"
-      height={height}
-      aria-hidden
-      style={toneVars(color, "primary")}
-      className="block overflow-visible"
-    >
-      {type === "area" && <path d={`${line} L${w},${height} L0,${height} Z`} fill="var(--t-soft)" />}
-      <path d={line} fill="none" stroke="var(--t-solid)" strokeWidth={strokeWidth} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-    </svg>
   );
 }

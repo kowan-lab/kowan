@@ -204,20 +204,6 @@ export interface Registry {
   createdAt: string;
 }
 
-/** One configurable field of a registry type, used to drive the UI. */
-export interface RegistryFieldSpec {
-  key: string;
-  label: string;
-  sensitive: boolean;
-  required: boolean;
-}
-
-/** The config field schema for a single registry type. */
-export interface RegistryType {
-  type: RegistryProviderType | string;
-  fields: RegistryFieldSpec[];
-}
-
 /** Result of testing a registry's connectivity/credentials. */
 export interface RegistryTestResult {
   verified: boolean;
@@ -611,21 +597,6 @@ export interface NotificationChannel {
   connectionRef?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-/** One configurable field of a channel type, used to drive the UI. */
-export interface ChannelFieldSpec {
-  key: string;
-  label: string;
-  sensitive: boolean;
-  required: boolean;
-  placeholder: string;
-}
-
-/** The config field schema for a single channel type. */
-export interface ChannelType {
-  type: NotificationChannelType | string;
-  fields: ChannelFieldSpec[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1046,12 +1017,6 @@ export interface HostScans {
   scanned: number;
   imageCount: number;
 }
-export interface HostScanSummary {
-  hostId: string;
-  scanned: number;
-  lastScanAt: string;
-  counts: ScanCounts;
-}
 
 // ---------------------------------------------------------------------------
 // Auto-update policies — kowan/api/autoupdate.py
@@ -1432,13 +1397,6 @@ export interface GitOpsRun {
   summary: GitOpsSummary | null;
   plan?: GitOpsPlan | null;
   result?: GitOpsRunResult[] | null;
-}
-
-export interface GitOpsKindInfo {
-  kind: string;
-  plural: string;
-  order: number;
-  description: string;
 }
 
 export interface GitOpsManaged {

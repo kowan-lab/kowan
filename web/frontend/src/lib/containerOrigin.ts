@@ -1,5 +1,3 @@
-import type { Color } from "@/ui/kit";
-
 /**
  * Where a container came from, derived entirely from its Docker labels (the
  * backend stamps these; compose stamps its own). No server round-trip needed.
@@ -10,7 +8,7 @@ import type { Color } from "@/ui/kit";
  *    stack (`com.docker.swarm.service.name`), even if created outside Kowan.
  *  - "plain"      — a standalone container, ours to edit/recreate freely.
  */
-export type ContainerOriginKind = "deployment" | "stack" | "plain";
+type ContainerOriginKind = "deployment" | "stack" | "plain";
 
 export interface ContainerOrigin {
   kind: ContainerOriginKind;
@@ -22,12 +20,12 @@ export interface ContainerOrigin {
   service?: string;
 }
 
-export const LABEL_DEPLOYMENT_ID = "kowan.deployment.id";
-export const LABEL_DEPLOYMENT_NAME = "kowan.deployment.name";
-export const LABEL_COMPOSE_PROJECT = "com.docker.compose.project";
-export const LABEL_COMPOSE_SERVICE = "com.docker.compose.service";
-export const LABEL_SWARM_STACK = "com.docker.stack.namespace";
-export const LABEL_SWARM_SERVICE = "com.docker.swarm.service.name";
+const LABEL_DEPLOYMENT_ID = "kowan.deployment.id";
+const LABEL_DEPLOYMENT_NAME = "kowan.deployment.name";
+const LABEL_COMPOSE_PROJECT = "com.docker.compose.project";
+const LABEL_COMPOSE_SERVICE = "com.docker.compose.service";
+const LABEL_SWARM_STACK = "com.docker.stack.namespace";
+const LABEL_SWARM_SERVICE = "com.docker.swarm.service.name";
 
 /** The compose project or swarm stack of a container, or "" (same rule as the
  *  server). A swarm service outside any stack is its own stack, so its tasks,
@@ -76,24 +74,3 @@ export function containerOrigin(
 export function isManaged(origin: ContainerOrigin): boolean {
   return origin.kind !== "plain";
 }
-
-interface OriginBadge {
-  color: Color;
-  label: string;
-  /** Group heading used by the grouped containers table. */
-  group: string;
-}
-
-export function originBadge(origin: ContainerOrigin): OriginBadge {
-  switch (origin.kind) {
-    case "deployment":
-      return { color: "purple", label: "Deployment", group: "Deployments" };
-    case "stack":
-      return { color: "blue", label: "Stack", group: "Stacks" };
-    default:
-      return { color: "neutral", label: "Standalone", group: "Standalone" };
-  }
-}
-
-/** Group order (top → bottom) for the grouped containers table. */
-export const ORIGIN_GROUP_ORDER = ["Deployments", "Stacks", "Standalone"];
