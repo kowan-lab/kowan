@@ -261,6 +261,24 @@ class TestLifecycle(ServiceCase):
 
 
 class TestReconcileAndBackground(ServiceCase):
+    async def test_reconcile_right_after_the_host_boots(self):
+        # Monotonic time starts at boot: a deployment never reconciled is not
+        # "in cooldown" just because the host came up a minute ago.
+        self.save(dep(id="down", name="dn", status="deployed"))
+        dispatched = []
+
+        async def status(dep_id):
+            return [SimpleNamespace(state="exited")]
+
+        async def dispatch(dep_id, *, redeploy=False):
+            dispatched.append(dep_id)
+
+        with mock.patch.object(self.s, "status", status), mock.patch.object(self.s, "dispatch_deploy", dispatch), \
+                mock.patch("kowan.deployment.service.time.monotonic", return_value=5.0):
+            self.assertEqual(await self.s.reconcile_once(), 1)
+            self.assertEqual(await self.s.reconcile_once(), 0)  # now it is
+        self.assertEqual(dispatched, ["down"])
+
     async def test_reconcile_skips_and_dispatches(self):
         self.save(dep(id="paused", name="p", status="deployed", enabled=False))
         self.save(dep(id="stopped", name="s", status="stopped"))

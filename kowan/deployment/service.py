@@ -371,7 +371,11 @@ class DeploymentService:
                 continue
             # Per-deployment cooldown: never reconcile-redeploy the same one more
             # than once per _RECONCILE_COOLDOWN, so a flapping container can't loop.
-            if now - self._reconcile_at.get(dep.id, 0.0) < _RECONCILE_COOLDOWN:
+            # (Never reconciled: no cooldown. A default of 0 would mean "just
+            # now" for the first minutes after the host boots, as monotonic
+            # time starts there.)
+            last = self._reconcile_at.get(dep.id)
+            if last is not None and now - last < _RECONCILE_COOLDOWN:
                 continue
             try:
                 if not await self._needs_reconcile(dep):

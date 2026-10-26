@@ -144,6 +144,9 @@ class UptimeApiCase(ServerCase):
         await super().asyncSetUp()
         self.t = await Target().start()
         self.events = self.svc.bus.subscribe("alert")
+        # The tests drive the probes; the server's own runner would race them
+        # (a new check runs on its next tick, within a second).
+        await self.svc.uptime.stop()
 
     async def asyncTearDown(self):
         await self.t.stop()
@@ -302,7 +305,6 @@ class TestUptimeApi(UptimeApiCase):
 
 class TestRunner(UptimeApiCase):
     async def test_tick_schedules_due_checks_and_prunes(self):
-        await self.svc.uptime.stop()  # only this test's runner probes
         runner = UptimeRunner(self.svc, retention=datetime.timedelta(days=1))
         c = await self.create()
         await self.create(name="off", enabled=False)
