@@ -317,27 +317,40 @@ class _GenStream:
                 await res
 
 
-async def _demux_stdcopy(src: AsyncByteStream) -> bytes:
+# Most exec output kept in memory; the rest of a chatty command is dropped.
+_EXEC_OUTPUT_MAX = 4 << 20
+
+async def _demux_stdcopy(src: AsyncByteStream, limit: int = _EXEC_OUTPUT_MAX) -> bytes:
     """Strip Docker's 8-byte stdout/stderr multiplexing headers from ``src``.
 
     Reimplements ``stdcopy.StdCopy``: when a container has no TTY the Engine
     frames its output as repeated ``[stream(1) 0 0 0 size(4, big-endian)]`` +
     ``size`` payload bytes, interleaving stdout and stderr. We concatenate both
     streams' payloads in order, as if both were written into one pipe. The per-line RFC3339Nano timestamp stays in the payload.
+
+    Frames are decoded as chunks arrive and reading stops once more than
+    ``limit`` payload bytes are out, so a chatty command costs ``limit`` bytes
+    of memory, not its whole output. The result is cut to ``limit``.
     """
-    buf = bytearray()
+    buf = bytearray()   # undecoded input: at most one partial frame
+    out = bytearray()
+    need = 0            # payload bytes still owed to the current frame
     async for chunk in src:
         buf.extend(chunk)
-
-    out = bytearray()
-    i = 0
-    n = len(buf)
-    while i + 8 <= n:
-        size = struct.unpack(">I", bytes(buf[i + 4 : i + 8]))[0]
-        i += 8
-        out.extend(buf[i : i + size])
-        i += size
-    return bytes(out)
+        while buf:
+            if need:
+                take = min(need, len(buf))
+                out.extend(buf[:take])
+                del buf[:take]
+                need -= take
+            elif len(buf) >= 8:
+                need = struct.unpack(">I", bytes(buf[4:8]))[0]
+                del buf[:8]
+            else:
+                break
+        if len(out) > limit:
+            break
+    return bytes(out[:limit])
 
 
 class _RawParser:
@@ -2286,7 +2299,7 @@ class LocalClient(Ops):
         code = insp.get("ExitCode")
         return {
             "exitCode": int(code) if isinstance(code, int) else -1,
-            "output": data[: 4 << 20].decode("utf-8", "replace"),
+            "output": data.decode("utf-8", "replace"),
         }
 
     async def container_relabel(

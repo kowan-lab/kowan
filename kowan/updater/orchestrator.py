@@ -198,20 +198,28 @@ def _pull_line_error(line: bytes) -> str:
     return ""
 
 
-async def read_logs(ops: Any, ref: str, tail: int = 0) -> str:
+# read_logs keeps at most this many bytes: the end of the log, where the
+# helper's outcome is written.
+_LOGS_MAX = 4 << 20
+
+
+async def read_logs(ops: Any, ref: str, tail: int = 0, limit: int = _LOGS_MAX) -> str:
+    """The container's log as text, at most its last ``limit`` bytes."""
     stream = await ops.container_logs(ref, False, tail)
-    parts: List[bytes] = []
+    buf = bytearray()
     try:
         async for chunk in stream:
             if chunk:
-                parts.append(chunk if isinstance(chunk, (bytes, bytearray)) else str(chunk).encode())
+                buf.extend(chunk if isinstance(chunk, (bytes, bytearray)) else str(chunk).encode())
+                if len(buf) > 2 * limit:  # trim in batches, not on every chunk
+                    del buf[:-limit]
     finally:
         close = getattr(stream, "close", None)
         if close is not None:
             res = close()
             if hasattr(res, "__await__"):
                 await res
-    return b"".join(parts).decode("utf-8", "replace")
+    return bytes(buf[-limit:]).decode("utf-8", "replace")
 
 
 class Target:
