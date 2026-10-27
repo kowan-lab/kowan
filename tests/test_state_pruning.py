@@ -1,6 +1,5 @@
 """Per-id locks and caches drop entries nobody uses any more."""
 
-import asyncio
 import unittest
 from unittest import mock
 
