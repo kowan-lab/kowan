@@ -9,7 +9,6 @@ Label contract (documented in docs/labels.md)::
     kowan.update.min-age=2d               see parse_duration
     kowan.scan.block=never|critical|high|worse
     kowan.notify=off                      no monitor / auto-update alerts
-    kowan.hidden=true                     hidden from lists by default (UI)
 
 Precedence: container label > stored policy (UI/API) > global default. The
 resolved policy carries a ``sources`` map so the UI can show "from label" and
@@ -30,7 +29,6 @@ LABEL_WINDOW = "kowan.update.window"
 LABEL_MIN_AGE = "kowan.update.min-age"
 LABEL_SCAN_BLOCK = "kowan.scan.block"
 LABEL_NOTIFY = "kowan.notify"
-LABEL_HIDDEN = "kowan.hidden"
 
 MODE_OFF = "off"
 MODE_NOTIFY = "notify"

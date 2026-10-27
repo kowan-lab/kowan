@@ -28,7 +28,6 @@ from typing import Any, Dict, List
 from aiohttp import web
 
 from kowan.autoupdate.policy import (
-    LABEL_HIDDEN,
     LABEL_MIN_AGE,
     LABEL_NOTIFY,
     LABEL_SCAN_BLOCK,
@@ -45,7 +44,7 @@ from kowan.web import SERVICES_KEY, api_route, error_response, json_response, op
 
 log = logging.getLogger("kowan.api.autoupdate")
 
-KOWAN_LABELS = (LABEL_UPDATE, LABEL_WINDOW, LABEL_MIN_AGE, LABEL_SCAN_BLOCK, LABEL_NOTIFY, LABEL_HIDDEN)
+KOWAN_LABELS = (LABEL_UPDATE, LABEL_WINDOW, LABEL_MIN_AGE, LABEL_SCAN_BLOCK, LABEL_NOTIFY)
 
 
 def register(app: web.Application, svc: Any) -> None:

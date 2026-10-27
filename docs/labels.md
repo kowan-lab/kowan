@@ -14,7 +14,6 @@ Precedence for every auto-update field: **label > stored policy (UI/API) > globa
 | `kowan.update.min-age` | duration, e.g. `2d`, `36h`, `1d12h`, `1w` (bare number = days) | none | Only apply an image once it is at least this old. |
 | `kowan.scan.block` | `never` \| `critical` \| `high` \| `worse` | global default (`never`) | Scan gate for updates of this container. |
 | `kowan.notify` | `off` (also `false`, `0`, `no`) | on | No monitor alerts and no auto-update alerts for this container (history is still recorded). |
-| `kowan.hidden` | `true` | false | Hidden from the Containers list by default; a "Show hidden (n)" toggle reveals it. |
 
 An invalid label value is ignored and reported on the container's
 Auto-update panel. An invalid `kowan.update` falls back to `off` (never to a
@@ -34,7 +33,6 @@ services:
   debug-tools:
     image: nicolaka/netshoot
     labels:
-      kowan.hidden: "true"
       kowan.notify: "off"
 ```
 
