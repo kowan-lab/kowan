@@ -42,7 +42,6 @@ import type {
   User,
   Volume,
   VolumeCreateOptions,
-  VolumeFile,
   VolumeListing,
   Workflow,
   WorkflowRun,
