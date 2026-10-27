@@ -24,7 +24,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from . import trivy
 
@@ -108,7 +108,8 @@ class ScanService:
         self.timeout = timeout
         self.poll = poll
         self._inflight: Dict[Tuple[str, str], "asyncio.Future[Dict[str, Any]]"] = {}
-        self._host_sems: Dict[str, asyncio.Semaphore] = {}
+        # host -> [semaphore, scans using it]; dropped when the count is 0.
+        self._host_sems: Dict[str, List[Any]] = {}
         # (host, image id) -> started_at, for the UI's "scanning..." state.
         self.running: Dict[Tuple[str, str], str] = {}
 
@@ -184,10 +185,20 @@ class ScanService:
         await _drain_pull(await ops.pull_image(image, ""))
 
     async def _run(self, host_id: str, ops: Any, insp: Dict[str, Any], requested: str) -> Dict[str, Any]:
-        sem = self._host_sems.setdefault(host_id, asyncio.Semaphore(PER_HOST_CONCURRENCY))
+        started = self._clock()
+        slot = self._host_sems.setdefault(host_id, [asyncio.Semaphore(PER_HOST_CONCURRENCY), 0])
+        slot[1] += 1
+        try:
+            return await self._run_limited(slot[0], host_id, ops, insp, requested, started)
+        finally:
+            slot[1] -= 1
+            if not slot[1]:
+                self._host_sems.pop(host_id, None)
+
+    async def _run_limited(self, sem: asyncio.Semaphore, host_id: str, ops: Any, insp: Dict[str, Any],
+                           requested: str, started: float) -> Dict[str, Any]:
         image_id = str(insp["Id"])
         target = pick_target(insp, requested)
-        started = self._clock()
         rec: Dict[str, Any] = {
             "imageId": image_id,
             "imageRef": target if not target.startswith("sha256:") else "",

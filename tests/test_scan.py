@@ -213,6 +213,7 @@ class TestService(unittest.TestCase):
         ops.polls = 0
         asyncio.run(svc.scan("h1", "sha256:abc", ops=ops, force=True))
         self.assertEqual(len(ops.created), 2)
+        self.assertEqual(svc._host_sems, {})  # no scan running: no per-host state
 
     def test_failure_recorded_and_raised(self):
         ops = FakeOps(exit_code=1, output=b"FATAL image scan error")
@@ -223,6 +224,7 @@ class TestService(unittest.TestCase):
         rec = self.store.get_image_scan("sha256:abc")
         self.assertEqual(rec["status"], "error")
         self.assertEqual(ops.removed, ["scan-cid"])
+        self.assertEqual(svc._host_sems, {})
 
     def test_failed_rescan_keeps_good_result(self):
         svc = ScanService(_Svc(self.store), sleep=_nosleep)

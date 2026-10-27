@@ -417,6 +417,10 @@ class VolumeBackupService:
     def _lock(self, repo_id: str) -> asyncio.Lock:
         lk = self._locks.get(repo_id)
         if lk is None:
+            # Drop the idle locks first so the table holds only ids in use: a
+            # lock nobody holds or waits on has no one to hand over to.
+            for key in [key for key, other in self._locks.items() if not other.locked()]:
+                del self._locks[key]
             lk = self._locks[repo_id] = asyncio.Lock()
         return lk
 

@@ -434,6 +434,8 @@ class UpdateManager:
             dig, err = await asyncio.wait_for(agentupdate._remote_digest(self.store, image_ref), 15), ""
         except Exception as err2:  # noqa: BLE001
             dig, err = "", f"check registry: {err2}"
+        for ref in [ref for ref, entry in self._latest.items() if entry[0] <= now]:
+            del self._latest[ref]  # expired: images no longer asked about
         self._latest[image_ref] = (now + (LATEST_CACHE_TTL if not err else 60.0), dig, err)
         return dig, err
 
