@@ -967,6 +967,9 @@ export interface ComponentUpdateStatus {
   latestVersion?: string;
   newVersion?: boolean;
   releaseError?: string;
+  /** The image an update with no explicit image moves to: a version tag
+   *  older than the newest release becomes that release's tag. */
+  updateImage?: string;
 }
 
 // ---------------------------------------------------------------------------

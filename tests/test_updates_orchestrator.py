@@ -12,7 +12,7 @@ from kowan.models import Host
 from kowan.store import Store
 from kowan.updater import reconcile as rc
 from kowan.updater.helper import Swap
-from kowan.updater.orchestrator import UpdateError, UpdateManager
+from kowan.updater.orchestrator import UpdateError, UpdateManager, release_image
 from kowan.updater.plan import plan_from_cmd, result_line
 from kowan.updater.reconcile import Reconciler, fold_result
 from tests.updates_fakes import FakeClock, FakeDaemon, FakeEngine, FakeOps
@@ -104,7 +104,49 @@ class _Base(unittest.IsolatedAsyncioTestCase):
         return res, plan
 
 
+class TestReleaseImage(unittest.TestCase):
+    def test_pinned_release_moves_to_the_newest(self):
+        self.assertEqual(release_image("ghcr.io/kowan-lab/kowan:0.1.3", "0.1.4"), "ghcr.io/kowan-lab/kowan:0.1.4")
+        self.assertEqual(release_image("ghcr.io/kowan-lab/kowan:v0.1.3", "0.1.4"), "ghcr.io/kowan-lab/kowan:0.1.4")
+        self.assertEqual(release_image("localhost:5000/kowan:0.1.3@sha256:ab", "0.2.0"), "localhost:5000/kowan:0.2.0")
+
+    def test_other_refs_update_in_place(self):
+        for ref in ("ghcr.io/kowan-lab/kowan", "ghcr.io/kowan-lab/kowan:latest", "ghcr.io/kowan-lab/kowan:0.1",
+                    "localhost:5000/kowan", "kowan:custom", "sha256:abc"):
+            self.assertEqual(release_image(ref, "0.1.4"), ref)
+        # Already on (or past) the newest release, or no release known.
+        self.assertEqual(release_image("kowan:0.1.4", "0.1.4"), "kowan:0.1.4")
+        self.assertEqual(release_image("kowan:0.2.0", "0.1.4"), "kowan:0.2.0")
+        self.assertEqual(release_image("kowan:0.1.3", ""), "kowan:0.1.3")
+
+
+class _Releases:
+    def __init__(self, latest):
+        self._latest = latest
+
+    async def latest(self, refresh=False):
+        return self._latest, ""
+
+    async def status(self, refresh=False):
+        return {"currentVersion": "0.1.3", "latestVersion": self._latest, "newVersion": True, "releaseError": ""}
+
+
 class TestServerUpdate(_Base):
+    async def test_update_without_image_takes_the_newest_release(self):
+        # The server runs a pinned release; "update" with no image must not
+        # pull 0.1.3 again but move to 0.1.4.
+        self.d.add_image("kowan:0.1.3", "healthy", version="0.1.3")
+        self.d.add_image("kowan:0.1.4", "healthy", version="0.1.4")
+        self.d.containers.pop(self.server)
+        mounts = [{"Type": "bind", "Source": "/var/run/docker.sock", "Destination": "/var/run/docker.sock", "RW": True},
+                  {"Type": "volume", "Name": "kowan-data", "Destination": self.dir, "RW": True}]
+        self.server = self.d.add_container("kowan-server", "kowan:0.1.3", env=["KOWAN_SECRET_KEY=s"], mounts=mounts)
+        self.svc.releases = _Releases("0.1.4")
+        st = await self.m.status("server")
+        self.assertEqual((st["image"], st["updateImage"]), ("kowan:0.1.3", "kowan:0.1.4"))
+        rec = await self.drive(await self.m.start("server", user="admin"))
+        self.assertEqual((rec["toImage"], rec["toVersion"]), ("kowan:0.1.4", "0.1.4"), rec)
+
     async def test_status_shape(self):
         st = await self.m.status("server")
         self.assertTrue(st["supported"], st)

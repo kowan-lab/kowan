@@ -37,8 +37,11 @@ clear reason. Swarm services and Kubernetes are out of scope.
 
 1. **Lock**: one update per component at a time (row in `updates` with status
    `running`; stale after 30 min).
-2. **Resolve** the target image ref. Default: same tag as running. Optional
-   explicit `image` (pin a version, e.g. `ghcr.io/kowan-lab/kowan:1.4.2`).
+2. **Resolve** the target image ref. Default: the running ref; when it is
+   pinned to a release older than the newest one (`kowan:0.1.3` with 0.1.4
+   out), that release's tag instead (`kowan:0.1.4`), so a pinned server does
+   not pull the same version again. Status reports it as `updateImage`.
+   Optional explicit `image` (pin a version, e.g. `ghcr.io/kowan-lab/kowan:1.4.2`).
 3. **Pull** the image on the target daemon (registry auth from stored registries).
    Record digest. Verify the image OS/arch matches the daemon.
 4. **Server only: DB snapshot** into `<data>/backups/pre-update-<id>.db` using the

@@ -108,6 +108,26 @@ def image_version(image_inspect: Dict[str, Any]) -> str:
     return str(labels.get(LABEL_VERSION) or "")
 
 
+def release_image(image_ref: str, latest_version: str) -> str:
+    """The image an update with no explicit image moves to.
+
+    A reference pinned to a release (``kowan:0.1.3``) would only pull the same
+    version again, so it moves to the newest release's tag (``kowan:0.1.4``).
+    Any other tag (``latest``, ``0.1``, a custom one) is updated in place.
+    """
+    from ..releases import is_newer, parse
+
+    ref = (image_ref or "").split("@", 1)[0]
+    slash = ref.rfind("/")
+    colon = ref.rfind(":")
+    if colon <= slash:
+        return image_ref  # no tag: "latest"
+    repo, tag = ref[:colon], ref[colon + 1:]
+    if parse(tag) is None or not is_newer(latest_version, tag):
+        return image_ref
+    return f"{repo}:{latest_version}"
+
+
 def image_digest(image_inspect: Dict[str, Any], ref: str = "") -> str:
     """Registry digest of an image (``sha256:...``) or, for a local-only build,
     its image id so the history still identifies it."""
@@ -439,6 +459,17 @@ class UpdateManager:
         self._latest[image_ref] = (now + (LATEST_CACHE_TTL if not err else 60.0), dig, err)
         return dig, err
 
+    async def _default_image(self, target: Target) -> str:
+        """``release_image`` of the target, with the newest release known."""
+        releases = getattr(self.svc, "releases", None)
+        latest = ""
+        if releases is not None:
+            try:
+                latest, _ = await releases.latest()
+            except Exception:  # noqa: BLE001 - no release info: update in place
+                latest = ""
+        return release_image(target.image_ref, latest)
+
     async def previous_info(self, target: Target) -> Optional[Dict[str, str]]:
         try:
             prev = await target.ops.inspect_container(previous_name(target.name))
@@ -479,6 +510,7 @@ class UpdateManager:
             "version": "", "running": "", "latest": "", "updateAvailable": False,
             "canRollback": False, "previous": None, "inProgress": in_progress, "last": last,
             "currentVersion": "", "latestVersion": "", "newVersion": False, "releaseError": "",
+            "updateImage": "",
         }
         releases = getattr(self.svc, "releases", None)
         if releases is not None:
@@ -499,6 +531,7 @@ class UpdateManager:
         res.update({
             "supported": True, "image": target.image_ref, "container": target.name,
             "version": target.version, "running": target.digest,
+            "updateImage": release_image(target.image_ref, res["latestVersion"]),
         })
         res["previous"] = await self.previous_info(target)
         res["canRollback"] = res["previous"] is not None and in_progress is None
@@ -669,7 +702,7 @@ class UpdateManager:
             "waitSeconds": self.helper_wait,
         }
         if mode == MODE_UPDATE:
-            ref = rec.get("toImage") or target.image_ref
+            ref = rec.get("toImage") or await self._default_image(target)
             if not ref:
                 raise _Abort("cannot tell which image the target runs; pass an explicit image")
             rec["toImage"] = ref

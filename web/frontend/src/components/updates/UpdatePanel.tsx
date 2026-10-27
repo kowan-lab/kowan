@@ -271,6 +271,10 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
     </>
   );
 
+  // What an update with no image moves to: the newest release's tag when the
+  // running image is pinned to an older version, else the same image.
+  const target = s?.updateImage || s?.image || "";
+
   if (!s?.supported) {
     return (
       <div className="flex flex-col gap-6">
@@ -299,7 +303,7 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
           <div className="flex flex-wrap items-start justify-end gap-3">
             {checkButton}
             {s.canRollback && <Button variant="outline" size="sm" iconLeft="history-rounded" disabled={busy} onClick={() => setConfirm("rollback")}>Roll back</Button>}
-            <Button size="sm" iconLeft="upgrade-rounded" disabled={busy} onClick={() => setConfirm("update")}>{s.updateAvailable ? "Update now" : "Update"}</Button>
+            <Button size="sm" iconLeft="upgrade-rounded" disabled={busy} onClick={() => setConfirm("update")}>{s.newVersion && s.latestVersion ? `Update to ${s.latestVersion}` : s.updateAvailable ? "Update now" : "Update"}</Button>
           </div>
         )}
       </div>
@@ -334,7 +338,10 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
               Kowan pulls the new image, smoke-tests it, then swaps the container. The current version is kept aside{isServer ? " and the database is snapshotted" : ""}: if the new one does not pass its health check, everything is restored automatically.
             </p>
             {isServer && <Callout color="info">The console is unavailable for a few seconds while the server restarts. This page reconnects on its own.</Callout>}
-            <TextInput label="Image (optional)" description={`Leave empty to update ${s.image} in place, or pin a version such as ${s.image.split(":")[0]}:1.2.0.`} value={pin} onChange={(e) => setPin(e.target.value)} placeholder={s.image} />
+            <p className="m-0 text-[13px]">
+              New image: <strong className="font-mono break-all">{pin.trim() || target}</strong>
+            </p>
+            <TextInput label="Another image (optional)" description={`Leave empty to use ${target}, or pin a version such as ${s.image.split(":")[0]}:1.2.0.`} value={pin} onChange={(e) => setPin(e.target.value)} placeholder={target} />
           </Popup.Body>
           <Popup.Footer>
             <Button variant="clear" onClick={() => setConfirm(null)}>Cancel</Button>

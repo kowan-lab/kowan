@@ -141,8 +141,12 @@ describe("settings page", () => {
       api: {
         "GET /system/server/update": (r: { query: Record<string, string> }) => {
           if (r.query.refresh) latest = "1.1.0";
-          return status({ updateAvailable: latest !== "1.0.0", currentVersion: "1.0.0", latestVersion: latest, newVersion: latest !== "1.0.0" });
+          return status({
+            image: "ghcr.io/acme/kowan:1.0.0", updateImage: `ghcr.io/acme/kowan:${latest}`,
+            updateAvailable: latest !== "1.0.0", currentVersion: "1.0.0", latestVersion: latest, newVersion: latest !== "1.0.0",
+          });
         },
+        "POST /system/server/update": { id: "u1" },
       },
     });
     expect(await screen.findByText("up to date", {}, { timeout: 10_000 })).toBeInTheDocument();
@@ -152,7 +156,13 @@ describe("settings page", () => {
     expect(await screen.findByText("newer version available")).toBeInTheDocument();
     expect(screen.getByText("1.1.0")).toBeInTheDocument();
     expect(requests("GET", "/system/server/update").some((r) => r.query.refresh === "1")).toBe(true);
-    expect(screen.getByRole("button", { name: /update now/i })).toBeInTheDocument();
+    // A server pinned to 1.0.0 updates to the new release's tag, no image to type.
+    await press(user, /update to 1\.1\.0/i);
+    const d = await dialog(/update the server/i);
+    expect(within(d).getByText("ghcr.io/acme/kowan:1.1.0")).toBeInTheDocument();
+    await press(user, /start update/i, d);
+    await waitFor(() => expect(requests("POST", "/system/server/update")).toHaveLength(1));
+    expect(requests("POST", "/system/server/update")[0].body ?? {}).toEqual({});
   });
 
   it("shows versions and Check for a server run from source", async () => {
