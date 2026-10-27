@@ -165,6 +165,49 @@ class TestMux(unittest.IsolatedAsyncioTestCase):
         await client.close()
         await server.close()
 
+    async def test_window_overrun_resets_stream(self):
+        # A peer that ignores flow control (sends DATA past the credit it was
+        # granted) gets its stream reset instead of growing our buffer.
+        from kowan.mux.stream import StreamReset
+        client, server = await make_pair(window=1024)
+        cs = await client.open_stream()
+        await cs.write(b"a" * 1024)  # exactly the window: accepted
+        ss = await server.accept_stream()
+        await client._send_data(cs.id, b"b")  # one byte over, bypassing the window
+        for _ in range(100):
+            if ss._reset:
+                break
+            await asyncio.sleep(0)
+        with self.assertRaises(StreamReset):
+            await ss.read()
+        self.assertNotIn(ss.id, server._streams)
+        self.assertEqual(len(ss._recv_buf), 0)
+        # The offender learns about it too.
+        for _ in range(100):
+            if cs._reset:
+                break
+            await asyncio.sleep(0)
+        self.assertTrue(cs._reset)
+        await client.close()
+        await server.close()
+
+    async def test_refused_peer_streams(self):
+        # The control plane never accepts streams: an agent-opened one is reset
+        # at once and nothing waits in the accept queue.
+        from kowan.mux.stream import StreamReset
+        ta, tb = memory_pair()
+        client = Session(ta, is_client=True, accept_streams=False).start()
+        server = Session(tb, is_client=False).start()
+        ss = await server.open_stream()
+        with self.assertRaises(StreamReset):
+            for _ in range(100):
+                await ss.write(b"x")
+                await asyncio.sleep(0)
+        self.assertEqual(client._accept_q.qsize(), 0)
+        self.assertEqual(client._streams, {})
+        await client.close()
+        await server.close()
+
 
 if __name__ == "__main__":
     unittest.main()

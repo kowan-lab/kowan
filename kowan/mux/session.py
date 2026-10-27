@@ -24,10 +24,14 @@ log = logging.getLogger("kowan.mux")
 
 class Session:
     def __init__(self, transport, *, is_client: bool,
-                 window: int = DEFAULT_WINDOW):
+                 window: int = DEFAULT_WINDOW, accept_streams: bool = True):
         self._t = transport
         self._is_client = is_client
         self._window = window
+        # False on a side that never calls accept_stream() (the control plane):
+        # peer SYNs are refused with a RST instead of piling up in _accept_q
+        # for the life of the session.
+        self._accept_streams = accept_streams
         self._streams: dict[int, Stream] = {}
         self._accept_q: asyncio.Queue = asyncio.Queue()
         self._next_id = 1 if is_client else 2  # odd for client, even for server
@@ -127,6 +131,9 @@ class Session:
             return
         if flags & frame.FLAG_SYN:
             # Peer opened a new stream.
+            if not self._accept_streams:
+                await self._send_rst(sid)
+                return
             if sid not in self._streams:
                 s = Stream(self, sid, self._window)
                 self._streams[sid] = s
@@ -146,8 +153,11 @@ class Session:
             return
 
         if typ == frame.TYPE_DATA:
-            if payload:
-                s._feed(payload)
+            if payload and not s._feed(payload):
+                log.warning("mux: peer overran the receive window on stream %d", sid)
+                await s.reset()
+                await s._do_reset()
+                return
             if flags & frame.FLAG_FIN:
                 s._feed_eof()
         elif typ == frame.TYPE_WINDOW_UPDATE:

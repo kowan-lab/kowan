@@ -40,7 +40,8 @@ async def establish_server_side(transport, *, dialed: bool, token: str | None = 
         if verify is None:
             raise ValueError("atos/server-accept requires a token verifier")
         resolved = await acceptor_handshake(transport, verify)
-    session = Session(transport, is_client=True).start()
+    # The control plane only opens streams; it never accepts agent-opened ones.
+    session = Session(transport, is_client=True, accept_streams=False).start()
     return resolved, session
 
 

@@ -45,9 +45,17 @@ class Stream:
     # ------------------------------------------------------------------ #
     # Called by the session reader task (single task, so no locking here) #
     # ------------------------------------------------------------------ #
-    def _feed(self, data: bytes) -> None:
+    def _feed(self, data: bytes) -> bool:
+        """Buffer peer data. Returns False, buffering nothing, when the peer
+        sent more than the credit we granted: bytes it has sent and we have not
+        credited back yet are ``_recv_buf`` + ``_pending_consumed``, and that
+        may never exceed the window. A peer that ignores flow control would
+        otherwise grow ``_recv_buf`` without bound."""
+        if len(self._recv_buf) + self._pending_consumed + len(data) > self._window:
+            return False
         self._recv_buf.extend(data)
         self._data_avail.set()
+        return True
 
     def _feed_eof(self) -> None:
         self._recv_eof = True
@@ -62,6 +70,7 @@ class Stream:
     async def _do_reset(self) -> None:
         self._reset = True
         self._recv_eof = True
+        self._recv_buf.clear()  # reads raise from now on; free the bytes
         self._data_avail.set()
         async with self._send_cond:
             self._send_cond.notify_all()
