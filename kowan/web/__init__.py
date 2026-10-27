@@ -12,32 +12,41 @@ Public surface (the contract every api module depends on):
 
 from __future__ import annotations
 
-from .app import (
-    API_PREFIX,
-    REQUEST_ID_KEY,
-    REQUEST_USER_KEY,
-    SERVICES_KEY,
-    Services,
-    add_public_route,
-    add_spa,
-    add_webhooks,
-    api_route,
-    bind_svc,
-    create_app,
-    now_rfc3339,
-    require_role,
-    user_from,
-)
-from .audit import audit_middleware, client_ip
-from .responses import (
-    JSONError,
-    error_response,
-    ops_error_response,
-    json_response,
-    read_body,
-    read_json,
-    reject_unknown_fields,
-)
+from kowan._lazy import lazy_exports
+
+_EXPORTS = {
+    ".app": (
+        "API_PREFIX",
+        "REQUEST_ID_KEY",
+        "REQUEST_USER_KEY",
+        "SERVICES_KEY",
+        "Services",
+        "add_public_route",
+        "add_spa",
+        "add_webhooks",
+        "api_route",
+        "bind_svc",
+        "create_app",
+        "now_rfc3339",
+        "require_role",
+        "user_from",
+    ),
+    ".audit": (
+        "audit_middleware",
+        "client_ip",
+    ),
+    ".responses": (
+        "JSONError",
+        "error_response",
+        "ops_error_response",
+        "json_response",
+        "read_body",
+        "read_json",
+        "reject_unknown_fields",
+    ),
+}
+
+__getattr__, __dir__ = lazy_exports(__name__, _EXPORTS)
 
 __all__ = [
     "API_PREFIX",

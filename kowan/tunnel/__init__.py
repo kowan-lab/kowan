@@ -13,9 +13,22 @@ every host identically via ``Hub.dial(host_id)``, and either side may open
 streams (server -> agent host-ops, agent -> server event push).
 """
 
-from .endpoint import establish_server_side, establish_agent_side
-from .handshake import HandshakeError
-from .hub import Hub
+from kowan._lazy import lazy_exports
+
+_EXPORTS = {
+    ".endpoint": (
+        "establish_server_side",
+        "establish_agent_side",
+    ),
+    ".handshake": (
+        "HandshakeError",
+    ),
+    ".hub": (
+        "Hub",
+    ),
+}
+
+__getattr__, __dir__ = lazy_exports(__name__, _EXPORTS)
 
 __all__ = [
     "establish_server_side",
