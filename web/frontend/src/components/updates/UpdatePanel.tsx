@@ -84,7 +84,7 @@ function PhaseTimeline({ update }: { update: PlatformUpdate }) {
         const current = running && last && p.ok;
         return (
           <li key={`${p.phase}-${i}`} className="flex items-start gap-[8px] border-l py-[4px] pl-5 text-[13px]">
-            <span className="mt-[2px] shrink-0">
+            <span className="pt-[2px] shrink-0">
               {current ? (
                 <Loader2 className="size-[12px] animate-spin text-signal" />
               ) : p.ok ? (
@@ -144,7 +144,7 @@ function UpdateDetail({ update }: { update: PlatformUpdate }) {
       <PhaseTimeline update={update} />
       {update.logs.length > 0 && (
         <div className="flex flex-col gap-[4px]">
-          <span className="text-[12px] font-medium tracking-[0.06em] text-muted-foreground font-mono uppercase">Logs of the failed version</span>
+          <span className="text-[12px] font-medium tracking-normal text-muted-foreground font-sans ">Logs of the failed version</span>
           <Code block className="max-h-96">{update.logs.join("\n")}</Code>
         </div>
       )}
@@ -259,12 +259,12 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
   const versions = (
     <>
       <div className="flex flex-col gap-[2px]">
-        <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Running</span>
+        <span className="text-[12px] tracking-normal text-muted-foreground font-sans ">Running</span>
         <span className="font-mono text-[17px] font-semibold">{running || "—"}</span>
         {s?.image && <span className="truncate font-mono text-[12px] text-muted-foreground" title={s.image}>{s.image}</span>}
       </div>
       <div className="flex flex-col gap-[2px]">
-        <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Latest release</span>
+        <span className="text-[12px] tracking-normal text-muted-foreground font-sans ">Latest release</span>
         <span className={cn("font-mono text-[17px] font-semibold", s?.newVersion && "text-[var(--tone-amber-text)]")} title={s?.latest || undefined}>{latestLabel}</span>
         <span className="text-[12px] text-muted-foreground" role="status">{latestNote}</span>
       </div>
@@ -295,7 +295,7 @@ export default function UpdatePanel({ component, hostId, isAdmin }: { component:
       <div className="grid gap-x-12 gap-y-5 sm:grid-cols-[repeat(3,minmax(0,max-content))_1fr]">
         {versions}
         <div className="flex flex-col gap-[2px]">
-          <span className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">Previous</span>
+          <span className="text-[12px] tracking-normal text-muted-foreground font-sans ">Previous</span>
           <span className="font-mono text-[17px] font-semibold">{s.previous ? versionOf(s.previous.version, s.previous.digest) : "—"}</span>
           <span className="text-[12px] text-muted-foreground">{s.canRollback ? "kept for rollback" : "none kept yet"}</span>
         </div>

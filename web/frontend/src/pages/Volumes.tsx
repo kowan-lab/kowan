@@ -477,6 +477,9 @@ export default function Volumes() {
       type: "link",
       sortable: true,
       accessor: (v) => v.name,
+      truncate: true,
+      minWidth: 180,
+      maxWidth: 360,
       href: (v) => detailPath(v),
       link: {
         color: "info",
@@ -508,11 +511,13 @@ export default function Volumes() {
       header: "Mountpoint",
       grow: true,
       accessor: (v) => v.mountpoint || "",
-      // `data-wrap-cell` opts this cell out of the global single-line ellipsis
-      // clamp (see scale.css) so the full path wraps instead of truncating.
+      // Keep the fleet list scannable; the full path is available on hover and in the detail.
+      minWidth: 180,
+      maxWidth: 300,
+      truncate: true,
       cell: (v) =>
         v.mountpoint ? (
-          <span data-wrap-cell>
+          <span className="block truncate text-muted-foreground" title={v.mountpoint}>
             <Code>{v.mountpoint}</Code>
           </span>
         ) : (

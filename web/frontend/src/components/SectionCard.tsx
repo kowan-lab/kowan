@@ -19,24 +19,25 @@ export interface SectionCardProps {
 }
 
 /**
- * A titled section: a full-bleed band between hairlines, not a boxed card.
- * Tables inside it run edge to edge and drop their own frame.
+ * A titled card: the heading band (title, description, actions) sits inside
+ * the frame, then the body. Tables inside it run edge to edge and drop their
+ * own frame.
  */
 export default function SectionCard({ title, description, actions, noBodyPadding = false, hideHeaderDivider = false, plain = false, children }: SectionCardProps) {
   const hasHeader = !plain && Boolean(title || description || actions);
   return (
-    <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
+    <section className="min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)]">
       {hasHeader && (
-        <div className={cn("flex min-h-22 flex-wrap items-center justify-between gap-x-6 gap-y-3 px-8 py-3", !hideHeaderDivider && "shadow-[inset_0_-1px_0_var(--border)]")}>
+        <div className={cn("flex min-h-[52px] flex-wrap items-center justify-between gap-[12px] px-[16px] py-[10px]", !hideHeaderDivider && "shadow-[inset_0_-1px_0_var(--border)]")}>
           <div className="flex min-w-0 flex-col">
-            {title && (typeof title === "string" ? <h2 className="m-0 text-[14px] leading-[18px] font-bold tracking-[0.02em] text-foreground uppercase">{title}</h2> : title)}
+            {title && (typeof title === "string" ? <h2 className="m-0 text-[16px] leading-[24px] font-semibold tracking-normal text-foreground">{title}</h2> : title)}
             {description && <p className="m-0 text-[13px] leading-[18px] text-muted-foreground">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 flex-wrap items-center gap-3">{actions}</div>}
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-[8px]">{actions}</div>}
         </div>
       )}
       <InPanel.Provider value={true}>
-        <div className={cn("flex min-w-0 flex-col", !noBodyPadding && "gap-6 px-8 py-8")}>{children}</div>
+        <div className={cn("flex min-w-0 flex-col", !noBodyPadding && "gap-[16px] p-[16px]")}>{children}</div>
       </InPanel.Provider>
     </section>
   );

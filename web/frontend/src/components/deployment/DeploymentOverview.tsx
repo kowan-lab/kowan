@@ -12,7 +12,7 @@ import EmptyState from "../EmptyState";
 import SectionCard from "../SectionCard";
 import type { Deployment } from "../../types";
 import { errorMessage, formatDate, timeAgo } from "../../utils";
-import { useCanOperate, useDeploymentStatus, useLifecycle } from "./shared";
+import { useCanOperate, useDeploymentStatus } from "./shared";
 
 /* ── small layout pieces ──────────────────────────────────────────────── */
 
@@ -22,7 +22,7 @@ function KV({ rows }: { rows: { label: string; value: ReactNode; hint?: ReactNod
     <dl className="m-0">
       {rows.map((r) => (
         <div key={r.label} className="grid gap-x-6 gap-y-2 border-b px-[var(--page-px,16px)] py-3 last:border-0 sm:grid-cols-[180px_minmax(0,1fr)]">
-          <dt className="pt-[2px] text-[12px] font-medium tracking-[0.06em] text-muted-foreground font-mono uppercase">{r.label}</dt>
+          <dt className="pt-[2px] text-[12px] font-medium tracking-normal text-muted-foreground font-sans ">{r.label}</dt>
           <dd className="m-0 flex min-w-0 flex-col gap-2 text-[13px]">
             <div className="flex min-w-0 items-center gap-2">{r.value}</div>
             {r.hint && <div className="text-[12px] text-muted-foreground">{r.hint}</div>}
@@ -39,13 +39,12 @@ const Muted = ({ children }: { children: ReactNode }) => <span className="text-m
  *  that is down, or a deploy waiting for a worker. */
 export function DeploymentHealth({ deployment: d, onShowLogs }: { deployment: Deployment; onShowLogs: () => void }) {
   const status = useDeploymentStatus(d);
-  const life = useLifecycle(d);
-  const canOperate = useCanOperate();
+
 
   if (d.status === "error") {
     const msg = (status.data ?? []).map((t) => t.message).find((m) => m) ?? "";
     return (
-      <Callout color="danger" title="The last operation failed">
+      <Callout color="warning" title="The last deployment failed">
         <Box direction="column" gap={2}>
           {msg ? (
             <pre className="m-0 max-h-60 overflow-auto font-mono text-[13px] break-words whitespace-pre-wrap">{msg}</pre>
@@ -53,12 +52,7 @@ export function DeploymentHealth({ deployment: d, onShowLogs }: { deployment: De
             <Text size="sm">No error detail was kept (the server restarted, or containers exist but did not stay up). Check the container logs.</Text>
           )}
           <Box direction="row" gap={2} wrap>
-            {canOperate && (
-              <Button size="sm" iconLeft="rocket-launch-outline-rounded" loading={life.acting("deploy")} onClick={() => life.run("deploy")}>
-                Redeploy
-              </Button>
-            )}
-            <Button size="sm" variant="outline" color="neutral" iconLeft="description-outline-rounded" onClick={onShowLogs}>
+            <Button size="sm" iconLeft="description-outline-rounded" onClick={onShowLogs}>
               View logs
             </Button>
           </Box>

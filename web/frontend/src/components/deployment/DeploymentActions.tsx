@@ -22,7 +22,7 @@ import type { Deployment } from "../../types";
 import { errorMessage } from "../../utils";
 import { deployInFlight, neverDeployed, useLifecycle } from "./shared";
 
-export default function DeploymentActions({ deployment: d }: { deployment: Deployment }) {
+export default function DeploymentActions({ deployment: d, compact = false }: { deployment: Deployment; compact?: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const life = useLifecycle(d);
@@ -99,17 +99,17 @@ export default function DeploymentActions({ deployment: d }: { deployment: Deplo
 
   return (
     <>
-      {canStop && (
+      {!compact && canStop && (
         <Button variant="outline" color="neutral" iconLeft="stop-rounded" loading={life.acting("stop")} disabled={life.busy} onClick={() => life.run("stop")}>
           Stop
         </Button>
       )}
-      {canStart && (
+      {!compact && canStart && (
         <Button variant="outline" color="neutral" iconLeft="play-arrow-rounded" loading={life.acting("start")} disabled={life.busy} onClick={() => life.run("start")}>
           Start
         </Button>
       )}
-      {host && d.strategy !== "swarm" && !isGit && (
+      {!compact && host && d.strategy !== "swarm" && !isGit && (
         <ExposeButton
           hostId={host}
           name={d.name}
@@ -121,10 +121,13 @@ export default function DeploymentActions({ deployment: d }: { deployment: Deplo
       <Menu placement="bottom-end">
         <Menu.Trigger>
           <Button variant="outline" color="neutral" iconRight="arrow-drop-down-rounded">
-            More
+            {compact ? "Actions" : "More"}
           </Button>
         </Menu.Trigger>
         <Menu.Content ariaLabel="More deployment actions">
+          {compact && <Menu.Item iconLeft="rocket-launch-outline-rounded" disabled={inFlight || life.busy || (isGit && sync.isPending)} onSelect={()=>life.run("deploy")}>{inFlight ? "Deploying…" : first ? "Deploy" : "Redeploy"}</Menu.Item>}
+          {compact && canStop && <Menu.Item iconLeft="stop-rounded" disabled={life.busy} onSelect={()=>life.run("stop")}>Stop</Menu.Item>}
+          {compact && canStart && <Menu.Item iconLeft="play-arrow-rounded" disabled={life.busy} onSelect={()=>life.run("start")}>Start</Menu.Item>}
           {isGit && (
             <Menu.Item iconLeft="download-rounded" disabled={inFlight || sync.isPending} onSelect={() => sync.mutate()}>
               Pull latest commit
@@ -154,7 +157,7 @@ export default function DeploymentActions({ deployment: d }: { deployment: Deplo
           </Menu.Item>
         </Menu.Content>
       </Menu>
-      <Tooltip content={inFlight ? "A deploy is already running" : first ? "Create the containers on the host" : "Recreate the containers from the saved configuration"}>
+      {!compact && <Tooltip content={inFlight ? "A deploy is already running" : first ? "Create the containers on the host" : "Recreate the containers from the saved configuration"}>
         <Button
           iconLeft="rocket-launch-outline-rounded"
           loading={life.acting("deploy") || (isGit && sync.isPending)}
@@ -163,7 +166,7 @@ export default function DeploymentActions({ deployment: d }: { deployment: Deplo
         >
           {inFlight ? "Deploying…" : first ? "Deploy" : "Redeploy"}
         </Button>
-      </Tooltip>
+      </Tooltip>}
 
       <ConfirmModal
         opened={confirm === "destroy"}

@@ -16,7 +16,7 @@ import { useContainerFilter, useFeatures } from "../../lib/features";
 const ITEM =
   "flex h-14 cursor-default items-center gap-[8px] rounded-md px-[8px] text-[13px] outline-none select-none data-[selected=true]:bg-accent";
 const GROUP =
-  "[&_[cmdk-group-heading]]:px-[8px] [&_[cmdk-group-heading]]:pt-[8px] [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:uppercase";
+  "[&_[cmdk-group-heading]]:px-[8px] [&_[cmdk-group-heading]]:pt-[8px] [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:font-sans [&_[cmdk-group-heading]]:";
 
 /**
  * ⌘K command palette: jump to any page, host, container or deployment, and run

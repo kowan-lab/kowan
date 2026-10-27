@@ -1,5 +1,13 @@
 # Kowan — Changelog
 
+## 0.1.7 — 2026-10-27
+
+- **A new look, the same on every page.** Each page opens with a header card: the breadcrumb trail with a button that goes up one level, the title, its facts on one line and the actions beside them. Below it, sections are framed cards and page sections are tabs in a toolbar card.
+- **Workloads.** Tabs split All, Managed and Not managed, with the filters on the same toolbar; the table's Kind column says whether Kowan manages each workload.
+- **A workload's page.** Its facts sit in the header; Resources shows CPU, memory and network side by side with their charts, and the automation settings (updates, backups, schedule, domains) are switched inline.
+- **A container's page.** One card on the left holds how it runs and how it is wired: runtime, ports, mounts, networks, environment and labels. Live resources, the other containers of its stack and its schedules sit beside it.
+- **Overview.** A single host shows its CPU, memory and disk in one Resources card, the first five workloads (problems first), and what needs attention beside what happened recently.
+
 ## 0.1.6 — 2026-10-27
 
 - **Updating an agent or restarting the server no longer marks deployments as failed.** While a host could not be reached, the reconcile pass took its containers as missing, redeployed, failed and left the deployment showing "The last operation failed" with no detail. It now leaves an unreachable host alone and picks it up again once it is back. A deployment already marked as failed this way needs one Redeploy.

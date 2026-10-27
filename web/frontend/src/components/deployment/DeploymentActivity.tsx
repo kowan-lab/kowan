@@ -88,7 +88,7 @@ export default function DeploymentActivity({ deployment: d, isAdmin }: { deploym
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-0 text-[13px]">
           <thead className="border-b bg-sunken/70">
-            <tr className="text-left text-[12px] font-medium tracking-[0.06em] text-muted-foreground font-mono uppercase">
+            <tr className="text-left text-[12px] font-medium tracking-normal text-muted-foreground font-sans ">
               <th scope="col" className="px-5 py-3 pl-[var(--page-px,16px)] font-medium">When</th>
               <th scope="col" className="px-5 py-3 font-medium">Action</th>
               <th scope="col" className="px-5 py-3 font-medium">Result</th>

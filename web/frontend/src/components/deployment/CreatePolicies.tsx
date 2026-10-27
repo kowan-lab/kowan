@@ -156,7 +156,7 @@ export async function applyCreatePolicies(dep: Deployment, p: CreatePoliciesValu
   return out;
 }
 
-const LBL = "font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] text-muted-foreground uppercase";
+const LBL = "font-sans text-[12px] leading-[16px] font-semibold tracking-normal text-muted-foreground ";
 
 function Cell({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (

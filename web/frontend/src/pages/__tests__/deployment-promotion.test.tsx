@@ -117,7 +117,7 @@ describe("promotion panel", () => {
 
   it("is hidden when there is nothing to show", async () => {
     renderApp("/workloads/dep~d-api", { role: "viewer", api: { "GET /deployments/:id": api, "GET /deployments": [api, staging] } as never });
-    await screen.findByRole("heading", { name: /policies and wiring/i }, { timeout: 10_000 });
+    await screen.findByRole("heading", { name: /automation & access/i }, { timeout: 10_000 });
     await waitFor(() => expect(requests("GET", "/deployments").length).toBeGreaterThan(0));
     expect(screen.queryByRole("heading", { name: "Promotion" })).toBeNull();
   });

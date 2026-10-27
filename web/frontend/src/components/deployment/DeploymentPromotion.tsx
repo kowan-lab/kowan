@@ -48,6 +48,8 @@ export default function DeploymentPromotion({ deployment: d, canOperate }: { dep
 
   return (
     <Band
+      card
+      padded
       title="Promotion"
       count={target ? `to ${target.name}` : sources.length ? `from ${sources.map((s) => s.name).join(", ")}` : "not set"}
       right={

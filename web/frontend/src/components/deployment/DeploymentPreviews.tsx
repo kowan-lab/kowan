@@ -81,6 +81,8 @@ export default function DeploymentPreviews({ deployment: d, canOperate }: { depl
 
   return (
     <Band
+      card
+      padded
       title="Preview environments"
       count={on ? `${previews.length} of ${settings!.max}` : "off"}
       right={

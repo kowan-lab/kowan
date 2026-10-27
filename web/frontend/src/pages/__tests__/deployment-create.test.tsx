@@ -35,7 +35,7 @@ describe("new deployment", () => {
     // After creating: protection, webhook, notify on updates, a start/stop schedule.
     await user.click(within(page).getByLabelText(/protect from deletion/i));
     await user.click(within(page).getByLabelText(/create a redeploy webhook/i));
-    await user.click(within(page).getByRole("slider", { name: /auto-update/i }));
+    await user.selectOptions(within(page).getByRole("combobox", { name: /auto-update/i }), "notify");
     await user.click(within(page).getByRole("switch", { name: /schedule/i }));
     await user.click(within(page).getByLabelText(/deploy right after creating/i)); // off: don't deploy
     await press(user, /^create$/i, page);

@@ -1,4 +1,4 @@
-import { Box, Card, Text } from "@/ui/kit";
+import { Box, Text } from "@/ui/kit";
 
 interface FormSectionProps {
   title: string;
@@ -35,12 +35,12 @@ export default function FormSection({
     <Box direction="column" gap={1} style={{ minWidth: 0 }}>
       <Box direction="row" align="center" gap={2}>
         {icon}
-        <Text size="sm" weight="semibold">
+        <Text as="h2" size="lg" weight="semibold">
           {title}
         </Text>
       </Box>
       {description && (
-        <Text size="xs" color="muted">
+        <Text size="sm" color="muted">
           {description}
         </Text>
       )}
@@ -88,13 +88,11 @@ export default function FormSection({
   }
 
   return (
-    <Card variant="default">
-      <Card.Body>
+    <section className="form-section">
         <Box direction="column" gap={4}>
           {header}
           {children}
         </Box>
-      </Card.Body>
-    </Card>
+    </section>
   );
 }

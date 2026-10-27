@@ -23,7 +23,7 @@ const toneStyle = (t: Tone) =>
   }) as React.CSSProperties;
 
 export const RULE_B = "shadow-[inset_0_-1px_0_var(--border)]";
-export const FRAME = "bg-card shadow-[inset_0_0_0_1px_var(--border)]";
+export const FRAME = "min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)]";
 
 /* ── icons (D's 16px line set and 12px severity glyphs) ───────────────── */
 export function SevGlyph({ sev, className }: { sev: Sev; className?: string }) {
@@ -60,7 +60,7 @@ const SEV_TEXT: Record<Sev, string> = {
 
 export function SevLabel({ sev }: { sev: Sev }) {
   return (
-    <span className={cn("inline-flex items-center gap-[6px] font-mono text-[12px] leading-none font-bold tracking-[0.06em] uppercase", SEV_TEXT[sev])}>
+    <span className={cn("inline-flex items-center gap-[6px] font-sans text-[12px] leading-none font-bold tracking-normal ", SEV_TEXT[sev])}>
       <SevGlyph sev={sev} />
       {sev}
     </span>
@@ -72,7 +72,7 @@ export function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
     <span
       style={toneStyle(tone)}
-      className="inline-flex h-[20px] items-center gap-[6px] px-[7px] align-top font-mono text-[12px] leading-none font-semibold tracking-[0.04em] whitespace-nowrap uppercase text-[var(--tt)] bg-[color-mix(in_srgb,var(--t)_10%,var(--card))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--t)_45%,var(--card))]"
+      className="inline-flex h-[24px] items-center gap-[6px] px-[7px] align-top font-sans text-[12px] leading-none font-semibold tracking-normal whitespace-nowrap  text-[var(--tt)] bg-[color-mix(in_srgb,var(--t)_10%,var(--card))]"
     >
       <i aria-hidden className="size-[4px] shrink-0 rounded-full bg-[var(--t)]" />
       {children}
@@ -93,7 +93,7 @@ export function Dot({ tone, size = 8 }: { tone: Tone; size?: 6 | 8 }) {
 
 export function HostChip({ name, online }: { name: string; online: boolean }) {
   return (
-    <span className="inline-flex h-[20px] items-center gap-[6px] px-[6px] align-top bg-popover font-mono text-[12px] leading-none font-semibold whitespace-nowrap text-foreground shadow-[inset_0_0_0_1px_var(--border)]">
+    <span className="inline-flex h-[24px] items-center gap-[6px] px-[6px] align-top bg-popover font-mono text-[12px] leading-none font-semibold whitespace-nowrap text-foreground shadow-[inset_0_0_0_1px_var(--border)]">
       <Dot tone={online ? "green" : "red"} size={6} />
       <span className="sr-only">{online ? "online host" : "offline host"} </span>
       {name}
@@ -116,7 +116,7 @@ interface BtnProps {
 export function Btn({ children, to, onClick, solid, sm, disabled, busy, title }: BtnProps) {
   const cls = cn(
     "inline-flex shrink-0 items-center gap-[6px] font-sans text-[13px] leading-none font-semibold whitespace-nowrap no-underline transition-transform duration-[60ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-    sm ? "h-[28px] px-[10px]" : "h-[32px] px-[12px]",
+    sm ? "h-[36px] px-[12px]" : "h-[40px] px-[16px]",
     solid
       ? "bg-primary text-primary-foreground hover:opacity-90"
       : "bg-popover text-foreground shadow-[inset_0_0_0_1px_var(--border)] hover:bg-muted hover:shadow-[inset_0_0_0_1px_var(--input)]",
@@ -132,11 +132,11 @@ export function Btn({ children, to, onClick, solid, sm, disabled, busy, title }:
   );
 }
 
-/* ── section head (D .sect / .band-h) ─────────────────────────────────── */
-export function SectHead({ title, label, right, standalone }: { title: ReactNode; label?: ReactNode; right?: ReactNode; standalone?: boolean }) {
+/* ── section head: the top band of a FRAME card ───────────────────────── */
+export function SectHead({ title, label, right }: { title: ReactNode; label?: ReactNode; right?: ReactNode }) {
   return (
-    <div className={cn("flex min-h-[44px] items-center gap-[12px] px-[16px]", standalone ? FRAME : RULE_B)}>
-      <h2 className="m-0 font-sans text-[14px] leading-[18px] font-bold tracking-[0.02em] uppercase">{title}</h2>
+    <div className="flex min-h-[52px] flex-wrap items-center gap-[12px] px-[16px] py-[8px] shadow-[inset_0_-1px_0_var(--border)]">
+      <h2 className="m-0 font-sans text-[16px] leading-[24px] font-semibold tracking-normal">{title}</h2>
       {label != null && <Lbl>{label}</Lbl>}
       {right && <div className="ml-auto flex items-center gap-[8px]">{right}</div>}
     </div>
@@ -144,14 +144,17 @@ export function SectHead({ title, label, right, standalone }: { title: ReactNode
 }
 
 function Lbl({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn("font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] uppercase text-muted-foreground", className)}>{children}</span>;
+  return <span className={cn("font-sans text-[13px] leading-[20px] font-normal tracking-normal  text-muted-foreground", className)}>{children}</span>;
 }
 
 /* ── meters ───────────────────────────────────────────────────────────── */
-/** D .bar: 56×6 track, ink fill; turns amber/red only when the value means it. */
-export function Bar({ value }: { value: number }) {
+/**
+ * D .bar: 56×6 track, ink fill; turns amber/red only when the value means it.
+ * A share of a whole (`share`) stays ink: a big part is not a problem.
+ */
+export function Bar({ value, share }: { value: number; share?: boolean }) {
   const v = Math.max(0, Math.min(100, value));
-  const fill = v >= 90 ? "bg-[var(--tone-red-solid)]" : v >= 75 ? "bg-[var(--tone-amber-solid)]" : "bg-foreground";
+  const fill = share ? "bg-foreground" : v >= 90 ? "bg-[var(--tone-red-solid)]" : v >= 75 ? "bg-[var(--tone-amber-solid)]" : "bg-foreground";
   return (
     <span aria-hidden className="relative inline-block h-[6px] w-[56px] shrink-0 bg-muted align-middle shadow-[inset_0_0_0_1px_var(--border)]">
       <i className={cn("absolute inset-y-0 left-0", fill)} style={{ width: `${v}%` }} />

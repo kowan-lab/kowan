@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronRight, CircleAlert, ExternalLink, HeartPulse, MoreHorizontal, Play, RotateCcw, ScrollText, Square, SquareTerminal, WifiOff } from "lucide-react";
+import { ChevronRight, CircleAlert, ExternalLink, HeartPulse, RotateCcw, ScrollText, SquareTerminal, WifiOff } from "lucide-react";
 import { Menu, Skeleton } from "@/ui/kit";
 import {
   containerAction,
@@ -38,7 +38,7 @@ import { PoliciesTab, PolicyStrip } from "../components/apps/PolicyPanels";
 import WorkloadResources from "../components/apps/WorkloadResources";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import ScaleControl from "../components/apps/ScaleControl";
-import { Band, Btn, BtnLink, CalloutBar, Crumbs, Dot, Fact, LBL, Pill, StateSquares, Tag, btnClass } from "../components/apps/ui";
+import { Band, Btn, BtnLink, CalloutBar, Crumbs, LBL, Pill, StateSquares, Tag, btnClass } from "../components/apps/ui";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -168,7 +168,7 @@ function NotFound({ scope, missing, error, name }: { scope: string; missing: boo
     <>
       <section className="bg-card px-[16px] pt-[14px] pb-[16px] shadow-[inset_0_0_0_1px_var(--border)]">
         <Crumbs hostScope={scope} parts={[{ label: "Workloads", to: "/workloads" }, { label: missing ? "Not found" : "Error" }]} />
-        <h1 className="m-0 mt-[8px] text-[28px] leading-[36px] font-bold tracking-[-0.015em]">{missing ? "Workload not found" : "Couldn't load the workload"}</h1>
+        <h1 className="m-0 pt-[8px] text-[28px] leading-[36px] font-bold tracking-[-0.015em]">{missing ? "Workload not found" : "Couldn't load the workload"}</h1>
       </section>
       <section className="bg-card shadow-[inset_0_0_0_1px_var(--border)]">
         <div className="flex max-w-[680px] flex-col items-start gap-[10px] px-[16px] py-[32px]">
@@ -187,8 +187,8 @@ function NotFound({ scope, missing, error, name }: { scope: string; missing: boo
 // ---------------------------------------------------------------------------
 
 function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, extra?: Record<string, string | null>) => void }) {
-  const { hostId: scope } = useHost();
   const { user } = useAuth();
+  const { hostId: scope } = useHost();
   const canOperate = useCanOperate();
   const pc = usePolicyControls(app);
   const [params] = useSearchParams();
@@ -201,9 +201,7 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
   const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts }).data ?? [];
   const host = app.hostIds[0] ?? "";
   const hostName = hosts.find((h) => h.id === host)?.name || host;
-  const hostOnline = hosts.find((h) => h.id === host)?.online ?? !app.stale;
   const d = app.deployment;
-  const pub = app.ports.filter((p) => p.public);
   const configLabel = d ? "Configuration" : app.kind === "stack" ? "Compose" : "Config";
   const tabs: { id: Tab; label: string; extra?: ReactNode }[] = [
     { id: "overview", label: "Overview", extra: <span className="font-mono text-[12px] leading-none font-medium text-muted-foreground">{app.total}</span> },
@@ -226,60 +224,67 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
     tabRefs.current[n]?.focus();
   };
 
+  const kind = d ? (d.type === "compose" ? (d.strategy === "swarm" ? "Swarm deployment" : "Compose deployment") : "Container deployment") : app.kind === "stack" && isSwarm(app) ? "Swarm stack" : KIND_LABEL[app.kind];
+  const pub = app.ports.filter((p) => p.public);
+  const facts: [string, ReactNode][] = [
+    ["Host", <Link to={`/hosts/${encodeURIComponent(host)}`} className="text-foreground no-underline hover:underline">{hostName}</Link>],
+    ["Kind", kind],
+    ["Source", d ? (d.git?.repoUrl ? "Git repository" : "Kowan") : "Discovered from Docker"],
+    ...(d ? [["Last deploy", d.status] as [string, ReactNode]] : []),
+    ["Exposed", pub.length ? pub.map((p) => `:${p.publicPort}`).join(" ") : "internal only"],
+    ["Created", app.createdAt ? <span title={formatDate(app.createdAt)}>{timeAgo(app.createdAt)}</span> : "unknown"],
+  ];
+
   return (
     <>
       <section className="bg-card px-[16px] pt-[14px] shadow-[inset_0_0_0_1px_var(--border)]">
         <Crumbs hostScope={scope} parts={[{ label: "Workloads", to: "/workloads" }, { label: app.name }]} />
-        <div className="mt-[8px] flex flex-wrap items-center gap-[14px]">
-          <h1 className="m-0 min-w-0 truncate text-[28px] leading-[36px] font-bold tracking-[-0.015em]">{app.name}</h1>
+        <div className="mt-[6px] flex flex-wrap items-center gap-[16px]">
+          <h1 className="m-0 min-w-0 truncate text-[24px] leading-[32px] font-extrabold tracking-[-0.02em] uppercase">{app.name}</h1>
           <Pill tone={app.tone}>{app.label}</Pill>
           <div className="ml-auto flex flex-wrap gap-[8px]">
-            {d ? (canOperate ? <DeploymentActions deployment={d} /> : null) : <ContainerActions app={app} canOperate={canOperate} />}
+            <Btn solid onClick={() => setTab("logs")}>View logs</Btn>
+            {d ? (canOperate ? <DeploymentActions deployment={d} compact /> : null) : <ContainerActions app={app} canOperate={canOperate} />}
           </div>
         </div>
-        <div className="mt-[14px] flex flex-wrap gap-y-[10px] pb-[16px]">
-          <Fact label="Host">
-            <Dot tone={hostOnline ? "g" : "r"} />
-            <Link to={`/hosts/${encodeURIComponent(host)}`} className="text-foreground no-underline hover:underline">{hostName}</Link>
-          </Fact>
-          <Fact label="Kind">{d ? (d.type === "compose" ? (d.strategy === "swarm" ? "Swarm deployment" : "Compose deployment") : "Container deployment") : app.kind === "stack" && isSwarm(app) ? "Swarm stack" : KIND_LABEL[app.kind]}</Fact>
-          <Fact label="Source">{d ? (d.git?.repoUrl ? "Git repository" : "Kowan deployment") : app.kind === "stack" ? "Discovered from labels" : "Standalone"}</Fact>
-          <Fact label="Exposed" mono>{pub.length ? pub.map((p) => `:${p.publicPort}`).join(" ") : "internal only"}</Fact>
-          <Fact label="Created">
-            <span title={app.createdAt ? formatDate(app.createdAt) : undefined}>{app.createdAt ? timeAgo(app.createdAt) : "—"}</span>
-          </Fact>
-        </div>
-        <div role="tablist" aria-label={`${app.name} sections`} className="-mx-[16px] flex overflow-x-auto px-[8px] shadow-[inset_0_1px_0_var(--border)]">
-          {tabs.map((t, i) => {
-            const on = t.id === tab;
-            return (
-              <button
-                key={t.id}
-                ref={(el) => {
-                  tabRefs.current[i] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`app-tab-${t.id}`}
-                aria-selected={on}
-                aria-controls={`app-panel-${t.id}`}
-                tabIndex={on ? 0 : -1}
-                onClick={() => setTab(t.id)}
-                onKeyDown={(e) => onTabKey(e, i)}
-                className={cn(
-                  "relative inline-flex h-[44px] items-center gap-[8px] px-[12px] text-[14px] leading-none whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
-                  on ? "font-semibold text-foreground after:absolute after:right-[12px] after:bottom-0 after:left-[12px] after:h-[2px] after:bg-[var(--signal)]" : "font-medium text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t.label}
-                {t.extra}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap gap-x-[24px] gap-y-[4px] pt-[10px] pb-[16px]">
+          {facts.map(([k, v]) => (
+            <span key={k} className={LBL}>
+              {k} <b className="font-semibold text-foreground">{v}</b>
+            </span>
+          ))}
         </div>
       </section>
+      <div role="tablist" aria-label={`${app.name} sections`} className="flex items-stretch gap-[4px] overflow-x-auto overflow-y-hidden bg-card px-[12px] shadow-[inset_0_0_0_1px_var(--border)]">
+        {tabs.map((t, i) => {
+          const on = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              ref={(el) => {
+                tabRefs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`app-tab-${t.id}`}
+              aria-selected={on}
+              aria-controls={`app-panel-${t.id}`}
+              tabIndex={on ? 0 : -1}
+              onClick={() => setTab(t.id)}
+              onKeyDown={(e) => onTabKey(e, i)}
+              className={cn(
+                "inline-flex h-[52px] items-center gap-[8px] border-b-2 px-[12px] text-[14px] leading-none font-semibold whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
+                on ? "border-[var(--foreground)] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+              {t.extra}
+            </button>
+          );
+        })}
+      </div>
 
-      <div role="tabpanel" id={`app-panel-${tab}`} aria-labelledby={`app-tab-${tab}`} className="flex min-w-0 flex-col gap-[12px]">
+      <div role="tabpanel" id={`app-panel-${tab}`} aria-labelledby={`app-tab-${tab}`} className="flex min-w-0 flex-col gap-[20px]">
         {tab === "overview" && <Overview app={app} pc={pc} onLogs={() => setTab("logs")} />}
         {tab === "logs" && <LogRetentionControl workload={app.id} />}
         {tab === "logs" &&
@@ -330,31 +335,13 @@ function ContainerActions({ app, canOperate }: { app: App; canOperate: boolean }
   const single = app.kind === "container" ? app.containers[0] : undefined;
   return (
     <>
-      {idle.length > 0 && (
-        <Btn disabled={off} aria-busy={busy("start") || undefined} onClick={() => act.mutate({ targets: idle, action: "start", label: app.name })}>
-          <Play className={ICON} strokeWidth={1.5} aria-hidden />
-          {busy("start") ? "Starting…" : app.kind === "stack" && running.length ? `Start ${idle.length}` : "Start"}
-        </Btn>
-      )}
-      {running.length > 0 && (
-        <Btn disabled={off} aria-busy={busy("restart") || undefined} onClick={() => act.mutate({ targets: running, action: "restart", label: app.name })}>
-          <RotateCcw className={ICON} strokeWidth={1.5} aria-hidden />
-          {busy("restart") ? "Restarting…" : "Restart"}
-        </Btn>
-      )}
-      {running.length > 0 && (
-        <Btn disabled={off} aria-busy={busy("stop") || undefined} onClick={() => act.mutate({ targets: running, action: "stop", label: app.name })}>
-          <Square className={ICON} strokeWidth={1.5} aria-hidden />
-          {busy("stop") ? "Stopping…" : "Stop"}
-        </Btn>
-      )}
       <Menu placement="bottom-end">
-        <Menu.Trigger>
-          <Btn icon aria-label="More actions">
-            <MoreHorizontal className={ICON} strokeWidth={1.5} aria-hidden />
-          </Btn>
-        </Menu.Trigger>
-        <Menu.Content ariaLabel="More actions">
+        <Menu.Trigger><Btn>Actions</Btn></Menu.Trigger>
+        <Menu.Content ariaLabel="Workload actions">
+          {idle.length > 0 && <Menu.Item disabled={off} iconLeft="play-arrow-rounded" onSelect={() => act.mutate({ targets: idle, action: "start", label: app.name })}>{busy("start") ? "Starting…" : app.kind === "stack" && running.length ? `Start ${idle.length}` : "Start"}</Menu.Item>}
+          {running.length > 0 && <Menu.Item disabled={off} iconLeft="refresh-rounded" onSelect={() => act.mutate({ targets: running, action: "restart", label: app.name })}>{busy("restart") ? "Restarting…" : "Restart"}</Menu.Item>}
+          {running.length > 0 && <Menu.Item disabled={off} iconLeft="stop-rounded" onSelect={() => act.mutate({ targets: running, action: "stop", label: app.name })}>{busy("stop") ? "Stopping…" : "Stop"}</Menu.Item>}
+          <Menu.Separator />
           {single ? (
             <MenuLink to={`/containers/${single.container.id}?host=${encodeURIComponent(single.hostId)}`}>Open container page</MenuLink>
           ) : (
@@ -468,7 +455,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
       return {};
     }
   });
-  const isOpen = (g: { name: string; tone: string }) => folds[g.name] ?? (g.tone === "r" || g.tone === "a");
+  const isOpen = (g: { name: string; tone: string }) => folds[g.name] ?? (groups.length === 1 || g.tone === "r" || g.tone === "a");
   const toggle = (name: string) => {
     const g = groups.find((x) => x.name === name);
     const next = { ...folds, [name]: !(g && isOpen(g)) };
@@ -492,7 +479,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
           <Link to={ctrHref(c)} onClick={(e) => e.stopPropagation()} className={cn("no-underline hover:underline", isReplaced(c) ? "text-muted-foreground opacity-70" : "font-semibold text-foreground")}>{c.name}</Link>
         </td>
         <td className={TD}><Pill tone={c.tone}>{c.label}</Pill>{c.update?.updateAvailable && <Pill tone="a" className="ml-[6px]">Update</Pill>}</td>
-        <td className={cn(TD, "font-mono max-sm:hidden", isReplaced(c) && "text-muted-foreground opacity-70")}>{c.container.image}</td>
+        <td className={cn(TD, "max-w-[360px] truncate font-mono max-sm:hidden", isReplaced(c) && "text-muted-foreground opacity-70")} title={c.container.image}>{c.container.image}</td>
         <td className={cn(TD, "font-mono max-sm:hidden")}>{ports.join(", ") || "—"}</td>
         <td className={cn(TD, "text-right")}>
           <span className="inline-flex justify-end gap-[2px]" onClick={(e) => e.stopPropagation()}>
@@ -522,12 +509,13 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
       {d?.preview && <PreviewBanner deployment={d} />}
       {deployProblem ? <DeploymentHealth deployment={d} onShowLogs={onLogs} /> : <ProblemBanner app={app} onLogs={onLogs} />}
       <Band
+        card
         title="Containers"
         count={app.total}
         right={d?.type === "container" && d.strategy === "swarm" && !app.stale ? <ScaleControl deployment={d} service={d.name} canOperate={canOperate} /> : undefined}
       >
         {app.total === 0 ? (
-          <div className="flex max-w-[680px] flex-col items-start gap-[10px] px-[16px] py-[24px]">
+          <div className="flex max-w-[680px] flex-col items-start gap-[10px] p-[16px]">
             <p className="m-0 text-muted-foreground">
               {app.stale ? "The host is offline, so its containers can't be listed." : app.deployment ? "Nothing of this deployment runs on its host. Deploy it to create its containers." : "No containers."}
             </p>
@@ -582,14 +570,23 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
         )}
       </Band>
       <WorkloadResources workload={app.id} />
-      <Band title="Policies and wiring" count="turn a knob to change it here" right={<Link to={appHref(app, "policies")} className={btnClass({ size: "sm" })}>All policies</Link>}>
-        <PolicyStrip app={app} pc={pc} />
-      </Band>
-      {d?.git?.repoUrl && <DeploymentGitSource deployment={d} />}
-      {d?.git?.repoUrl && !d.preview && d.strategy === "standalone" && <DeploymentPreviews deployment={d} canOperate={canOperate} />}
-      {d && <DeploymentPromotion deployment={d} canOperate={canOperate} />}
-      {d && <DeploymentUptime deployment={d} />}
-      {d && <DeploymentWebhook deployment={d} />}
+      <div className={cn("grid items-start gap-[20px]", d && "min-[1100px]:grid-cols-2")}>
+        <Band card title="Automation & access" right={<Link to={appHref(app, "policies")} className={btnClass({ size: "sm" })}>All policies</Link>}>
+          <div className="px-[16px]">
+            <PolicyStrip app={app} pc={pc} />
+          </div>
+        </Band>
+        {d && (
+          // Each is its own card: source, previews, promotion, uptime and webhook.
+          <div className="flex min-w-0 flex-col gap-[20px]">
+            {d.git?.repoUrl && <DeploymentGitSource deployment={d} />}
+            {d.git?.repoUrl && !d.preview && d.strategy === "standalone" && <DeploymentPreviews deployment={d} canOperate={canOperate} />}
+            <DeploymentPromotion deployment={d} canOperate={canOperate} />
+            <DeploymentUptime deployment={d} />
+            <DeploymentWebhook deployment={d} />
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -663,7 +660,7 @@ function ComposeView({ app }: { app: App }) {
             })}
           </pre>
         </Band>
-        <div className="flex min-w-0 flex-col gap-[12px]">
+        <div className="flex min-w-0 flex-col gap-[28px]">
           <Band title="Compose file">
             <dl className="m-0 grid grid-cols-[104px_minmax(0,1fr)]">
               {[

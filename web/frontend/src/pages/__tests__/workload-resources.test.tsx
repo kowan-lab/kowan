@@ -39,14 +39,26 @@ describe("workload resources panel", () => {
     });
     const band = (await screen.findByRole("heading", { name: "Resources" }, { timeout: 10_000 })).closest("section")!;
     expect(await within(band).findByText(/memory keeps growing/i)).toBeInTheDocument();
-    expect(within(band).getByText(/now 12\.0% CPU/)).toBeInTheDocument();
+    expect(within(band).getByText(/12\.0/)).toBeVisible();
     expect(within(band).getByText(/peak 22\.0%/)).toBeInTheDocument();
     expect(within(band).getByText(/limit 1(\.0)? GB/)).toBeInTheDocument();
-    expect(within(band).getByText("Network (KiB/s)")).toBeInTheDocument();
+    // The network KPI: the last rate, split in and out; its chart is always shown.
+    expect(within(band).getByText(/chart in KiB\/s/)).toBeInTheDocument();
     expect(requests("GET", "/resource-history/:w")[0]).toMatchObject({ path: "/resource-history/dep~d-shop", query: { hours: "24" } });
     await user.click(within(band).getByRole("tab", { name: "7d" }));
     await waitFor(() => expect(requests("GET", "/resource-history/:w").at(-1)!.query.hours).toBe("168"));
     await waitFor(() => expect(within(band).queryByText(/memory keeps growing/i)).toBeNull());
+  });
+
+  it("keeps range controls available after selecting an empty range", async () => {
+    const { user } = renderApp("/workloads/dep~d-shop", { api: {
+      "GET /resource-history/:w": r => ({ hours: Number(r.query.hours), points: r.query.hours === "6" ? [] : [point(0), point(1)], growth: null }),
+    } });
+    await screen.findByRole("heading", { name: "Resources" }, { timeout: 10_000 });
+    await user.click(await screen.findByRole("tab", { name: "6h" }));
+    expect(await screen.findByText(/no history for this range yet/i)).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "24h" }));
+    expect(await screen.findByText(/chart in KiB\/s/)).toBeVisible();
   });
 
   it("says when there is no history yet and hides on errors", async () => {
@@ -58,7 +70,7 @@ describe("workload resources panel", () => {
 
   it("hides the panel when the history cannot be read", async () => {
     renderApp("/workloads/dep~d-shop", { api: { "GET /resource-history/:w": reply(403, { error: "insufficient permissions" }) } });
-    await screen.findByRole("heading", { name: /policies and wiring/i }, { timeout: 10_000 });
+    await screen.findByRole("heading", { name: /automation & access/i }, { timeout: 10_000 });
     await waitFor(() => expect(requests("GET", "/resource-history/:w").length).toBeGreaterThan(0));
     expect(screen.queryByRole("heading", { name: "Resources" })).toBeNull();
   });

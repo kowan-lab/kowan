@@ -34,7 +34,7 @@ export function ComposeDiagnostics({ diagnostics, result, loading, error, onJump
   return (
     <div className="flex flex-col border bg-card" aria-live="polite">
       <div className="flex min-h-12 flex-wrap items-center gap-x-5 gap-y-2 shadow-[inset_0_-1px_0_var(--border)] bg-muted/50 px-5 py-2 text-[12px] text-muted-foreground">
-        <span className="font-medium tracking-[0.06em] font-mono uppercase">Validation</span>
+        <span className="font-medium tracking-normal font-sans ">Validation</span>
         {loading && <Spinner size="xs" label="Validating" />}
         {!loading && result && diagnostics.length === 0 && <span className="text-foreground">No problems found</span>}
         {(["error", "warning", "info"] as const).map((s) =>

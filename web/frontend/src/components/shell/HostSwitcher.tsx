@@ -62,7 +62,7 @@ export default function HostSwitcher() {
                 {hostId === ALL_HOSTS ? <Layers3 className="size-8 shrink-0 text-muted-foreground" /> : <Dot online={!!current?.online} />}
                 <span className="truncate">{label}</span>
               </span>
-              {sub && <span className="mt-[2px] truncate text-[13px] leading-[18px] text-muted-foreground">{sub}</span>}
+              {sub && <span className="pt-[2px] truncate text-[13px] leading-[18px] text-muted-foreground">{sub}</span>}
             </span>
             <ChevronDown className="size-8 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/scope:rotate-180" />
           </>

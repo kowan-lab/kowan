@@ -215,8 +215,8 @@ function VariableChoice({ row, onChange }: { row: Row; onChange: (variables: Key
   const secrets = vars.filter((v) => v.secret).length;
   const toggle = (key: string, secret: boolean) => onChange(vars.map((v) => (v.key === key ? { ...v, secret } : v)));
   return (
-    <fieldset className="m-0 mt-[4px] flex min-w-0 flex-col gap-[6px] border-0 p-0">
-      <legend className="mb-[4px] p-0">
+    <fieldset className="m-0 pt-[4px] flex min-w-0 flex-col gap-[6px] border-0 p-0">
+      <legend className="p-0 pb-[4px]">
         <Text size="xs" color="muted">
           {vars.length} stack variable{vars.length === 1 ? "" : "s"}{secrets ? `, ${secrets} kept as secret` : ""}. Tick the ones that are secrets.
         </Text>

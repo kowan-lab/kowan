@@ -53,18 +53,6 @@ export default function HostDetail() {
 
   const host = hostsQuery.data?.find((h) => h.id === id) ?? null;
 
-  const backAction = (
-    <Link to="/hosts" style={{ textDecoration: "none" }}>
-      <Button
-        variant="clear"
-        color="neutral"
-        iconLeft="arrow-back-rounded"
-      >
-        Back
-      </Button>
-    </Link>
-  );
-
   if (hostsQuery.isLoading) {
     return (
       <Box align="center" justify="center" style={{ minHeight: 320 }}>
@@ -77,9 +65,9 @@ export default function HostDetail() {
     return (
       <Box direction="column" gap={5}>
         <PageHeader
+          breadcrumbs={[{ label: "Hosts", to: "/hosts" }]}
           title="Host"
           icon={<Icon name="dns-outline" size="lg" />}
-          actions={backAction}
         />
         <Callout
           color="danger"
@@ -96,9 +84,9 @@ export default function HostDetail() {
     return (
       <Box direction="column" gap={5}>
         <PageHeader
+          breadcrumbs={[{ label: "Hosts", to: "/hosts" }]}
           title="Host"
           icon={<Icon name="dns-outline" size="lg" />}
-          actions={backAction}
         />
         <Callout
           color="danger"
@@ -117,6 +105,7 @@ export default function HostDetail() {
   return (
     <Box direction="column" gap={5}>
       <PageHeader
+        breadcrumbs={[{ label: "Hosts", to: "/hosts" }]}
         title={
           <Box direction="row" wrap align="center" gap={2}>
             <span>{host.name}</span>
@@ -145,7 +134,6 @@ export default function HostDetail() {
                 <Button variant="outline" color="neutral" iconLeft="mop-outline-rounded">Disk cleanup</Button>
               </Link>
             )}
-            {backAction}
           </Box>
         }
       />

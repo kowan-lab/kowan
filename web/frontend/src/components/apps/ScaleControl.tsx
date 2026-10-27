@@ -40,7 +40,7 @@ export default function ScaleControl({ deployment: d, service, canOperate }: { d
   const why = !canOperate ? "Operators and admins can change replicas" : rule.locked || rule.limit;
   return (
     <span className="inline-flex items-center gap-[4px]" onClick={(e) => e.stopPropagation()} title={why || undefined}>
-      <span className="mr-[2px] font-mono text-[12px] text-muted-foreground uppercase">Replicas</span>
+      <span className="mr-[2px] font-sans text-[12px] text-muted-foreground ">Replicas</span>
       <Btn size="sm" icon ghost aria-label={`Fewer replicas of ${service}`} disabled={fixed || n <= 0 || save.isPending} onClick={() => setDraft(n - 1)}>
         <Minus className={ICON} strokeWidth={1.5} aria-hidden />
       </Btn>

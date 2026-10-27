@@ -83,6 +83,7 @@ export default function DiskCleanup() {
     <div className="flex flex-col gap-[16px]">
       <PageHeader
         title="Disk cleanup"
+        breadcrumbs={[{ label: "Hosts", to: "/hosts" }, { label: hostName, to: `/hosts/${encodeURIComponent(hostId)}` }]}
         description={`What Docker keeps on ${hostName} that nothing uses, and how much space it takes. Pick what goes; everything is checked again before it is removed.`}
         icon={<Icon name="mop-outline-rounded" size="lg" />}
       />
@@ -153,7 +154,7 @@ export default function DiskCleanup() {
           <>
             {count} objects are removed, about {formatBytes(size)}. Anything that is in use again by then is skipped.
             {namedVolumes.length > 0 && (
-              <strong className="mt-[8px] block">
+              <strong className="pt-[8px] block">
                 The data in {namedVolumes.map((v) => v.name).join(", ")} is deleted for good.
               </strong>
             )}

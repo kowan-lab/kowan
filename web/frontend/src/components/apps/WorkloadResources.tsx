@@ -66,73 +66,94 @@ export default function WorkloadResources({ workload }: { workload: string }) {
   const limit = points.length ? points[points.length - 1].memLimit : 0;
   const s = points.length ? summary(points) : null;
 
+  const rx = rates(points, "netRx");
+  const tx = rates(points, "netTx");
+  const rate = (v: number | undefined) => (v === undefined ? "—" : `${formatBytes(v)}/s`);
+  const history = points.length >= 2;
+  const kpis = [
+    {
+      label: "CPU",
+      value: s ? <>{s.last.cpu.toFixed(1)}<span className="text-[14px] text-muted-foreground"> %</span></> : "—",
+      note: s ? `peak ${s.peakCpu.toFixed(1)}% · 100% = one core` : "",
+      chart: (
+        <LineChart
+          height={160}
+          unit="%"
+          labels={labels}
+          series={[
+            { name: "Average", data: points.map((p) => p.cpu), color: "primary" },
+            { name: "Peak", data: points.map((p) => p.cpuMax), color: "amber" },
+          ]}
+        />
+      ),
+    },
+    {
+      label: "Memory",
+      value: s ? formatBytes(s.last.mem) : "—",
+      note: s ? `peak ${formatBytes(s.peakMem)}${limit ? ` · limit ${formatBytes(limit)}` : " · no limit"} · chart in MiB` : "",
+      chart: (
+        <LineChart
+          height={160}
+          unit=""
+          labels={labels}
+          series={[
+            { name: "Average", data: points.map((p) => Math.round(p.mem / MiB)), color: "green" },
+            { name: "Peak", data: points.map((p) => Math.round(p.memMax / MiB)), color: "amber" },
+          ]}
+        />
+      ),
+    },
+    {
+      label: "Network",
+      // The last bucket's rate, in plus out; the note splits it.
+      value: history ? rate(rx[rx.length - 1] + tx[tx.length - 1]) : "—",
+      note: history ? `in ${rate(rx[rx.length - 1])} · out ${rate(tx[tx.length - 1])} · chart in KiB/s` : "",
+      chart: (
+        <LineChart
+          height={160}
+          unit=""
+          labels={labels}
+          series={[
+            { name: "In", data: rx.map((v) => Math.round(v / 102.4) / 10), color: "cyan" },
+            { name: "Out", data: tx.map((v) => Math.round(v / 102.4) / 10), color: "purple" },
+          ]}
+        />
+      ),
+    },
+  ];
+
   return (
     <Band
+      card
       title="Resources"
-      count={s ? `now ${s.last.cpu.toFixed(1)}% CPU · ${formatBytes(s.last.mem)}` : undefined}
       right={
         <Tabs variant="segmented" value={hours} onValueChange={setHours}>
-          <Tabs.List>
-            {RANGES.map((r) => (
-              <Tabs.Trigger key={r.value} value={r.value}>{r.label}</Tabs.Trigger>
-            ))}
-          </Tabs.List>
+          <Tabs.List>{RANGES.map((r) => <Tabs.Trigger key={r.value} value={r.value}>{r.label}</Tabs.Trigger>)}</Tabs.List>
         </Tabs>
       }
     >
-      <div className="flex flex-col gap-[12px] p-[16px]">
+      <div className="flex flex-col gap-[16px] p-[16px]">
         {q.data?.growth?.growing && (
           <Callout color="warning" title="Memory keeps growing">
             {growthText(q.data.growth)}
           </Callout>
         )}
-        {q.isLoading ? (
-          <Text size="sm" color="muted">Loading…</Text>
-        ) : points.length < 2 ? (
+        <dl className="m-0 grid gap-[24px] lg:grid-cols-3">
+          {kpis.map((k) => (
+            <div key={k.label} className="flex min-w-0 flex-col gap-[4px]">
+              <dt className="text-[12px] leading-[16px] text-muted-foreground">{k.label}</dt>
+              <dd className="m-0 flex min-w-0 flex-col gap-[4px]">
+                <span className="text-[24px] leading-[32px] font-medium">{k.value}</span>
+                <span className="min-h-[18px] text-[13px] leading-[18px] text-muted-foreground">{k.note}</span>
+                {history && <div className="pt-[8px]">{k.chart}</div>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {!history && (
           <Text size="sm" color="muted">
-            No history for this range yet. The monitor records CPU and memory every few minutes while the workload runs.
+            {q.isLoading ? "Loading…" : "No history for this range yet. The monitor records CPU, memory and network every few minutes while the workload runs."}
           </Text>
-        ) : (
-          <div className="grid gap-[16px] lg:grid-cols-3">
-            <div className="min-w-0">
-              <Text size="xs" color="muted">CPU (100% = one core) · peak {s!.peakCpu.toFixed(1)}%</Text>
-              <LineChart
-                height={160}
-                unit="%"
-                labels={labels}
-                series={[
-                  { name: "Average", data: points.map((p) => p.cpu), color: "primary" },
-                  { name: "Peak", data: points.map((p) => p.cpuMax), color: "amber" },
-                ]}
-              />
-            </div>
-            <div className="min-w-0">
-              <Text size="xs" color="muted">
-                Memory (MiB) · peak {formatBytes(s!.peakMem)}{limit ? ` · limit ${formatBytes(limit)}` : " · no limit"}
-              </Text>
-              <LineChart
-                height={160}
-                unit=""
-                labels={labels}
-                series={[
-                  { name: "Average", data: points.map((p) => Math.round(p.mem / MiB)), color: "green" },
-                  { name: "Peak", data: points.map((p) => Math.round(p.memMax / MiB)), color: "amber" },
-                ]}
-              />
-            </div>
-            <div className="min-w-0">
-              <Text size="xs" color="muted">Network (KiB/s)</Text>
-              <LineChart
-                height={160}
-                unit=""
-                labels={labels}
-                series={[
-                  { name: "In", data: rates(points, "netRx").map((v) => Math.round(v / 1024)), color: "cyan" },
-                  { name: "Out", data: rates(points, "netTx").map((v) => Math.round(v / 1024)), color: "purple" },
-                ]}
-              />
-            </div>
-          </div>
         )}
       </div>
     </Band>

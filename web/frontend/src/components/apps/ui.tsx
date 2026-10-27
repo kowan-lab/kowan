@@ -3,7 +3,8 @@
 // crumbs and facts. Every 1px rule is an inset shadow; every surface is solid.
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
+import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { listHosts } from "../../api/client";
 import { isAllHosts } from "../../HostContext";
@@ -12,26 +13,25 @@ import type { AppTone } from "../../lib/apps";
 
 const TONE_VAR: Record<AppTone, string> = { g: "green", a: "amber", r: "red", n: "gray" };
 
-/** D's `.lbl`: mono uppercase panel label. */
-export const LBL = "font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] uppercase text-muted-foreground";
+/** Secondary labels stay quieter than names and section headings. */
+export const LBL = "font-sans text-[13px] leading-[20px] font-normal tracking-normal  text-muted-foreground";
 
-/** D's state pill: mono uppercase, coloured hairline, a 4px dot. */
+/** State is conveyed by a readable label and a soft semantic tint. */
 export function Pill({ tone, children, signal, className }: { tone: AppTone; children: ReactNode; signal?: boolean; className?: string }) {
   const t = signal ? "var(--signal)" : `var(--tone-${TONE_VAR[tone]}-solid)`;
   const tt = signal ? "var(--link)" : tone === "n" ? "var(--muted-foreground)" : `var(--tone-${TONE_VAR[tone]}-text)`;
   return (
     <span
       className={cn(
-        "inline-flex h-[20px] shrink-0 items-center gap-[6px] px-[7px] align-top font-mono text-[12px] leading-none font-semibold tracking-[0.04em] whitespace-nowrap uppercase",
+        "inline-flex h-[24px] shrink-0 items-center gap-[6px] px-[7px] align-top font-sans text-[12px] leading-none font-semibold tracking-normal whitespace-nowrap ",
         className,
       )}
       style={{
         color: tt,
         background: `color-mix(in srgb, ${t} 10%, var(--card))`,
-        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${t} 45%, var(--card))`,
+
       }}
     >
-      <i aria-hidden className="size-[4px] shrink-0 rounded-full" style={{ background: t }} />
       {children}
     </span>
   );
@@ -60,7 +60,7 @@ export function Dot({ tone, size = 8 }: { tone: AppTone; size?: 6 | 8 }) {
 /** D's `.chip`: a host chip with its status dot. */
 export function HostChip({ name, online }: { name: string; online: boolean }) {
   return (
-    <span className="inline-flex h-[20px] items-center gap-[6px] bg-[var(--popover)] px-[6px] align-top font-mono text-[12px] leading-none font-semibold whitespace-nowrap text-foreground shadow-[inset_0_0_0_1px_var(--border)]">
+    <span className="inline-flex h-[20px] items-center gap-[6px] bg-transparent px-[2px] align-top font-sans text-[12px] leading-none font-normal whitespace-nowrap text-muted-foreground">
       <Dot tone={online ? "g" : "r"} size={6} />
       {name}
     </span>
@@ -74,7 +74,7 @@ export function btnClass({ solid, size = "md", icon, ghost, danger }: { solid?: 
   return cn(
     BTN_BASE,
     "text-[13px] leading-none",
-    size === "sm" ? "h-[28px]" : "h-[32px]",
+    size === "sm" ? "h-[36px]" : "h-[40px]",
     icon ? (size === "sm" ? "w-[28px] justify-center px-0" : "w-[32px] justify-center px-0") : size === "sm" ? "px-[10px]" : "px-[12px]",
     solid
       ? "bg-primary text-primary-foreground hover:opacity-90"
@@ -114,21 +114,35 @@ export function BtnLink({
 /** D's `.sect`: a standalone 44px section header between groups of cards. */
 export function SectHead({ title, count, right }: { title: string; count?: ReactNode; right?: ReactNode }) {
   return (
-    <div className="flex min-h-[44px] items-center gap-[12px] bg-card px-[16px] shadow-[inset_0_0_0_1px_var(--border)]">
-      <h2 className="m-0 text-[14px] leading-[18px] font-bold tracking-[0.02em] uppercase">{title}</h2>
+    <div className="section-heading">
+      <h2 className="m-0 text-[18px] leading-[24px] font-semibold tracking-normal ">{title}</h2>
       {count != null && <span className={LBL}>{count}</span>}
       {right && <div className="ml-auto flex items-center gap-[8px]">{right}</div>}
     </div>
   );
 }
 
-/** D's `.band` with its `.band-h` head. */
-export function Band({ title, count, right, children, className }: { title?: ReactNode; count?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
+/** D's `.band` with its `.band-h` head; `card` frames it, heading inside, and `padded` pads its body. */
+export function Band({ title, count, right, children, className, card, padded }: { title?: ReactNode; count?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; card?: boolean; padded?: boolean }) {
+  if (card) {
+    return (
+      <section className={cn("min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)]", className)}>
+        {title != null && (
+          <div className="flex min-h-[52px] flex-wrap items-center gap-[12px] px-[16px] py-[8px] shadow-[inset_0_-1px_0_var(--border)]">
+            {typeof title === "string" ? <h2 className="m-0 text-[16px] leading-[24px] font-semibold tracking-normal">{title}</h2> : title}
+            {count != null && <span className={LBL}>{count}</span>}
+            {right && <div className="ml-auto flex items-center gap-[8px]">{right}</div>}
+          </div>
+        )}
+        {padded ? <div className="flex min-w-0 flex-col gap-[12px] p-[16px]">{children}</div> : children}
+      </section>
+    );
+  }
   return (
-    <section className={cn("min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)]", className)}>
+    <section className={cn("content-section min-w-0 bg-transparent", className)}>
       {title != null && (
-        <div className="flex min-h-[44px] items-center gap-[12px] px-[16px] shadow-[inset_0_-1px_0_var(--border)]">
-          {typeof title === "string" ? <h2 className="m-0 text-[14px] leading-[18px] font-bold tracking-[0.02em] uppercase">{title}</h2> : title}
+        <div className="section-heading">
+          {typeof title === "string" ? <h2 className="m-0 text-[18px] leading-[24px] font-semibold tracking-normal ">{title}</h2> : title}
           {count != null && <span className={LBL}>{count}</span>}
           {right && <div className="ml-auto flex items-center gap-[8px]">{right}</div>}
         </div>
@@ -143,11 +157,27 @@ export function Band({ title, count, right, children, className }: { title?: Rea
  * then the path. Mono uppercase 12/20.
  */
 export function Crumbs({ hostScope, parts }: { hostScope: string; parts: { label: string; to?: string }[] }) {
-  const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts }).data ?? [];
+  // Reads the shared host list; mounting a header never refetches it, or a
+  // page showing the list's error state would refetch it in a loop.
+  const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, refetchOnMount: false, retryOnMount: false }).data ?? [];
   const all = isAllHosts(hostScope);
   const host = hosts.find((h) => h.id === hostScope);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // Up one level of the trail, not back through the history: the nearest
+  // crumb with a link, else the overview (the root has nowhere to go).
+  const up = [...parts].reverse().find((p) => p.to)?.to ?? (pathname === "/" ? null : "/");
   return (
-    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-[8px] font-mono text-[12px] leading-[20px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-[8px] font-sans text-[12px] leading-[20px] font-semibold tracking-normal text-muted-foreground ">
+      {up && <button
+        type="button"
+        onClick={() => navigate(up)}
+        aria-label="Up one level"
+        title="Up one level"
+        className={cn(btnClass({ icon: true, size: "sm" }), "mr-[4px] size-[28px]")}
+      >
+        <ArrowLeft className="size-[16px]" strokeWidth={1.5} aria-hidden />
+      </button>}
       <span className="inline-flex items-center gap-[6px] text-foreground" title="Scope: change it in the host menu">
         {all ? (
           <span className="inline-flex items-center gap-[3px]">
@@ -179,7 +209,7 @@ export function Fact({ label, children, mono }: { label: string; children: React
   return (
     <div className="mr-[20px] pr-[20px] shadow-[inset_-1px_0_0_var(--border)] last:shadow-none">
       <div className={LBL}>{label}</div>
-      <div className={cn("mt-[2px] flex items-center gap-[6px]", mono ? "font-mono text-[13px] leading-[20px] font-medium" : "text-[14px] leading-[20px] font-semibold")}>
+      <div className={cn("pt-[2px] flex items-center gap-[6px]", mono ? "font-mono text-[13px] leading-[20px] font-medium" : "text-[14px] leading-[20px] font-semibold")}>
         {children}
       </div>
     </div>

@@ -96,6 +96,7 @@ export default function VolumeDetail() {
   return (
     <Box direction="column" gap={5}>
       <PageHeader
+        breadcrumbs={[{ label: "Volumes", to: "/volumes" }]}
         title={
           <Box direction="row" wrap align="center" gap={2}>
             <span>{name}</span>

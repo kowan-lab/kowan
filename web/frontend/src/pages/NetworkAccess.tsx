@@ -19,7 +19,7 @@ function parseLines(text: string): string[] {
 function EnvList({ label, values }: { label: string; values: string[] }) {
   return (
     <div className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)] gap-6 py-3 shadow-[inset_0_-1px_0_var(--border)] last:shadow-none">
-      <span className="font-mono text-[12px] tracking-[0.06em] text-muted-foreground uppercase">{label}</span>
+      <span className="font-sans text-[12px] tracking-normal text-muted-foreground ">{label}</span>
       <span className="min-w-0 font-mono text-[13px] break-words">
         {values.length ? values.join(", ") : <span className="text-muted-foreground">not set: no limit</span>}
       </span>

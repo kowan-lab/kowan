@@ -14,7 +14,8 @@ import { renderIcon } from "./icon";
 import { InPanel } from "./actions";
 
 /* ── Tabs ────────────────────────────────────────────────────────────────
- * "line" (default): underline tabs for page sections.
+ * "line" (default): page sections, as a toolbar card like the Workloads
+ * list's (inside a panel: plain underline tabs, no second frame).
  * "segmented": a pill control for switching modes inside a panel. */
 type TabsVariant = "line" | "segmented";
 const TabsVariantContext = createContext<{ variant: TabsVariant; fullWidth?: boolean }>({ variant: "line" });
@@ -25,9 +26,11 @@ function TabsRoot({
   value?: string; defaultValue?: string; onValueChange?: (v: string) => void; variant?: TabsVariant;
   fullWidth?: boolean; children?: ReactNode; className?: string; style?: CSSProperties;
 }) {
+  const inPanel = useContext(InPanel);
+  const card = variant === "line" && !inPanel;
   return (
     <TabsVariantContext.Provider value={{ variant, fullWidth }}>
-      <TabsPrimitive.Root value={value} defaultValue={defaultValue} onValueChange={onValueChange} className={cn("flex min-w-0 flex-col gap-6", className)} style={style}>
+      <TabsPrimitive.Root value={value} defaultValue={defaultValue} onValueChange={onValueChange} className={cn("flex min-w-0 flex-col", card ? "gap-[20px]" : "gap-6", className)} style={style}>
         {children}
       </TabsPrimitive.Root>
     </TabsVariantContext.Provider>
@@ -36,11 +39,14 @@ function TabsRoot({
 
 function TabsList({ children }: { children?: ReactNode }) {
   const { variant, fullWidth } = useContext(TabsVariantContext);
+  const inPanel = useContext(InPanel);
   return (
     <TabsPrimitive.List
       className={cn(
         variant === "line"
-          ? "flex items-center gap-0 overflow-x-auto overflow-y-hidden bg-card px-4 shadow-[inset_0_0_0_1px_var(--border)]"
+          ? inPanel
+            ? "flex items-stretch gap-[4px] overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)]"
+            : "flex items-stretch gap-[4px] overflow-x-auto overflow-y-hidden bg-card px-[12px] shadow-[inset_0_0_0_1px_var(--border)]"
           : "inline-flex items-center gap-[2px] self-start rounded-lg bg-muted p-[2px]",
         fullWidth && "w-full self-stretch [&>*]:flex-1",
       )}
@@ -60,7 +66,7 @@ function TabsTrigger({ value, disabled, iconLeft, children }: { value: string; d
         "inline-flex items-center justify-center gap-4 whitespace-nowrap outline-none transition-colors",
         "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:pointer-events-none disabled:opacity-45",
         variant === "line"
-          ? "relative h-22 px-6 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[state=active]:font-semibold data-[state=active]:text-foreground after:absolute after:right-6 after:bottom-0 after:left-6 after:h-[2px] after:bg-transparent data-[state=active]:after:bg-signal"
+          ? "h-[52px] border-b-2 border-transparent px-[12px] text-[14px] leading-none font-semibold text-muted-foreground hover:text-foreground focus-visible:-outline-offset-2 data-[state=active]:border-[var(--foreground)] data-[state=active]:text-foreground"
           : "h-11 px-5 text-muted-foreground hover:text-foreground data-[state=active]:bg-foreground data-[state=active]:text-background",
       )}
     >
@@ -96,7 +102,7 @@ function AccordionRoot({
   );
 }
 function AccordionItem({ value, children }: { value: string; children?: ReactNode }) {
-  return <A.Item value={value} className="overflow-hidden rounded-lg border bg-card">{children}</A.Item>;
+  return <A.Item value={value} className="overflow-hidden border-b bg-transparent">{children}</A.Item>;
 }
 function AccordionTrigger({ children }: { children?: ReactNode }) {
   return (
@@ -110,7 +116,7 @@ function AccordionTrigger({ children }: { children?: ReactNode }) {
 }
 function AccordionContent({ children }: { children?: ReactNode }) {
   return (
-    <A.Content className="overflow-hidden border-t data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+    <A.Content className="overflow-hidden">
       <div className="p-6">{children}</div>
     </A.Content>
   );

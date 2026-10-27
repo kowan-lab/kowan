@@ -60,14 +60,13 @@ export function StatePill({
     <span
       key={beat}
       className={cn(
-        "inline-flex max-w-full items-center gap-[6px] align-top leading-[18px] font-semibold tracking-[0.04em] border border-[var(--t-line)] bg-[var(--t-soft)] font-mono whitespace-nowrap text-[var(--t-text)] uppercase",
-        "h-[20px] px-[7px] text-[12px]",
+        "inline-flex max-w-full items-center gap-[6px] align-top leading-[18px] font-medium tracking-normal bg-[var(--t-soft)] font-sans whitespace-nowrap text-[var(--t-text)] ",
+        "min-h-[24px] px-[8px] text-[12px]",
         beat > 0 && "animate-[pill-beat_900ms_ease-out_1]",
         className,
       )}
       style={{ ...toneVars(tone), ...style }}
     >
-      <span aria-hidden className={cn("size-[4px] shrink-0 rounded-full bg-[var(--t-solid)]", tone === "green" && "shadow-[0_0_0_3px_var(--t-soft)]")} />
       <span className="truncate">{label ?? humanize(status)}</span>
       {detail != null && detail !== "" && (
         <>

@@ -79,6 +79,7 @@ export default function ImageDetail() {
   return (
     <Box direction="column" gap={5}>
       <PageHeader
+        breadcrumbs={[{ label: "Images", to: "/images" }]}
         title={
           <Box direction="row" wrap align="center" gap={2}>
             <span>{title}</span>

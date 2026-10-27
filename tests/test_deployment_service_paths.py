@@ -440,7 +440,12 @@ class TestReconcileAndBackground(ServiceCase):
 
         with mock.patch.object(self.s, "reconcile_once", bad):
             task = asyncio.ensure_future(self.s.run_reconcile_loop(interval=0.01))
-            await asyncio.sleep(0.05)
+            # Wait for a second pass rather than a fixed time: a loaded runner
+            # can stretch 0.05s into a single tick.
+            for _ in range(500):
+                if len(calls) > 1:
+                    break
+                await asyncio.sleep(0.01)
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task

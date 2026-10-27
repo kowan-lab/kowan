@@ -18,7 +18,7 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
       )}
       <p className="m-0 max-w-[46ch] text-sm font-medium text-foreground">{title}</p>
       {description && <p className="m-0 max-w-[52ch] text-[13px] text-muted-foreground">{description}</p>}
-      {action && <div className="mt-3">{action}</div>}
+      {action && <div className="pt-3">{action}</div>}
     </div>
   );
 }

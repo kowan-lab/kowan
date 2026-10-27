@@ -30,8 +30,8 @@ describe("container actions", () => {
 
   it("acts on one container of a stack from its workload page", async () => {
     const { user } = renderApp("/workloads/stack~local~blog", { api });
-    // Service groups start folded: open "app" to reach its container.
-    await user.click(await screen.findByRole("button", { name: "Expand app" }, { timeout: 10_000 }));
+    // A single service is open by default.
+    await screen.findByRole("button", { name: "Collapse app" }, { timeout: 10_000 });
     const menu = screen.getByRole("button", { name: "Actions for blog-app-1" });
     await user.click(menu);
     // A running container: no Start or Unpause.
@@ -59,7 +59,7 @@ describe("container actions", () => {
     const { user } = renderApp("/workloads/stack~local~blog", {
       api: { "GET /hosts/:id/containers": [...containers, ...stopped], "POST /hosts/:h/containers/:id/start": reply(500, { error: "port is busy" }) },
     });
-    await user.click(await screen.findByRole("button", { name: "Expand app" }, { timeout: 10_000 }));
+    await screen.findByRole("button", { name: "Collapse app" }, { timeout: 10_000 });
     await user.click(screen.getByRole("button", { name: "Actions for blog-app-1" }));
     expect(screen.queryByRole("menuitem", { name: /kill/i })).toBeNull();
     await user.click(screen.getByRole("menuitem", { name: "Start" }));
@@ -78,9 +78,9 @@ describe("container actions", () => {
   });
 
   it("shows no actions to viewers", async () => {
-    const { user } = renderApp("/workloads/stack~local~blog", { role: "viewer", api });
+    renderApp("/workloads/stack~local~blog", { role: "viewer", api });
     await screen.findByRole("heading", { name: "blog" }, { timeout: 10_000 });
-    await user.click(screen.getByRole("button", { name: "Expand app" }));
+    expect(screen.getByRole("button", { name: "Collapse app" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: "blog-app-1" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Actions for blog-app-1" })).toBeNull();
   });

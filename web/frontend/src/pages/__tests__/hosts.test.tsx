@@ -22,7 +22,8 @@ const api = {
 };
 
 async function ready() {
-  return within(pageRoot()).findByText("agent-b", {}, { timeout: 10_000 });
+  // The header's breadcrumb names the selected host too.
+  return within(pageRoot()).findAllByText("agent-b", {}, { timeout: 10_000 });
 }
 
 describe("hosts page", () => {

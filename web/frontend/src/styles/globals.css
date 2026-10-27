@@ -3,6 +3,7 @@
 @import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/geist-mono";
 @import "./themes.css";
+@import "./hierarchy.css";
 
 /* Theme switch: src/ui/theme.tsx sets data-theme on <html>. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -20,18 +21,18 @@
    * never land on half pixels. 10% up from the first compact pass; floor 12px. */
   --text-xs: 12px;
   --text-xs--line-height: 16px;
-  --text-sm: 13px;
-  --text-sm--line-height: 18px;
-  --text-base: 14px;
-  --text-base--line-height: 20px;
-  --text-lg: 15px;
-  --text-lg--line-height: 22px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 15px;
+  --text-base--line-height: 22px;
+  --text-lg: 17px;
+  --text-lg--line-height: 24px;
   --text-xl: 18px;
   --text-xl--line-height: 24px;
   --text-2xl: 20px;
   --text-2xl--line-height: 28px;
-  --text-3xl: 24px;
-  --text-3xl--line-height: 30px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 38px;
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Square everywhere: technical drawing, not soft UI. Dots use rounded-full. */
@@ -179,7 +180,7 @@
  * surfaces, so the grain shows only around them. */
 @utility app-canvas {
   background-color: var(--background);
-  background-image: var(--canvas-image);
+  background-image: none;
   background-size: 124px 124px;
 }
 
@@ -256,7 +257,7 @@ a.cell-link:hover { text-decoration: underline; }
   }
   .kit-table td::before {
     content: attr(data-label); position: absolute; left: 0; top: 4px; width: 36%;
-    font: 600 11px/16px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
+    font: 400 12px/18px var(--font-sans); color: var(--muted-foreground);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .kit-table td:first-child { padding-left: 0 !important; font-size: 14px; font-weight: 600; }

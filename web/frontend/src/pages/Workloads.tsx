@@ -20,7 +20,8 @@ import { errorMessage } from "../utils";
 // ---------------------------------------------------------------------------
 // Apps (/apps): stacks, deployments and lone containers in the current host
 // scope, as calm cards (or a table). What needs attention comes first; the
-// filter and the view live in the URL (?filter=attn&view=table).
+// tab (managed by Kowan or discovered) and the filter live in the URL
+// (?tab=discovered&filter=attn); cards or table is a per-browser preference.
 // ---------------------------------------------------------------------------
 
 type Filter = "all" | "attn" | "upd" | "pub";
@@ -30,6 +31,9 @@ const FILTERS: { id: Filter; label: string; match: (a: App) => boolean }[] = [
   { id: "upd", label: "Updates", match: (a) => a.updates > 0 },
   { id: "pub", label: "Public", match: (a) => a.ports.some((p) => p.public) },
 ];
+
+type Tab = "all" | "managed" | "discovered";
+const isManaged = (a: App) => a.kind === "deployment";
 
 const VIEW_KEY = "kowan-workloads-view";
 type View = "cards" | "table";
@@ -71,14 +75,20 @@ export default function Workloads() {
       return n;
     }, { replace: true });
 
-  const list = useMemo(() => (apps ?? []).filter(FILTERS.find((f) => f.id === filter)!.match), [apps, filter]);
+  const managedApps = useMemo(() => (apps ?? []).filter(isManaged), [apps]);
+  const discoveredApps = useMemo(() => (apps ?? []).filter((a) => !isManaged(a)), [apps]);
+  const rawTab = params.get("tab");
+  const tab: Tab = rawTab === "managed" || rawTab === "discovered" ? rawTab : "all";
+  // In All, Kowan deployments come first, then what was started elsewhere.
+  const inTab = useMemo(() => (tab === "managed" ? managedApps : tab === "discovered" ? discoveredApps : [...managedApps, ...discoveredApps]), [tab, managedApps, discoveredApps]);
+  const list = useMemo(() => inTab.filter(FILTERS.find((f) => f.id === filter)!.match), [inTab, filter]);
   const nContainers = (apps ?? []).reduce((s, a) => s + a.total, 0);
   const hostOnline = (id: string) => hosts.find((h) => h.id === id)?.online ?? true;
   const hostName = (id: string) => hosts.find((h) => h.id === id)?.name || id;
   const offlineHosts = all ? hosts.filter((h) => !h.online) : hosts.filter((h) => h.id === hostId && !h.online);
 
   const viewSwitch = (
-    <div role="group" aria-label="View" className="inline-flex bg-[var(--popover)] shadow-[inset_0_0_0_1px_var(--border)]">
+    <div role="group" aria-label="View" className="inline-flex h-[40px] shrink-0 items-stretch bg-[var(--popover)] p-px shadow-[inset_0_0_0_1px_var(--border)]">
       {(["cards", "table"] as const).map((v) => (
         <button
           key={v}
@@ -86,7 +96,7 @@ export default function Workloads() {
           aria-pressed={view === v}
           onClick={() => setView(v)}
           className={cn(
-            "inline-flex h-[32px] items-center gap-[6px] px-[12px] text-[13px] leading-none font-semibold outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
+            "inline-flex w-[84px] items-center justify-center gap-[6px] text-[13px] leading-none font-semibold outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
             view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -198,29 +208,55 @@ export default function Workloads() {
     </section>
   );
 
+  const tabs: { id: Tab; label: string; n: number }[] = [
+    { id: "all", label: "All", n: (apps ?? []).length },
+    { id: "managed", label: "Managed", n: managedApps.length },
+    { id: "discovered", label: "Not managed", n: discoveredApps.length },
+  ];
   const toolbar = (
-    <div role="group" aria-label="Filter workloads" className="flex flex-wrap items-center gap-[8px] bg-card px-[12px] py-[10px] shadow-[inset_0_0_0_1px_var(--border)]">
-      {FILTERS.map((f) => {
-        const on = filter === f.id;
-        const n = (apps ?? []).filter(f.match).length;
-        return (
-          <button
-            key={f.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => setParam("filter", f.id === "all" ? null : f.id)}
-            className={cn(
-              "inline-flex h-[32px] items-center gap-[8px] px-[12px] text-[13px] leading-none font-semibold whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--signal)]",
-              on ? "bg-primary text-primary-foreground" : "bg-card text-foreground shadow-[inset_0_0_0_1px_var(--border)] hover:bg-[var(--popover)]",
-            )}
-          >
-            {f.label}
-            <span className={cn("font-mono text-[12px] leading-none font-medium", on ? "text-primary-foreground opacity-75" : "text-muted-foreground")}>{apps ? n : "–"}</span>
-          </button>
-        );
-      })}
-      <span className="flex-1" />
-      <span className="text-[13px] text-muted-foreground">Stacks, deployments and lone containers · {scopeName}</span>
+    <div className="flex flex-wrap items-stretch justify-between gap-x-[16px] bg-card px-[12px] shadow-[inset_0_0_0_1px_var(--border)]">
+      <div role="tablist" aria-label="Workloads" className="flex items-stretch gap-[4px]">
+        {tabs.map((t) => {
+          const on = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setParam("tab", t.id === "all" ? null : t.id)}
+              className={cn(
+                "inline-flex h-[52px] items-center gap-[8px] border-b-2 px-[12px] text-[14px] leading-none font-semibold whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
+                on ? "border-[var(--foreground)] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+              <span className="font-mono text-[12px] leading-none font-medium text-muted-foreground">{apps ? t.n : "–"}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div role="group" aria-label="Filter workloads" className="flex flex-wrap items-center gap-[8px] py-[10px]">
+        {FILTERS.map((f) => {
+          const on = filter === f.id;
+          const n = inTab.filter(f.match).length;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setParam("filter", f.id === "all" ? null : f.id)}
+              className={cn(
+                "inline-flex h-[32px] items-center gap-[8px] px-[12px] text-[13px] leading-none font-semibold whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--signal)]",
+                on ? "bg-primary text-primary-foreground" : "bg-card text-foreground shadow-[inset_0_0_0_1px_var(--border)] hover:bg-[var(--popover)]",
+              )}
+            >
+              {f.label}
+              <span className={cn("font-mono text-[12px] leading-none font-medium", on ? "text-primary-foreground opacity-75" : "text-muted-foreground")}>{apps ? n : "–"}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -250,38 +286,28 @@ export default function Workloads() {
         {features.templates && <BtnLink to="/templates">Browse templates</BtnLink>}
       </Empty>
     );
+  } else if (!inTab.length) {
+    body =
+      tab === "managed" ? (
+        <Empty title="Kowan manages nothing here yet" text={`What runs on ${scopeName} was started elsewhere: import it, or deploy something new.`}>
+          <BtnLink to="/deployments/new" solid>New deployment</BtnLink>
+          <BtnLink to="/import">Import stacks</BtnLink>
+        </Empty>
+      ) : (
+        <Empty title="Nothing started outside Kowan" text={`Every workload on ${scopeName} is managed by Kowan.`} />
+      );
   } else if (!list.length) {
     body = (
-      <Empty title="No workloads match" text={`Nothing on ${scopeName} matches this filter.`}>
+      <Empty title="No workloads match" text={`Nothing in this tab on ${scopeName} matches this filter.`}>
         <Btn onClick={() => setParam("filter", null)}>Clear filter</Btn>
       </Empty>
     );
   } else if (view === "table") {
-    const managedRows = list.filter((a) => a.kind === "deployment");
-    const otherRows = list.filter((a) => a.kind !== "deployment");
-    body = (
-      <>
-        {managedRows.length > 0 && (
-          <>
-            <SectHead title="Managed" count={`${managedRows.length} by Kowan`} />
-            <AppsTable apps={managedRows} showHost={all} hostName={hostName} hostOnline={hostOnline} />
-          </>
-        )}
-        {otherRows.length > 0 && (
-          <>
-            <SectHead title="Not managed" count={`${otherRows.length} discovered`} />
-            <AppsTable apps={otherRows} showHost={all} hostName={hostName} hostOnline={hostOnline} />
-          </>
-        )}
-      </>
-    );
+    body = <AppsTable apps={list} showHost={all} hostName={hostName} hostOnline={hostOnline} />;
   } else {
     const needs = list.filter((a) => a.attention && !a.stale);
     const stale = list.filter((a) => a.stale);
     const fine = list.filter((a) => !a.attention);
-    // Kowan deployments first; stacks and lone containers started elsewhere after.
-    const managed = fine.filter((a) => a.kind === "deployment");
-    const unmanaged = fine.filter((a) => a.kind !== "deployment");
     const card = (a: App) => <AppCard key={a.id} app={a} hostName={hostName(a.hostIds[0] ?? "")} />;
     body = (
       <>
@@ -303,18 +329,8 @@ export default function Workloads() {
           </div>
         ))}
         {needs.length > 0 && <Grid>{needs.map(card)}</Grid>}
-        {managed.length > 0 && (
-          <>
-            <SectHead title="Managed" count={`${managed.length} by Kowan`} />
-            <Grid>{managed.map(card)}</Grid>
-          </>
-        )}
-        {unmanaged.length > 0 && (
-          <>
-            <SectHead title="Not managed" count={`${unmanaged.length} discovered`} />
-            <Grid>{unmanaged.map(card)}</Grid>
-          </>
-        )}
+        {needs.length + offlineHosts.length > 0 && fine.length > 0 && <SectHead title="The rest" count={`${fine.length}`} />}
+        {fine.length > 0 && <Grid>{fine.map(card)}</Grid>}
         {stale.length > 0 && (
           <>
             <SectHead title="Last known" count={`${stale.length} on offline hosts`} />
@@ -514,7 +530,12 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                     <span className="inline-flex flex-nowrap"><StateSquares tones={a.containers.filter((c) => !isReplaced(c)).map((c) => c.tone)} /></span>
                   </td>
                   {showHost && <td className={TD}><HostChip name={hostName(host)} online={hostOnline(host)} /></td>}
-                  <td className={cn(TD, "font-mono")}>{kindShort(a)}</td>
+                  <td className={TD}>
+                    <span className="inline-flex items-center gap-[8px] whitespace-nowrap">
+                      <span className="font-mono">{kindShort(a)}</span>
+                      <Tag className={isManaged(a) ? "text-foreground" : undefined}>{isManaged(a) ? "Managed" : "Not managed"}</Tag>
+                    </span>
+                  </td>
                   <td className={cn(TD, "font-mono")}>{a.ports.filter((p) => p.public).map((p) => `:${p.publicPort}`).join(" ") || "—"}</td>
                   <td className={TD}>{a.updates ? <Pill tone="a">Update · {a.updates}</Pill> : <span className="text-muted-foreground">—</span>}</td>
                   <td

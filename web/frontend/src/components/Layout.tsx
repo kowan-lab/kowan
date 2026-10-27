@@ -71,7 +71,7 @@ function UserMenu() {
             Signed in as <span className="font-medium text-foreground">{user?.username}</span>
           </M.Label>
           <div className="px-3 pb-4">
-            <p className="m-0 mb-3 font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Theme</p>
+            <p className="m-0 pb-3 font-mono text-[12px] leading-[16px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">Theme</p>
             <ThemePanel />
           </div>
           <M.Separator className="-mx-4 my-2 h-px bg-border" />
@@ -305,7 +305,7 @@ export default function Layout() {
           <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-transparent [--page-px:16px]">
             <Suspense fallback={<ContentFallback />}>
               {/* Keyed by path: only the page content re-enters, with a fast fade. */}
-              <div key={pathname} className="page-enter flex w-full flex-col gap-6 px-8 pt-8 pb-15">
+              <div key={pathname} className="page-content">
                 <PageErrorBoundary>
                   <Outlet />
                 </PageErrorBoundary>

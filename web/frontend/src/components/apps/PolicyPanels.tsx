@@ -1,6 +1,4 @@
-// The app's policies, drawn as mockup D draws them: a compact strip of knobs on
-// the Overview ("Policies and wiring") and four framed sections on the
-// Policies tab, each with the current state, a knob and a door to the editor.
+// Explicit policy controls shared by overview disclosures and the Policies tab.
 
 import type { ReactNode } from "react";
 import { Link } from "react-router";
@@ -29,7 +27,6 @@ function UpdatesKnob({ app, pc, showOptions }: { app: App; pc: PolicyControls; s
   if (u.mode === "mixed") {
     return (
       <span className="inline-flex items-center gap-[10px]">
-        <Knob aria-label={`Updates for ${app.name}`} value="off" options={UPDATE_OPTIONS} disabled hideLabel />
         <span className={LBL}>Mixed</span>
         {pc.canOperate && <Btn size="sm" onClick={() => pc.open("update-details")}>Set per container</Btn>}
       </span>
@@ -95,53 +92,24 @@ function ExposureKnob({ app, pc }: { app: App; pc: PolicyControls }) {
 
 // ── Overview strip ──────────────────────────────────────────────────────
 
-function Cell({ label, children, control }: { label: string; children: ReactNode; control?: boolean }) {
-  return (
-    <div className="flex min-h-[72px] min-w-0 flex-col justify-start gap-[6px] px-[16px] py-[12px] shadow-[inset_-1px_0_0_var(--border),inset_0_-1px_0_var(--border)] [&:nth-child(3n)]:shadow-[inset_0_-1px_0_var(--border)] [&:nth-last-child(-n+3)]:shadow-[inset_-1px_0_0_var(--border)] last:!shadow-none max-sm:[&:not(:last-child)]:!shadow-[inset_0_-1px_0_var(--border)]">
-      <div className={LBL}>{label}</div>
-      <div className={cn("min-w-0 text-[14px] leading-[20px]", !control && "truncate")}>{children}</div>
-    </div>
-  );
-}
-
-function sourceText(app: App): string {
-  const d = app.deployment;
-  if (d) {
-    if (d.git?.repoUrl) return `Git · ${d.git.repoUrl.replace(/^[a-z+]+:\/\//i, "").replace(/\.git$/, "")}`;
-    return d.type === "compose" ? "Kowan · inline compose" : "Kowan · container spec";
-  }
-  if (app.kind === "stack") {
-    const f = app.containers[0]?.container.labels?.["com.docker.compose.project.config_files"];
-    return f ? `Discovered · ${f}` : "Discovered from labels";
-  }
-  return "Standalone container";
-}
-
-export function PolicyStrip({ app, pc }: { app: App; pc: PolicyControls }) {
-  const vols = pc.backups.volumes;
-  const pub = app.ports.filter((p) => p.public);
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3">
-      <Cell label="Volumes">
-        <span className="font-mono text-[13px] leading-[20px] font-medium">{vols === undefined ? "…" : vols.length ? vols.map(volLabel).join(", ") : "none"}</span>
-      </Cell>
-      <Cell label="Source">
-        <span className="font-mono text-[13px] leading-[20px] font-medium">{sourceText(app)}</span>
-      </Cell>
-      <Cell label="Exposure">
-        <span className="font-mono text-[13px] leading-[20px] font-medium">
-          {pc.exposure.domains.length
-            ? pc.exposure.domains.map((d) => d.domain).join(", ")
-            : pub.length
-              ? `${pub.map((p) => `:${p.publicPort}`).join(" ")} · no domain`
-              : "internal only"}
-        </span>
-      </Cell>
-      <Cell label="Updates" control><UpdatesKnob app={app} pc={pc} /></Cell>
-      <Cell label="Backups" control><BackupsKnob app={app} pc={pc} /></Cell>
-      <Cell label="Schedule" control><ScheduleKnob app={app} pc={pc} /></Cell>
-    </div>
-  );
+export function PolicyStrip({app,pc}: {app:App;pc:PolicyControls}) {
+ const ports = app.ports.filter(p=>p.public).map(p=>`:${p.publicPort}`).join(", ");
+ const domains = pc.exposure.domains.map(d=>d.domain).join(", ");
+ const row = (title: string, note: ReactNode, knob: ReactNode, action?: ReactNode) => (
+   <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px] py-[12px] shadow-[inset_0_-1px_0_var(--border)] last:shadow-none">
+     <div className="flex min-w-[160px] flex-1 flex-col gap-[2px]">
+       <span className="text-[14px] leading-[20px] font-medium">{title}</span>
+       {note && <span className="text-[13px] leading-[18px] text-muted-foreground">{note}</span>}
+     </div>
+     <div className="flex flex-wrap items-center gap-[8px]">{knob}{action}</div>
+   </div>
+ );
+ return <div>
+   {row("Updates", null, <UpdatesKnob app={app} pc={pc} showOptions />, <Btn size="sm" onClick={()=>pc.open("update-details")}>Settings</Btn>)}
+   {row("Backups", pc.backups.volumes === undefined ? "Finding volumes…" : pc.backups.volumes.length ? pc.backups.volumes.map(volLabel).join(", ") : "No volumes", <BackupsKnob app={app} pc={pc} />, <Btn size="sm" disabled={!pc.canOperate} onClick={()=>pc.open(app.deployment ? "backup-manage" : "backup-new")}>Settings</Btn>)}
+   {row("Schedule", pc.schedule.schedules.length ? `${pc.schedule.schedules.length} configured` : null, <ScheduleKnob app={app} pc={pc} />, <Btn size="sm" onClick={()=>pc.open("schedule-manage")}>Settings</Btn>)}
+   {row("Domains & ports", domains || ports || "No published ports", <ExposureKnob app={app} pc={pc} />, <Btn size="sm" disabled={!pc.canOperate || !pc.live || !pc.exposure.canExpose} onClick={()=>pc.open("expose")}>Settings</Btn>)}
+ </div>;
 }
 
 // ── Policies tab ────────────────────────────────────────────────────────
@@ -150,7 +118,7 @@ function Section({ icon, title, desc, status, children }: { icon: ReactNode; tit
   return (
     <section className="grid grid-cols-[264px_minmax(0,1fr)] bg-card shadow-[inset_0_0_0_1px_var(--border)] max-[900px]:grid-cols-1">
       <div className="flex flex-col items-start gap-[8px] p-[16px] shadow-[inset_-1px_0_0_var(--border)] max-[900px]:shadow-[inset_0_-1px_0_var(--border)]">
-        <h3 className="m-0 flex items-center gap-[8px] text-[14px] leading-[18px] font-bold tracking-[0.02em] uppercase">
+        <h3 className="m-0 flex items-center gap-[8px] text-[14px] leading-[18px] font-bold tracking-normal ">
           {icon}
           {title}
         </h3>

@@ -17,26 +17,28 @@ async function open(path: string, name: string, api: Record<string, Handler> = {
 describe("workload: deployment", () => {
   it("redeploys, stops and toggles auto-heal and protection", async () => {
     const { user } = await open(SHOP, "shop");
-    await press(user, /^redeploy$/i);
+    await press(user, /^actions$/i);
+    await user.click(await screen.findByRole("menuitem", { name: /^redeploy$/i }));
     await waitFor(() => expect(requests("POST", "/deployments/d-shop/deploy")).toHaveLength(1));
-    await press(user, /^stop$/i);
+    await press(user, /^actions$/i);
+    await user.click(await screen.findByRole("menuitem", { name: /^stop$/i }));
     await waitFor(() => expect(requests("POST", "/deployments/d-shop/stop")).toHaveLength(1));
-    await press(user, /^more$/i);
+    await press(user, /^actions$/i);
     await user.click(await screen.findByRole("menuitem", { name: /auto-heal/i }));
     await waitFor(() => expect(requests("PUT", "/deployments/d-shop/enabled")[0].body).toEqual({ enabled: false }));
-    await press(user, /^more$/i);
+    await press(user, /^actions$/i);
     await user.click(await screen.findByRole("menuitem", { name: /deletion protection/i }));
     await waitFor(() => expect(requests("PUT", "/deployments/d-shop/protection")[0].body).toEqual({ protected: true }));
   });
 
   it("removes the containers, then deletes the deployment", async () => {
     const { user } = await open(SHOP, "shop");
-    await press(user, /^more$/i);
+    await press(user, /^actions$/i);
     await user.click(await screen.findByRole("menuitem", { name: /remove containers/i }));
     let d = await dialog();
     await user.click(within(d).getAllByRole("button").at(-1)!);
     await waitFor(() => expect(requests("POST", "/deployments/d-shop/destroy")).toHaveLength(1));
-    await press(user, /^more$/i);
+    await press(user, /^actions$/i);
     await user.click(await screen.findByRole("menuitem", { name: /delete deployment/i }));
     d = await dialog();
     const confirmInput = within(d).queryByRole("textbox");
@@ -122,7 +124,8 @@ describe("workload: deployment", () => {
       "GET /deployments/:id/status": [{ hostId: "local", state: "error", message: "pull access denied for ghcr.io/acme/api" }],
     });
     expect(await screen.findByText(/pull access denied/i, {}, { timeout: 10_000 })).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: /^redeploy$/i }).at(-1)!);
+    await press(user, /^actions$/i);
+    await user.click(await screen.findByRole("menuitem", { name: /^redeploy$/i }));
     await waitFor(() => expect(requests("POST", "/deployments/d-api/deploy")).toHaveLength(1));
   });
 
@@ -150,7 +153,8 @@ describe("workload: stack and container", () => {
 
   it("a discovered compose stack restarts its containers", async () => {
     const { user } = await open("/workloads/stack~local~blog", "blog", { "GET /hosts/:id/containers": [...containers, ...blog] });
-    await press(user, /^restart$/i);
+    await press(user, /^actions$/i);
+    await user.click(await screen.findByRole("menuitem", { name: /^restart$/i }));
     await waitFor(() => expect(requests("POST", "/hosts/local/containers/:id/restart")).toHaveLength(1));
     await user.click(screen.getByRole("tab", { name: /compose/i }));
     expect(await within(pageRoot()).findAllByText(/compose/i)).not.toHaveLength(0);
@@ -158,7 +162,8 @@ describe("workload: stack and container", () => {
 
   it("a lone container starts and shows its spec", async () => {
     const { user } = await open("/workloads/ctr~local~nightly-job", "nightly-job", { "GET /hosts/:h/containers/:id/spec": containerSpec });
-    await press(user, /^start$/i);
+    await press(user, /^actions$/i);
+    await user.click(await screen.findByRole("menuitem", { name: /^start$/i }));
     await waitFor(() => expect(requests("POST", "/hosts/local/containers/:id/start")).toHaveLength(1));
     await user.click(screen.getByRole("tab", { name: /config/i }));
     expect(await within(pageRoot()).findAllByText(/nginx:1\.27|container spec/i)).not.toHaveLength(0);

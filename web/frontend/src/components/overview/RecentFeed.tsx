@@ -168,7 +168,7 @@ export function RecentFeed({
                 </time>
                 <span
                   className={cn(
-                    "typ inline-flex items-center gap-[6px] font-mono text-[12px] leading-none font-bold tracking-[0.06em] uppercase",
+                    "typ inline-flex items-center gap-[6px] font-sans text-[12px] leading-none font-bold tracking-normal ",
                     it.kind === "audit" ? "text-muted-foreground" : it.tone === "red" ? "text-[var(--tone-red-text)]" : it.tone === "amber" ? "text-[var(--tone-amber-text)]" : "text-muted-foreground",
                   )}
                 >

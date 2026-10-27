@@ -85,7 +85,7 @@ export function ExportDialog({ open, onClose, syncs }: { open: boolean; onClose:
                   <div key={kind} className="border-b last:border-b-0">
                     <div className="flex items-center gap-3 bg-muted/50 px-5 py-2">
                       <Checkbox
-                        label={<span className="font-mono text-[12px] tracking-[0.06em] uppercase">{kind} · {list.length}</span>}
+                        label={<span className="font-sans text-[12px] tracking-normal ">{kind} · {list.length}</span>}
                         checked={all}
                         onChange={(e) => keys.forEach((k) => toggle(k, e.currentTarget.checked))}
                       />

@@ -1,6 +1,6 @@
 // The workload "Policies" tab: update knob and details, backup jobs, schedules
 // and the domain knob, each opening the shared editors.
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { reply, requests } from "../../test/api";
 import { pageRoot, policy, renderApp } from "../../test/render";
@@ -31,16 +31,16 @@ async function policies(extra: Record<string, unknown> = {}) {
   const r = renderApp("/workloads/dep~d-shop", { api: { ...api, ...extra } as never });
   await screen.findByRole("heading", { name: "shop" }, { timeout: 10_000 });
   await r.user.click(screen.getByRole("tab", { name: /policies/i }));
-  await within(pageRoot()).findByRole("radiogroup", { name: /update policy for shop/i });
+  await within(pageRoot()).findByRole("combobox", { name: /update policy for shop/i });
   return r;
 }
 
 describe("workload policies", () => {
-  it("steps the update policy with the knob", async () => {
-    await policies();
-    const knob = screen.getByRole("radiogroup", { name: /update policy for shop/i });
-    await waitFor(() => expect(within(knob).getByRole("radio", { name: "Notify" })).toHaveAttribute("aria-checked", "true"));
-    fireEvent.keyDown(within(knob).getByRole("radio", { name: "Notify" }), { key: "ArrowRight" });
+  it("changes the update policy with an explicit selection", async () => {
+    const { user } = await policies();
+    const knob = screen.getByRole("combobox", { name: /update policy for shop/i });
+    await waitFor(() => expect(knob).toHaveValue("notify"));
+    await user.selectOptions(knob, "pull");
     await toast(/shop: pull/i);
     expect(requests("PUT", "/deployments/d-shop/autoupdate")[0].body).toMatchObject({ mode: "pull" });
   });

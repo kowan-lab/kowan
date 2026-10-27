@@ -153,7 +153,7 @@ function MenuItem({
   );
 }
 function MenuLabel({ children }: { children?: ReactNode }) {
-  return <M.Label className="px-3 py-[4px] text-[12px] font-medium tracking-wide text-muted-foreground font-mono uppercase">{children}</M.Label>;
+  return <M.Label className="px-3 py-[4px] text-[12px] font-medium tracking-normal text-muted-foreground font-sans ">{children}</M.Label>;
 }
 function MenuSeparator() {
   return <M.Separator className="-mx-2 my-2 h-px bg-border" />;

@@ -92,6 +92,7 @@ export default function NetworkDetail() {
   return (
     <Box direction="column" gap={5}>
       <PageHeader
+        breadcrumbs={[{ label: "Networks", to: "/networks" }]}
         title={
           <Box direction="row" wrap align="center" gap={2}>
             <span>{name}</span>

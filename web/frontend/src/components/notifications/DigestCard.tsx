@@ -82,14 +82,14 @@ export default function DigestCard({ channels }: { channels: NotificationChannel
           <Select size="sm" width={110} label="At (UTC)" value={String(s.hour)} options={HOURS} onChange={(v) => v && set({ hour: Number(v) })} />
         </div>
         <fieldset className="m-0 flex flex-col gap-[6px] border-0 p-0">
-          <legend className="mb-[6px] text-[13px] font-semibold">What it covers</legend>
+          <legend className="pb-[6px] text-[13px] font-semibold">What it covers</legend>
           {(Object.keys(SECTION_LABELS) as DigestSection[]).map((k) => (
             <Checkbox key={k} label={SECTION_LABELS[k]} checked={s.sections[k]} onChange={(e) => set({ sections: { ...s.sections, [k]: e.target.checked } })} />
           ))}
           <Checkbox label="Send it even when there is nothing to report" checked={s.sendEmpty} onChange={(e) => set({ sendEmpty: e.target.checked })} />
         </fieldset>
         <fieldset className="m-0 flex flex-col gap-[6px] border-0 p-0">
-          <legend className="mb-[6px] text-[13px] font-semibold">Channels</legend>
+          <legend className="pb-[6px] text-[13px] font-semibold">Channels</legend>
           {enabledChannels.length === 0 ? (
             <Text size="sm" color="muted">No channel is on: add or turn on one above.</Text>
           ) : (

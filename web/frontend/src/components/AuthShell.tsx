@@ -8,7 +8,7 @@ export default function AuthShell({ title, subtitle, children, footer }: { title
       <div className="frame w-full max-w-[380px] bg-card">
         <div className="flex items-center gap-[8px] border-b px-9 py-6">
           <KowanMark className="size-8" />
-          <span className="text-[15px] font-bold tracking-[-0.02em] uppercase">kowan</span>
+          <span className="text-[15px] font-bold tracking-normal ">kowan</span>
           <span className="ml-auto text-[12px] text-muted-foreground">docker control plane</span>
         </div>
         <div className="flex flex-col gap-2 px-9 pt-8">
@@ -17,7 +17,7 @@ export default function AuthShell({ title, subtitle, children, footer }: { title
         </div>
         <div className="px-9 pt-8 pb-9">{children}</div>
       </div>
-      {footer && <div className="mt-6 text-[12px] text-muted-foreground">{footer}</div>}
+      {footer && <div className="pt-6 text-[12px] text-muted-foreground">{footer}</div>}
     </div>
   );
 }

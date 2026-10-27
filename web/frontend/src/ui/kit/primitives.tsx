@@ -135,7 +135,7 @@ export function Text({
         align === "left" && "text-left",
         align === "center" && "text-center",
         align === "right" && "text-right",
-        transform === "uppercase" && "font-mono uppercase tracking-wider",
+        transform === "uppercase" && "font-sans",
         transform === "lowercase" && "lowercase",
         transform === "capitalize" && "capitalize",
         italic && "italic",
@@ -162,7 +162,7 @@ export function Divider({ label, className, style }: { label?: ReactNode; classN
   if (!label) return <hr className={cn("my-2 border-0 border-t border-border", className)} style={style} />;
   return (
     <div className={cn("flex items-center gap-5 py-2", className)} style={style} role="separator">
-      <span className="text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+      <span className="text-xs font-semibold font-sans  tracking-normal text-muted-foreground whitespace-nowrap">
         {label}
       </span>
       <span className="h-px flex-1 bg-border" />
@@ -234,7 +234,7 @@ export function Progress({ value = 0, color }: { value?: number; color?: Color |
       className="h-[4px] w-full overflow-hidden rounded-full bg-muted"
       style={toneVars(color, "primary")}
     >
-      <div className="h-full rounded-full bg-[var(--t-solid)] transition-[width] duration-500" style={{ width: `${v}%` }} />
+      <div className="h-full rounded-full bg-[var(--t-solid)] " style={{ width: `${v}%` }} />
     </div>
   );
 }

@@ -31,7 +31,7 @@ describe("workloads list", () => {
     const { user } = renderApp("/workloads");
     await ready();
     await user.click(within(screen.getByRole("group", { name: /^view$/i })).getAllByRole("button")[1]);
-    expect(await screen.findByText(/^managed$/i)).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: "Workload" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /show containers of shop/i }));
     expect(screen.getByRole("button", { name: /hide containers of shop/i })).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getAllByText("shop-db-1").at(-1)!);
@@ -65,7 +65,7 @@ describe("workloads list", () => {
   it("remembers the table view", async () => {
     localStorage.setItem("kowan-workloads-view", "table");
     renderApp("/workloads");
-    expect(await screen.findByText(/^managed$/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: "Workload" }, { timeout: 10_000 })).toBeInTheDocument();
   });
 
   it("starts a new workload from the menu", async () => {

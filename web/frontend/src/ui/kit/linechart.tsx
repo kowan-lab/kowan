@@ -141,7 +141,7 @@ export function LineChart({
           className="pointer-events-none absolute z-10 border bg-popover px-3 py-[4px] text-[12px] shadow-[0_8px_24px_-8px_rgb(0_0_0/0.35)]"
           style={{ top: PAD.top + legendH, left: Math.min(x(hover) + 10, width - 150) }}
         >
-          <div className="mb-2 text-muted-foreground">{labels[hover]}</div>
+          <div className="pb-2 text-muted-foreground">{labels[hover]}</div>
           {series.map((s, i) => (
             <div key={s.name} className="flex items-center gap-3 whitespace-nowrap">
               <span className="size-3" style={{ background: colors[i]["--t-solid"] }} />

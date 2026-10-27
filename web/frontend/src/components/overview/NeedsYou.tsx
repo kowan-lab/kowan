@@ -6,7 +6,7 @@ import {
   age, appHref, appIdFor, containerHref, containerLabel, exitCode, statusAge, trouble,
   type HostContainer,
 } from "./model";
-import { Btn, FRAME, HostChip, OkIcon, SectHead, SevLabel, type Sev } from "./ui";
+import { Btn, FRAME, OkIcon, SectHead, type Sev } from "./ui";
 
 /*
  * "Needs you": everything in scope an operator should act on, worst first, as
@@ -222,48 +222,30 @@ export function buildNeeds(i: NeedsInput): Need[] {
   return out.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev] || a.rank - b.rank);
 }
 
-/* ── view ─────────────────────────────────────────────────────────────── */
-const CAP = 8;
-
-export function NeedsYou({ needs, scopeName, loading, label }: { needs: Need[]; scopeName: string; loading: boolean; label?: string }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? needs : needs.slice(0, CAP);
-  return (
-    <>
-      <SectHead
-        standalone
-        title="Needs you"
-        label={loading && !needs.length ? "checking…" : label ?? `${needs.length} open${needs.length > 1 ? " · worst first" : ""}`}
-        right={needs.length > CAP && <Btn sm onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${needs.length}`}</Btn>}
-      />
-      {needs.length === 0 ? (
-        !loading && (
-          <div className={`${FRAME} flex min-h-[52px] flex-wrap items-center gap-x-[8px] gap-y-[2px] px-[16px] py-[16px] text-[14px] leading-[20px]`}>
-            <OkIcon className="text-[var(--tone-green-text)]" />
-            <span className="font-semibold text-[var(--tone-green-text)]">Nothing needs you on {scopeName}.</span>
-            <span className="text-muted-foreground">Every container is running, no deploy failed and no alert is open.</span>
-          </div>
-        )
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-[12px] sm:auto-rows-fr">
-          {shown.map((n) => (
-            <article key={n.key} className={`${FRAME} flex min-w-0 flex-col px-[16px] pt-[14px] pb-[16px]`}>
-              <div className="flex min-w-0 items-center gap-[8px]">
-                <SevLabel sev={n.sev} />
-                {n.host && <HostChip name={n.host.name || n.host.id} online={n.host.online} />}
-                {n.when && <span className="ml-auto shrink-0 font-mono text-[12px] leading-none font-medium text-muted-foreground">{n.when}</span>}
-              </div>
-              <h3 className="m-0 mt-[12px] font-sans text-[15px] leading-[20px] font-semibold [overflow-wrap:anywhere]">{n.title}</h3>
-              <p className="m-0 mt-[4px] text-[14px] leading-[20px] text-muted-foreground">{n.context}</p>
-              <div className="mt-auto flex flex-wrap gap-[8px] pt-[16px]">
-                {n.acts.slice(0, 2).map((a, idx) => (
-                  <Btn key={a.label} sm solid={idx === 0} to={a.to} onClick={a.onClick} busy={a.busy}>{a.label}</Btn>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </>
-  );
+/* Rows keep the problem visible; explanations and secondary actions open inline. */
+const CAP = 6;
+function isEarlierFailure(n: Need) {
+  if (!n.key.startsWith("ctr:") || n.rank !== 1 || n.sev !== "critical") return false;
+  const m = /^(\d+)(d|w|mo|y)$/.exec(n.when);
+  return !!m && (m[2] !== "d" || Number(m[1]) >= 7);
+}
+export function NeedsYou({needs, scopeName, loading, label}: {needs:Need[];scopeName:string;loading:boolean;label?:string}) {
+  const [all,setAll] = useState(false);
+  const earlier = needs.filter(isEarlierFailure);
+  const recent = needs.filter(n => !isEarlierFailure(n));
+  const shown = all ? recent : recent.slice(0,CAP);
+  const row = (n:Need) => <article key={n.key} className="attention-row">
+    <details>
+      <summary><h3 className={n.sev === "critical" ? "text-[var(--tone-red-text)]" : n.sev === "warning" ? "text-[var(--tone-amber-text)]" : undefined}>{n.title}</h3></summary>
+      <p>{n.context}</p>
+      {n.acts.length > 1 && <div className="attention-actions pt-4">{n.acts.slice(1).map(a => <Btn key={a.label} sm to={a.to} onClick={a.onClick} busy={a.busy}>{a.label}</Btn>)}</div>}
+    </details>
+    <span className="attention-host text-[12px] text-muted-foreground">{n.host?.name || n.host?.id}</span>
+    <span className="attention-time text-[12px] text-muted-foreground">{n.when}</span>
+    <div className="attention-actions">{n.acts.slice(0,1).map(a => <Btn key={a.label} sm to={a.to} onClick={a.onClick} busy={a.busy}>{a.label}</Btn>)}</div>
+  </article>;
+  return <section aria-label="Needs attention" className={FRAME}>
+    <SectHead title="Needs attention" label={loading && !needs.length ? "Checking…" : label ?? `${recent.length} recent / ${needs.length} open`} right={recent.length > CAP && <Btn sm onClick={() => setAll(v=>!v)}>{all ? "Show fewer" : `Show all ${recent.length}`}</Btn>} />
+    {needs.length === 0 ? !loading && <div className="flex items-start gap-[12px] p-[16px]"><OkIcon className="text-[var(--tone-green-text)]" /><div><b className="font-medium">Nothing needs you on {scopeName}.</b><p className="mt-2 text-[13px] text-muted-foreground">No container problems, failed deployments or open alerts.</p></div></div> : <>{shown.map(row)}{earlier.length > 0 && <details><summary className="cursor-pointer px-[16px] py-[12px] text-[13px] text-muted-foreground">{earlier.length} earlier container failure{earlier.length === 1 ? "" : "s"}</summary>{earlier.map(row)}</details>}</>}
+  </section>;
 }

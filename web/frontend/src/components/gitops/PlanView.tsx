@@ -39,7 +39,7 @@ function ChangeRow({ c, defaultOpen }: { c: GitOpsChange; defaultOpen: boolean }
           {c.action === "update" && c.fields.length > 0 && (
             <table className="w-full max-w-3xl border-separate border-spacing-0 text-[13px]">
               <thead>
-                <tr className="text-left text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">
+                <tr className="text-left text-[12px] tracking-normal text-muted-foreground font-sans ">
                   <th className="py-2 pr-5 font-medium">Field</th>
                   <th className="py-2 pr-5 font-medium">Current</th>
                   <th className="py-2 font-medium">From git</th>

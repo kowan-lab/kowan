@@ -32,12 +32,12 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const BTN_SIZE = {
-  xs: "h-14 px-5 text-[13px] gap-3",
-  sm: "h-14 px-5 text-[13px] gap-3",
-  md: "h-16 px-6 text-[13px] gap-3",
-  lg: "h-18 px-7 text-[14px] gap-4",
+  xs: "h-16 px-5 text-[13px] gap-3",
+  sm: "h-18 px-5 text-[13px] gap-3",
+  md: "h-20 px-6 text-[13px] gap-3",
+  lg: "h-22 px-7 text-[14px] gap-4",
 };
-const ICON_ONLY = { xs: "w-14 px-0", sm: "w-14 px-0", md: "w-16 px-0", lg: "w-18 px-0" };
+const ICON_ONLY = { xs: "w-16 px-0", sm: "w-18 px-0", md: "w-20 px-0", lg: "w-22 px-0" };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
@@ -169,12 +169,12 @@ export function Callout({ color = "info", title, iconLeft, onDismiss, className,
     <div
       role={danger ? "alert" : "status"}
       className={cn(
-        "flex gap-5 rounded-lg border border-[var(--t-line)] bg-[var(--t-soft)] px-[10px] py-5 text-sm",
+        "flex gap-5 rounded-lg bg-[var(--t-soft)] px-8 py-8 text-sm",
         className,
       )}
       style={{ ...toneVars(color), ...style }}
     >
-      <span className="mt-[2px] text-[var(--t-text)]">{renderIcon(iconLeft ?? DEFAULT_ICON[color] ?? "info-outline-rounded", "md")}</span>
+      <span className="pt-[2px] text-[var(--t-text)]">{renderIcon(iconLeft ?? DEFAULT_ICON[color] ?? "info-outline-rounded", "md")}</span>
       <div className="min-w-0 flex-1 space-y-2">
         {title && <p className="m-0 font-semibold text-[var(--t-text)]">{title}</p>}
         {children && <div className="text-foreground/85 [&_p]:m-0">{children}</div>}
@@ -206,9 +206,9 @@ interface CardProps {
 }
 
 function CardRoot({ variant = "default", size = "md", color, interactive, selected, className, style, onClick, children }: CardProps) {
-  // A default card placed directly on the page becomes a full-bleed band (few
-  // boxes, full viewport). Nested cards and explicit outline/raised variants
-  // (grid tiles, sortable items) stay square framed boxes.
+  // A default card placed directly on the page is a framed card like every
+  // other section. Nested cards and explicit outline/raised variants (grid
+  // tiles, sortable items) stay square framed boxes.
   const nested = useContext(InPanel);
   const band = (variant === "default" || variant === "raised") && !nested && !color && !interactive && !onClick;
   return (
@@ -216,8 +216,8 @@ function CardRoot({ variant = "default", size = "md", color, interactive, select
       data-size={size}
       onClick={onClick}
       className={cn(
-        "group/card flex min-w-0 flex-col text-card-foreground",
-        band ? "shadow-[inset_0_0_0_1px_var(--border)] bg-card [&>*]:px-[var(--page-px,16px)]" : "frame bg-card",
+        "kit-card group/card flex min-w-0 flex-col text-card-foreground",
+        band ? "bg-card shadow-[inset_0_0_0_1px_var(--border)]" : nested ? "border-t border-border bg-transparent" : "border border-border bg-card",
         variant === "flat" && "bg-muted/40",
         color && "border-[var(--t-line)] bg-[var(--t-soft)]",
         (interactive || onClick) && "cursor-pointer transition-colors hover:border-ring/40",

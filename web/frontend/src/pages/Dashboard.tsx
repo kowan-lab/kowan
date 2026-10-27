@@ -14,11 +14,12 @@ import { useContainerUpdates } from "../lib/updates";
 import { containerName, errorMessage } from "../utils";
 import { notify } from "../ui/toast";
 import { OverviewHeader, SumItem } from "../components/overview/OverviewHeader";
-import { HostFacts, OfflineBanner } from "../components/overview/HostFacts";
+import { HostResources, OfflineBanner } from "../components/overview/HostFacts";
 import { HostsTable, type HostRow } from "../components/overview/HostsTable";
 import { NeedsYou, buildNeeds } from "../components/overview/NeedsYou";
 import { RecentFeed } from "../components/overview/RecentFeed";
-import { appIdFor, hostKind, type HostContainer } from "../components/overview/model";
+import { WorkloadsCard } from "../components/overview/WorkloadsCard";
+import { age, appIdFor, hostKind, type HostContainer } from "../components/overview/model";
 import { Btn, FRAME, PlusIcon, SectHead } from "../components/overview/ui";
 
 /*
@@ -114,9 +115,6 @@ export default function Overview() {
   /* ── summary ───────────────────────────────────────────────────────── */
   const appCount = new Set(containers.map((c) => appIdFor(c, deploymentsQuery.data))).size;
   const runningCount = containers.filter((c) => c.state.toLowerCase() === "running").length;
-  const scopeTone = all
-    ? hosts.length > 1 ? ("mixed" as const) : hosts[0]?.online === false ? ("red" as const) : ("green" as const)
-    : !focus?.online ? ("red" as const) : ("green" as const);
   const scopeName = all ? "All hosts" : focus?.name || hostId;
 
   /* ── load chart (below the fold) ───────────────────────────────────── */
@@ -144,8 +142,7 @@ export default function Overview() {
     <>
       {all ? (
         <OverviewHeader
-          scope="All hosts"
-          scopeTone={scopeTone}
+          scope={hostId}
           title="Overview"
           summary={<>
             <SumItem n={hosts.length} label={hosts.length === 1 ? "host" : "hosts"} />
@@ -156,25 +153,28 @@ export default function Overview() {
         />
       ) : (
         <OverviewHeader
-          scope={scopeName}
-          scopeTone={scopeTone}
+          scope={hostId}
           title={scopeName}
-          objectTitle
           summary={<>
-            {focus && <SumItem label={hostKind(focus).kind} />}
             <SumItem n={appCount} label={appCount === 1 ? "workload" : "workloads"} />
             <SumItem n={focus?.online ? `${runningCount} / ${containers.length}` : "?"} label="running" />
           </>}
+          facts={focus ? [
+            ["Kind", hostKind(focus).kind],
+            ["Tunnel", hostKind(focus).tunnel],
+            ...(systems[0]?.data ? [["Docker", `${systems[0].data.serverVersion} · ${systems[0].data.arch}`] as [string, string]] : []),
+            ["Seen", age(focus.lastSeen) === "now" ? "now" : `${age(focus.lastSeen)} ago`],
+          ] : undefined}
           actions={<><Btn to="/workloads">Workloads</Btn>{newApp}</>}
         />
       )}
 
       {focus && !focus.online && <OfflineBanner host={focus} />}
       {focus?.online && (
-        <HostFacts
+        <HostResources
           host={focus}
           system={systems[0]?.data}
-          last={metrics[0]?.data?.[metrics[0].data.length - 1]}
+          samples={metrics[0]?.data ?? []}
           disk={diskQuery.data}
           canOperate={canOperate}
         />
@@ -185,8 +185,6 @@ export default function Overview() {
           <Btn sm onClick={() => setHostId(ALL_HOSTS)}>Show all hosts</Btn>
         </section>
       )}
-
-      <NeedsYou needs={needs} scopeName={all ? "any host" : scopeName} loading={needsLoading} label={all ? undefined : `${needs.length} open`} />
 
       {all && (
         hosts.length ? (
@@ -202,11 +200,16 @@ export default function Overview() {
         )
       )}
 
-      <RecentFeed hosts={hosts} scopeIds={scopeIds} all={all} alerts={scopedAlerts} deployments={deploymentsQuery.data ?? []} isAdmin={isAdmin} />
+      <WorkloadsCard hostId={hostId} />
 
-      {online.length > 0 && (
+      <div className="grid items-start gap-[20px] min-[1100px]:grid-cols-2">
+        <NeedsYou needs={needs} scopeName={all ? "any host" : scopeName} loading={needsLoading} label={all ? undefined : `${needs.length} open`} />
+        <RecentFeed hosts={hosts} scopeIds={scopeIds} all={all} alerts={scopedAlerts} deployments={deploymentsQuery.data ?? []} isAdmin={isAdmin} />
+      </div>
+
+      {all && online.length > 0 && (
         <section className={FRAME}>
-          <SectHead title={all ? "CPU by host" : "CPU and memory"} label="last hour · every 15 s" />
+          <SectHead title="CPU by host" label="last hour · every 15 s" />
           <div className="px-[16px] py-[12px]">
             {chart.series.length ? (
               <LineChart labels={chart.labels} series={chart.series} yMax={100} unit="%" height={200} />

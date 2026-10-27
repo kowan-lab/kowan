@@ -60,7 +60,7 @@ describe("dashboard", () => {
     expect(screen.getByText(/shop: deploy failed/i)).toBeInTheDocument();
     expect(screen.getAllByText("Disk almost full").length).toBeGreaterThan(0);
     // A clean exit raises nothing (the resolved alert only shows in the feed).
-    expect(screen.queryByText(/done-job/)).toBeNull();
+    expect(within(screen.getByRole("region", { name: /needs attention/i })).queryByText(/done-job/)).toBeNull();
     const more = screen.queryByRole("button", { name: /show all \d+/i });
     if (more) {
       await user.click(more);
@@ -110,7 +110,8 @@ describe("dashboard", () => {
     localStorage.setItem("kowan_host", "all");
     const { user } = renderApp("/", { api });
     expect(await screen.findByText(/edge-1 is offline/i, {}, { timeout: 10_000 })).toBeInTheDocument();
-    const rows = screen.getAllByText("edge-1");
+    // The host's row in the Hosts table (the Workloads card names hosts too).
+    const rows = within(screen.getByRole("heading", { name: "Hosts" }).closest("section")!).getAllByText("edge-1");
     await user.click(rows[rows.length - 1]);
     await waitFor(() => expect(localStorage.getItem("kowan_host")).not.toBe("all"));
   });

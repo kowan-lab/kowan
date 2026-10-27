@@ -24,7 +24,6 @@ import {
   Spinner,
   StatePill,
   Table,
-  Tabs,
   Text,
   Tooltip,
   toneVars,
@@ -71,6 +70,8 @@ import { useHost, isAllHosts } from "../HostContext";
 import { LIVE_REFETCH_MS, errorStatus, liveUnlessGone } from "../lib/live";
 import { containerOrigin, isManaged, stackOf, type ContainerOrigin } from "../lib/containerOrigin";
 import { appHref, appIdForContainer } from "../lib/apps";
+import { Crumbs, LBL } from "../components/apps/ui";
+import { cn } from "@/lib/utils";
 import { describeUpdate, useContainerUpdates, useUpdateContainer } from "../lib/updates";
 import { errorMessage, formatBytes, formatDate, formatPercent, shortId, timeAgo } from "../utils";
 import type { Container, ContainerActionType, ContainerInspect, ContainerStats, ContainerUpdateStatus } from "../types";
@@ -233,7 +234,11 @@ export default function ContainerDetail() {
   // Re-measure when the tab, the problem band or the loaded state changes what sits above.
   const fill = useFillHeight(fillTab && inspectQuery.isSuccess, `${tab}|${problem?.title ?? ""}`);
 
-  const crumbs = [{ label: "Workloads", to: "/workloads" }, { label: name }];
+  const crumbs = [
+    { label: "Workloads", to: "/workloads" },
+    ...(origin.kind !== "plain" && origin.name ? [{ label: origin.name, to: appTo }] : []),
+    { label: name },
+  ];
 
   if (!hostResolved) {
     return (
@@ -369,34 +374,84 @@ export default function ContainerDetail() {
     </>
   );
 
+  const since = running || paused ? info.startedAt : info.finishedAt;
+  const facts: [string, ReactNode][] = [
+    [
+      "Image",
+      <span key="img" className="inline-flex flex-wrap items-center gap-[8px]">
+        {info.imageId ? (
+          <Link to={`/images/${encodeURIComponent(info.imageId)}?host=${encodeURIComponent(host)}`} className="break-all text-foreground no-underline hover:underline">{info.image}</Link>
+        ) : (
+          info.image || "unknown image"
+        )}
+        <UpdatePill update={update} />
+        {info.imageId && <ImageScanChips hostId={host} imageId={info.imageId} />}
+      </span>,
+    ],
+    ["Origin", <OriginText key="o" origin={origin} appTo={appTo} />],
+    ["Host", <Link key="h" to={`/hosts/${encodeURIComponent(host)}`} className="text-foreground no-underline hover:underline">{hostName}</Link>],
+    ["Health", info.health ? `${info.health}${info.healthFailingStreak > 0 ? ` · ${info.healthFailingStreak} failing` : ""}` : "no health check"],
+    ["Restarts", `${info.restartCount} · policy ${info.restartPolicy}`],
+    [
+      running || paused ? "Up since" : "Last stopped",
+      since ? (
+        <span key="t" title={formatDate(since)}>
+          {timeAgo(since)}
+          {!running && !paused && info.exitCode !== undefined ? ` · exit ${info.exitCode}` : ""}
+        </span>
+      ) : running || paused ? "—" : "never started",
+    ],
+  ];
+  const tabDefs: { id: TabKey; label: ReactNode }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "logs", label: "Logs" },
+    { id: "console", label: "Console" },
+    { id: "stats", label: "Stats" },
+    { id: "files", label: "Files" },
+    {
+      id: "image",
+      label: (
+        <>
+          Image
+          {update?.updateAvailable && <span aria-label="update available" className="size-[4px] rounded-full" style={{ background: "var(--tone-blue-solid)" }} />}
+        </>
+      ),
+    },
+    { id: "inspect", label: "Inspect" },
+  ];
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    let n: number | null = null;
+    if (e.key === "ArrowRight") n = (i + 1) % tabDefs.length;
+    if (e.key === "ArrowLeft") n = (i - 1 + tabDefs.length) % tabDefs.length;
+    if (e.key === "Home") n = 0;
+    if (e.key === "End") n = tabDefs.length - 1;
+    if (n === null) return;
+    e.preventDefault();
+    setTab(tabDefs[n].id);
+    document.getElementById(`ctr-tab-${tabDefs[n].id}`)?.focus();
+  };
+
   return (
     <>
-      <PageHeader
-        breadcrumbs={crumbs}
-        title={
-          <>
-            <h1 className="m-0 min-w-0 truncate text-[24px] leading-[32px] font-[650] tracking-[-0.02em]">{name}</h1>
+      <section className="bg-card px-[16px] pt-[14px] shadow-[inset_0_0_0_1px_var(--border)]">
+        <Crumbs hostScope={host} parts={crumbs} />
+        <div className="mt-[6px] flex flex-wrap items-center gap-[16px]">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-[12px]">
+            <h1 title={name} className="m-0 max-w-full min-w-0 truncate text-[24px] leading-[32px] font-extrabold tracking-[-0.02em] uppercase">{name}</h1>
             <StatePill status={state || "unknown"} label={stateLabel(info)} detail={stateDuration(info)} />
             {info.health && <StatePill status={info.health} label={info.health === "starting" ? "Health starting" : info.health} />}
             {update?.updateAvailable && <StatePill status="update" label="Update available" color="blue" size="sm" />}
-          </>
-        }
-        description={
-          <span className="inline-flex flex-wrap items-center gap-x-[4px]">
-            <span className="text-foreground">{info.image || "unknown image"}</span>
-            <span aria-hidden>·</span>
-            <OriginText origin={origin} appTo={appTo} />
-            <span aria-hidden>·</span>
-            <span>
-              on{" "}
-              <Link to={`/hosts/${encodeURIComponent(host)}`} className="cell-link">
-                {hostName}
-              </Link>
+          </div>
+          {lifecycle && <div className="flex flex-wrap gap-[8px]">{lifecycle}</div>}
+        </div>
+        <div className="flex flex-wrap gap-x-[24px] gap-y-[4px] pt-[10px] pb-[16px]">
+          {facts.map(([k, v]) => (
+            <span key={k} className={LBL}>
+              {k} <b className="font-semibold text-foreground">{v}</b>
             </span>
-          </span>
-        }
-        actions={lifecycle || undefined}
-      />
+          ))}
+        </div>
+      </section>
 
       {problem && (
         <ProblemBand
@@ -405,44 +460,51 @@ export default function ContainerDetail() {
         />
       )}
 
-      {/* Header, problem band and tab bar read as one solid block. */}
-      <Tabs value={tab} onValueChange={setTab} className="-mt-[13px] gap-6">
-        <div className="bg-card">
-          <Tabs.List>
-            <Tabs.Trigger value="overview">Overview</Tabs.Trigger>
-            <Tabs.Trigger value="logs">Logs</Tabs.Trigger>
-            <Tabs.Trigger value="console">Console</Tabs.Trigger>
-            <Tabs.Trigger value="stats">Stats</Tabs.Trigger>
-            <Tabs.Trigger value="files">Files</Tabs.Trigger>
-            <Tabs.Trigger value="image">
-              Image
-              {update?.updateAvailable && <span aria-label="update available" className="size-[4px] rounded-full" style={{ background: "var(--tone-blue-solid)" }} />}
-            </Tabs.Trigger>
-            <Tabs.Trigger value="inspect">Inspect</Tabs.Trigger>
-          </Tabs.List>
-        </div>
+      <div role="tablist" aria-label={`${name} sections`} className="flex items-stretch gap-[4px] overflow-x-auto overflow-y-hidden bg-card px-[12px] shadow-[inset_0_0_0_1px_var(--border)]">
+        {tabDefs.map((t, i) => {
+          const on = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`ctr-tab-${t.id}`}
+              aria-selected={on}
+              aria-controls="ctr-panel"
+              tabIndex={on ? 0 : -1}
+              onClick={() => setTab(t.id)}
+              onKeyDown={(e) => onTabKey(e, i)}
+              className={cn(
+                "inline-flex h-[52px] items-center gap-[8px] border-b-2 px-[12px] text-[14px] leading-none font-semibold whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--signal)]",
+                on ? "border-[var(--foreground)] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
 
-        <Tabs.Panel value="overview">
+      <div role="tabpanel" id="ctr-panel" aria-labelledby={`ctr-tab-${tab}`} className="flex min-w-0 flex-col gap-[20px]">
+        {tab === "overview" && (<>
           <OverviewTab
             hostId={host}
-            hostName={hostName}
             id={id}
             info={info}
             origin={origin}
             appTo={appTo}
-            update={update}
             active={tab === "overview"}
             onStats={() => setTab("stats")}
           />
-        </Tabs.Panel>
+        </>)}
 
-        <Tabs.Panel value="logs">
+        {tab === "logs" && (<>
           <FillBand fill={fill} padded>
             <LogsTab hostId={host} id={id} name={name} active={tab === "logs"} />
           </FillBand>
-        </Tabs.Panel>
+        </>)}
 
-        <Tabs.Panel value="console" forceMount>
+        <div hidden={tab !== "console"} className="min-w-0">
           <FillBand fill={tab === "console" ? fill : undefined} padded>
             {running ? (
               <Suspense fallback={<Skeleton height="100%" />}>
@@ -463,21 +525,21 @@ export default function ContainerDetail() {
               />
             )}
           </FillBand>
-        </Tabs.Panel>
+        </div>
 
-        <Tabs.Panel value="stats">
+        {tab === "stats" && (<>
           <StatsTab hostId={host} id={id} active={tab === "stats"} running={running} memoryLimit={info.memory} />
-        </Tabs.Panel>
+        </>)}
 
-        <Tabs.Panel value="files">
+        {tab === "files" && (<>
           <FillBand fill={fill}>
             <Suspense fallback={<Skeleton height="100%" />}>
               <ContainerFiles hostId={host} containerId={id} active={tab === "files"} />
             </Suspense>
           </FillBand>
-        </Tabs.Panel>
+        </>)}
 
-        <Tabs.Panel value="image">
+        {tab === "image" && (<>
           <ImageTab
             hostId={host}
             info={info}
@@ -488,14 +550,14 @@ export default function ContainerDetail() {
             onUpdate={() => setUpdateOpen(true)}
             containerId={id}
           />
-        </Tabs.Panel>
+        </>)}
 
-        <Tabs.Panel value="inspect">
+        {tab === "inspect" && (<>
           <FillBand fill={fill}>
             <InspectTab data={inspectQuery.data} />
           </FillBand>
-        </Tabs.Panel>
-      </Tabs>
+        </>)}
+      </div>
 
       <ConfirmModal
         opened={killOpen}
@@ -599,7 +661,7 @@ const ACTION_DONE: Record<ContainerActionType, string> = {
 // ---------------------------------------------------------------------------
 
 function Band({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={`bg-card shadow-[inset_0_0_0_1px_var(--border)] ${className ?? ""}`}>{children}</section>;
+  return <section className={`min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)] ${className ?? ""}`}>{children}</section>;
 }
 
 interface Fill {
@@ -639,7 +701,7 @@ function FillBand({ fill, padded, children }: { fill?: Fill; padded?: boolean; c
   return (
     <div
       ref={fill?.ref}
-      className={`flex min-h-0 flex-col bg-card shadow-[inset_0_0_0_1px_var(--border)] ${padded ? "px-[var(--page-px)] py-[8px]" : ""}`}
+      className={`flex min-h-0 min-w-0 flex-col bg-card shadow-[inset_0_0_0_1px_var(--border)] ${padded ? "p-[12px]" : ""}`}
       style={{ height: fill?.height ?? 520 }}
     >
       {children}
@@ -647,26 +709,26 @@ function FillBand({ fill, padded, children }: { fill?: Fill; padded?: boolean; c
   );
 }
 
-/** A titled block inside a sheet: hairline header strip, then content. */
+/** A titled card: its heading band, then content. `grouped` drops the frame for a section of a shared card. */
 function Panel({
-  title, meta, actions, flush, children,
-}: { title: string; meta?: ReactNode; actions?: ReactNode; flush?: boolean; children: ReactNode }) {
+  title, meta, actions, flush, grouped, children,
+}: { title: string; meta?: ReactNode; actions?: ReactNode; flush?: boolean; grouped?: boolean; children: ReactNode }) {
   return (
-    <section className="flex min-w-0 flex-col border-b last:border-b-0">
-      <header className="flex min-h-14 items-center justify-between gap-5 shadow-[inset_0_-1px_0_var(--border)] bg-muted/50 px-[var(--page-px)] py-[4px]">
-        <h2 className="m-0 flex items-baseline gap-3 text-[14px] font-semibold tracking-[-0.01em]">
+    <section className={grouped ? "flex min-w-0 flex-col" : "flex min-w-0 flex-col bg-card shadow-[inset_0_0_0_1px_var(--border)]"}>
+      <header className="flex min-h-[52px] items-center justify-between gap-[12px] px-[16px] py-[8px] shadow-[inset_0_-1px_0_var(--border)]">
+        <h2 className="m-0 flex items-baseline gap-[12px] text-[16px] leading-[24px] font-semibold tracking-normal">
           {title}
-          {meta != null && <span className="text-[12px] font-normal text-muted-foreground">{meta}</span>}
+          {meta != null && <span className="text-[13px] font-normal text-muted-foreground">{meta}</span>}
         </h2>
         {actions && <div className="flex items-center gap-[4px]">{actions}</div>}
       </header>
-      <div className={flush ? "min-w-0" : "min-w-0 px-[var(--page-px)] py-5"}>{children}</div>
+      <div className={flush ? "min-w-0" : "min-w-0 p-[16px]"}>{children}</div>
     </section>
   );
 }
 
 function Empty({ children }: { children: ReactNode }) {
-  return <p className="m-0 px-[var(--page-px)] py-5 text-[13px] text-muted-foreground">{children}</p>;
+  return <p className="m-0 px-[16px] py-5 text-[13px] text-muted-foreground">{children}</p>;
 }
 
 /** Definition rows (label · value) for config facts. */
@@ -693,7 +755,7 @@ function DetailSkeleton({ id }: { id: string }) {
       <Band>
         <div className="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col gap-3 bg-card px-[var(--page-px)] py-5">
+            <div key={i} className="flex flex-col gap-3 bg-card px-[16px] py-5">
               <Skeleton width={70} height={10} />
               <Skeleton width="70%" height={14} />
             </div>
@@ -701,7 +763,7 @@ function DetailSkeleton({ id }: { id: string }) {
         </div>
       </Band>
       <Band>
-        <div className="flex flex-col gap-3 px-[var(--page-px)] py-6">
+        <div className="flex flex-col gap-3 px-[16px] py-6">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} height={14} width={`${80 - i * 7}%`} />)}
         </div>
       </Band>
@@ -952,20 +1014,20 @@ function exitHint(code: number): string | undefined {
 
 function ProblemBand({ problem, onLogs }: { problem: Problem; onLogs?: () => void }) {
   return (
-    <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card" role="status">
+    <section className="min-w-0" role="status">
       <div
-        className="flex flex-wrap items-start justify-between gap-x-9 gap-y-3 border-y border-[var(--t-line)] bg-[var(--t-soft)] px-[var(--page-px)] py-[8px]"
+        className="flex flex-wrap items-start justify-between gap-x-9 gap-y-3 border-y border-[var(--t-line)] bg-[var(--t-soft)] px-[16px] py-[8px]"
         style={{ ...toneVars(problem.color), marginBlock: -1 }}
       >
         <div className="flex min-w-0 flex-1 items-start gap-[8px]">
-          <span className="mt-[2px] text-[var(--t-text)]">
+          <span className="pt-[2px] text-[var(--t-text)]">
             <Icon name={problem.color === "red" ? "error-outline-rounded" : "warning-outline-rounded"} size="md" />
           </span>
           <div className="flex min-w-0 flex-col gap-[2px]">
             <p className="m-0 text-[13px] font-semibold text-[var(--t-text)]">{problem.title}</p>
             {problem.detail && <p className="m-0 text-[13px] text-foreground/85">{problem.detail}</p>}
             {problem.output && problem.outputLabel && (
-              <span className="mt-2 text-[12px] text-muted-foreground">{problem.outputLabel}</span>
+              <span className="pt-2 text-[12px] text-muted-foreground">{problem.outputLabel}</span>
             )}
             {problem.output && (
               <pre className="m-0 mt-2 max-h-36 overflow-auto bg-card px-3 py-[4px] font-mono text-[12px] leading-6 whitespace-pre-wrap break-all text-foreground/90">
@@ -1004,20 +1066,18 @@ function OriginText({ origin, appTo }: { origin: ContainerOrigin; appTo: string 
 }
 
 // ---------------------------------------------------------------------------
-// Overview: health facts, then wiring (ports, networks, mounts) beside the
+// Overview (the facts sit in the header): runtime, then wiring (ports, networks, mounts) beside the
 // runtime config and live resources, then environment, labels and schedules.
 // ---------------------------------------------------------------------------
 
 function OverviewTab({
-  hostId, hostName, id, info, origin, appTo, update, active, onStats,
+  hostId, id, info, origin, appTo, active, onStats,
 }: {
   hostId: string;
-  hostName: string;
   id: string;
   info: Info;
   origin: ContainerOrigin;
   appTo: string;
-  update?: ContainerUpdateStatus;
   active: boolean;
   onStats: () => void;
 }) {
@@ -1026,66 +1086,29 @@ function OverviewTab({
   const hostQ = `?host=${encodeURIComponent(hostId)}`;
 
   return (
-    <div className="flex flex-col gap-9">
-      {/* Facts: the seconds-long answer to "is it healthy, what is it". */}
-      <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
-        <dl className="m-0 grid grid-cols-2 gap-px bg-border xl:grid-cols-4">
-          <Fact label="Health">
-            {info.health ? (
-              <span className="flex flex-wrap items-center gap-3">
-                <StatePill status={info.health} size="sm" />
-                {info.healthFailingStreak > 0 && <span className="text-muted-foreground">{info.healthFailingStreak} failing</span>}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">No health check</span>
-            )}
-          </Fact>
-          <Fact label="Restarts">
-            <span className={info.restartCount > 0 ? "text-[var(--tone-amber-text)]" : undefined}>{info.restartCount}</span>
-            <span className="text-muted-foreground"> · policy {info.restartPolicy}</span>
-          </Fact>
-          <Fact label={running || st === "paused" ? "Up since" : "Last stopped"}>
-            {running || st === "paused" ? (
-              info.startedAt ? <Tooltip content={formatDate(info.startedAt)}><span tabIndex={0}>{timeAgo(info.startedAt).replace(/ ago$/, "")}</span></Tooltip> : "—"
-            ) : info.finishedAt ? (
-              <Tooltip content={formatDate(info.finishedAt)}>
-                <span tabIndex={0}>
-                  {timeAgo(info.finishedAt)}
-                  {info.exitCode !== undefined && <span className="text-muted-foreground"> · exit {info.exitCode}</span>}
-                </span>
-              </Tooltip>
-            ) : (
-              <span className="text-muted-foreground">Never started</span>
-            )}
-          </Fact>
-          <Fact label="Host">
-            <Link to={`/hosts/${encodeURIComponent(hostId)}`} className="cell-link">{hostName}</Link>
-          </Fact>
-          <Fact label="Image" wide>
-            <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-              {info.imageId ? (
-                <Link to={`/images/${encodeURIComponent(info.imageId)}${hostQ}`} className="cell-link break-all">{info.image}</Link>
-              ) : (
-                <span className="break-all">{info.image}</span>
-              )}
-              <UpdatePill update={update} />
-              {info.imageId && <ImageScanChips hostId={hostId} imageId={info.imageId} />}
-            </span>
-          </Fact>
-          <Fact label="Origin" wide>
-            <OriginFact origin={origin} hostId={hostId} selfId={id} appTo={appTo} />
-          </Fact>
-        </dl>
-      </section>
-
-      {/* Wiring and runtime, side by side on wide screens. */}
-      <section className="grid shadow-[inset_0_0_0_1px_var(--border)] bg-card lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col lg:border-r">
-          <Panel title="Ports" meta={info.ports.length || undefined} flush>
+    <div className="flex flex-col gap-[20px]">
+      {/* How it runs, how it is wired and its config in one card on the left; live usage, the stack and schedules beside. */}
+      <section className="grid items-start gap-[20px] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col bg-card shadow-[inset_0_0_0_1px_var(--border)] [&>section+section]:shadow-[inset_0_1px_0_var(--border)]">
+          <Panel grouped title="Runtime">
+            <Facts
+              rows={[
+                ["Command", <Code key="c">{[info.entrypoint, info.cmd].filter(Boolean).join(" ") || "—"}</Code>],
+                ...(info.workingDir ? [["Working dir", <span key="w" className="font-mono">{info.workingDir}</span>] as [string, ReactNode]] : []),
+                ["User", info.user ? <span className="font-mono">{info.user}</span> : <span className="text-muted-foreground">image default</span>],
+                ["Hostname", <span key="h" className="font-mono">{info.hostname || "—"}</span>],
+                ...(info.healthcheck ? [["Health check", <Code key="hc">{info.healthcheck}</Code>] as [string, ReactNode]] : []),
+                ["Logging", info.logDriver || "—"],
+                ["Created", <Tooltip key="cr" content={formatDate(info.created)}><span tabIndex={0}>{timeAgo(info.created)}</span></Tooltip>],
+                ["ID", <span key="id" className="inline-flex items-center gap-2 font-mono">{shortId(id)}<CopyButton value={id} label="Copy container ID" /></span>],
+              ]}
+            />
+          </Panel>
+          <Panel grouped title="Ports" meta={info.ports.length || undefined} flush>
             {info.ports.length === 0 ? (
               <Empty>{info.networkMode === "host" ? "Host networking: the container uses the host's ports directly." : "No exposed ports."}</Empty>
             ) : (
-              <Table bordered={false} className="[&_td:first-child]:pl-[var(--page-px)] [&_th:first-child]:pl-[var(--page-px)] [&_td:last-child]:pr-[var(--page-px)] [&_th:last-child]:pr-[var(--page-px)]">
+              <Table bordered={false} className="[&_td:first-child]:pl-[16px] [&_th:first-child]:pl-[16px] [&_td:last-child]:pr-[16px] [&_th:last-child]:pr-[16px]">
                 <Table.Header>
                   <Table.Row>
                     <Table.Head>Container</Table.Head>
@@ -1105,12 +1128,44 @@ function OverviewTab({
               </Table>
             )}
           </Panel>
-
-          <Panel title="Networks" meta={info.networks.length || undefined} flush>
+          <Panel grouped title="Mounts" meta={info.mounts.length || undefined} flush>
+            {info.mounts.length === 0 ? (
+              <Empty>No volumes or bind mounts: everything written inside is lost when the container is recreated.</Empty>
+            ) : (
+              <Table bordered={false} className="[&_td:first-child]:pl-[16px] [&_th:first-child]:pl-[16px] [&_td:last-child]:pr-[16px] [&_th:last-child]:pr-[16px]">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.Head>Source</Table.Head>
+                    <Table.Head>Mounted at</Table.Head>
+                    <Table.Head align="right">Mode</Table.Head>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {info.mounts.map((m, i) => (
+                    <Table.Row key={`${m.destination}-${i}`}>
+                      <Table.Cell className="font-mono break-all">
+                        <span className="mr-[4px] font-sans text-[12px] text-muted-foreground ">{m.type}</span>
+                        {m.type === "volume" && m.name ? (
+                          <Link to={`/volumes/${encodeURIComponent(m.name)}${hostQ}`} className="cell-link">{m.name.length > 40 ? shortId(m.name) : m.name}</Link>
+                        ) : (
+                          m.source || "(anonymous)"
+                        )}
+                      </Table.Cell>
+                      <Table.Cell className="font-mono break-all">{m.destination}</Table.Cell>
+                      <Table.Cell align="right" shrink>
+                        <span className={m.rw ? undefined : "text-[var(--tone-amber-text)]"}>{m.rw ? "rw" : "read-only"}</span>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table>
+            )}
+          </Panel>
+          <Panel grouped title="Networks" meta={info.networks.length || undefined} flush>
             {info.networks.length === 0 ? (
               <Empty>{info.networkMode ? `Network mode ${info.networkMode}.` : "Not attached to any network."}</Empty>
             ) : (
-              <Table bordered={false} className="[&_td:first-child]:pl-[var(--page-px)] [&_th:first-child]:pl-[var(--page-px)] [&_td:last-child]:pr-[var(--page-px)] [&_th:last-child]:pr-[var(--page-px)]">
+              <Table bordered={false} className="[&_td:first-child]:pl-[16px] [&_th:first-child]:pl-[16px] [&_td:last-child]:pr-[16px] [&_th:last-child]:pr-[16px]">
                 <Table.Header>
                   <Table.Row>
                     <Table.Head>Network</Table.Head>
@@ -1134,74 +1189,15 @@ function OverviewTab({
               </Table>
             )}
           </Panel>
-
-          <Panel title="Mounts" meta={info.mounts.length || undefined} flush>
-            {info.mounts.length === 0 ? (
-              <Empty>No volumes or bind mounts: everything written inside is lost when the container is recreated.</Empty>
-            ) : (
-              <Table bordered={false} className="[&_td:first-child]:pl-[var(--page-px)] [&_th:first-child]:pl-[var(--page-px)] [&_td:last-child]:pr-[var(--page-px)] [&_th:last-child]:pr-[var(--page-px)]">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.Head>Source</Table.Head>
-                    <Table.Head>Mounted at</Table.Head>
-                    <Table.Head align="right">Mode</Table.Head>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {info.mounts.map((m, i) => (
-                    <Table.Row key={`${m.destination}-${i}`}>
-                      <Table.Cell className="font-mono break-all">
-                        <span className="mr-[4px] font-sans text-[12px] text-muted-foreground uppercase">{m.type}</span>
-                        {m.type === "volume" && m.name ? (
-                          <Link to={`/volumes/${encodeURIComponent(m.name)}${hostQ}`} className="cell-link">{m.name.length > 40 ? shortId(m.name) : m.name}</Link>
-                        ) : (
-                          m.source || "(anonymous)"
-                        )}
-                      </Table.Cell>
-                      <Table.Cell className="font-mono break-all">{m.destination}</Table.Cell>
-                      <Table.Cell align="right" shrink>
-                        <span className={m.rw ? undefined : "text-[var(--tone-amber-text)]"}>{m.rw ? "rw" : "read-only"}</span>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
-            )}
-          </Panel>
+          <EnvPanel grouped env={info.env} />
+          <LabelsPanel grouped labels={info.labels} />
         </div>
-
-        <div className="flex min-w-0 flex-col border-t lg:border-t-0">
+        <div className="flex min-w-0 flex-col gap-[20px]">
           <ResourcesPanel hostId={hostId} id={id} info={info} active={active && running} running={running} onStats={onStats} />
-          <Panel title="Runtime">
-            <Facts
-              rows={[
-                ["Command", <Code key="c">{[info.entrypoint, info.cmd].filter(Boolean).join(" ") || "—"}</Code>],
-                ...(info.workingDir ? [["Working dir", <span key="w" className="font-mono">{info.workingDir}</span>] as [string, ReactNode]] : []),
-                ["User", info.user ? <span className="font-mono">{info.user}</span> : <span className="text-muted-foreground">image default</span>],
-                ["Hostname", <span key="h" className="font-mono">{info.hostname || "—"}</span>],
-                ...(info.healthcheck ? [["Health check", <Code key="hc">{info.healthcheck}</Code>] as [string, ReactNode]] : []),
-                ["Logging", info.logDriver || "—"],
-                ["Created", <Tooltip key="cr" content={formatDate(info.created)}><span tabIndex={0}>{timeAgo(info.created)}</span></Tooltip>],
-                ["ID", <span key="id" className="inline-flex items-center gap-2 font-mono">{shortId(id)}<CopyButton value={id} label="Copy container ID" /></span>],
-              ]}
-            />
-          </Panel>
+          {origin.kind === "stack" && <StackPanel origin={origin} hostId={hostId} selfId={id} appTo={appTo} />}
+          <ScheduleSection targetType="container" targetId={info.name} hostId={hostId} />
         </div>
       </section>
-
-      <EnvPanel env={info.env} />
-      <LabelsPanel labels={info.labels} />
-
-      <ScheduleSection targetType="container" targetId={info.name} hostId={hostId} />
-    </div>
-  );
-}
-
-function Fact({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
-  return (
-    <div className={`flex min-w-0 flex-col gap-2 bg-card px-[var(--page-px)] py-[8px] ${wide ? "col-span-2" : ""}`}>
-      <dt className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">{label}</dt>
-      <dd className="m-0 min-w-0 text-[13px]">{children}</dd>
     </div>
   );
 }
@@ -1229,57 +1225,37 @@ function UpdatePill({ update }: { update?: ContainerUpdateStatus }) {
   );
 }
 
-/** Where the container comes from, with links to its owner and stack siblings. */
-function OriginFact({ origin, hostId, selfId, appTo }: { origin: ContainerOrigin; hostId: string; selfId: string; appTo: string }) {
+/** The other containers of the same compose stack, this one outlined. */
+function StackPanel({ origin, hostId, selfId, appTo }: { origin: ContainerOrigin; hostId: string; selfId: string; appTo: string }) {
   const siblingsQuery = useQuery({
     queryKey: ["containers", hostId, "all"],
     queryFn: () => listContainers(hostId, true),
-    enabled: origin.kind === "stack",
     refetchInterval: LIVE_REFETCH_MS,
   });
-  if (origin.kind === "deployment") {
-    return (
-      <span className="flex flex-wrap items-center gap-x-3">
-        <span>Deployment</span>
-        <Link to={appTo} className="cell-link">{origin.name}</Link>
-        <span className="text-muted-foreground">· change it on the workload and redeploy</span>
-      </span>
-    );
-  }
-  if (origin.kind === "stack") {
-    const siblings = (siblingsQuery.data ?? [])
-      .filter((c) => stackOf(c.labels) === origin.name)
-      .sort((a, b) => (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
-    return (
-      <span className="flex min-w-0 flex-col gap-[4px]">
-        <span>
-          Compose stack <Link to={appTo} className="cell-link">{origin.name}</Link>
-          {origin.service && <span className="text-muted-foreground"> · service {origin.service} · edit the compose file</span>}
-        </span>
-        {siblings.length > 1 && (
-          <span className="flex flex-wrap gap-[4px]">
-            {siblings.map((c) => {
-              const n = (c.names[0] ?? c.id).replace(/^\//, "");
-              const self = c.id === selfId || selfId.startsWith(c.id) || c.id.startsWith(selfId);
-              const pill = <StatePill status={c.state} label={n} size="sm" className="normal-case tracking-normal" />;
-              return self ? (
-                <span key={c.id} aria-current="page" className="inline-flex outline outline-1 outline-offset-1 outline-[var(--ring)]">{pill}</span>
-              ) : (
-                <Link key={c.id} to={`/containers/${c.id}?host=${encodeURIComponent(hostId)}`} className="inline-flex no-underline hover:opacity-80" title={`${n}: ${c.status}`}>
-                  {pill}
-                </Link>
-              );
-            })}
-          </span>
-        )}
-      </span>
-    );
-  }
+  const siblings = (siblingsQuery.data ?? [])
+    .filter((c) => stackOf(c.labels) === origin.name)
+    .sort((a, b) => (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
+  if (siblings.length < 2) return null;
   return (
-    <span>
-      Standalone · not managed by a stack or deployment ·{" "}
-      <Link to={appTo} className="cell-link">open as a workload</Link>
-    </span>
+    <Panel
+      title="Stack"
+      meta={<>{siblings.length} containers in <Link to={appTo} className="cell-link">{origin.name}</Link>{origin.service ? ` · service ${origin.service}` : ""}</>}
+    >
+      <span className="flex flex-wrap gap-[4px]">
+        {siblings.map((c) => {
+          const n = (c.names[0] ?? c.id).replace(/^\//, "");
+          const self = c.id === selfId || selfId.startsWith(c.id) || c.id.startsWith(selfId);
+          const pill = <StatePill status={c.state} label={n} size="sm" className="normal-case tracking-normal" />;
+          return self ? (
+            <span key={c.id} aria-current="page" className="inline-flex outline outline-1 outline-offset-1 outline-[var(--ring)]">{pill}</span>
+          ) : (
+            <Link key={c.id} to={`/containers/${c.id}?host=${encodeURIComponent(hostId)}`} className="inline-flex no-underline hover:opacity-80" title={`${n}: ${c.status}`}>
+              {pill}
+            </Link>
+          );
+        })}
+      </span>
+    </Panel>
   );
 }
 
@@ -1289,7 +1265,7 @@ function OriginFact({ origin, hostId, selfId, appTo }: { origin: ContainerOrigin
 
 const SECRET_KEY = /(pass(word)?|secret|token|key|credential|auth|private|dsn|salt|cookie)/i;
 
-function EnvPanel({ env }: { env: string[] }) {
+function EnvPanel({ env, grouped }: { env: string[]; grouped?: boolean }) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const rows = env.map((e) => {
     const eq = e.indexOf("=");
@@ -1306,8 +1282,8 @@ function EnvPanel({ env }: { env: string[] }) {
       return next;
     });
   return (
-    <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
-      <Panel
+    <Panel
+        grouped={grouped}
         title="Environment"
         meta={rows.length ? `${rows.length}${secrets ? ` · ${secrets} masked` : ""}` : undefined}
         flush
@@ -1315,7 +1291,7 @@ function EnvPanel({ env }: { env: string[] }) {
         {rows.length === 0 ? (
           <Empty>No environment variables.</Empty>
         ) : (
-          <Table bordered={false} className="[&_td:first-child]:pl-[var(--page-px)] [&_th:first-child]:pl-[var(--page-px)] [&_td:last-child]:pr-[var(--page-px)] [&_th:last-child]:pr-[var(--page-px)]">
+          <Table bordered={false} className="[&_td:first-child]:pl-[16px] [&_th:first-child]:pl-[16px] [&_td:last-child]:pr-[16px] [&_th:last-child]:pr-[16px]">
             <Table.Header>
               <Table.Row>
                 <Table.Head>Variable</Table.Head>
@@ -1352,17 +1328,16 @@ function EnvPanel({ env }: { env: string[] }) {
             </Table.Body>
           </Table>
         )}
-      </Panel>
-    </section>
+    </Panel>
   );
 }
 
-function LabelsPanel({ labels }: { labels: Record<string, string> }) {
+function LabelsPanel({ labels, grouped }: { labels: Record<string, string>; grouped?: boolean }) {
   const [open, setOpen] = useState(false);
   const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));
   return (
-    <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
-      <Panel
+    <Panel
+        grouped={grouped}
         title="Labels"
         meta={entries.length || undefined}
         flush
@@ -1377,7 +1352,7 @@ function LabelsPanel({ labels }: { labels: Record<string, string> }) {
         {entries.length === 0 ? (
           <Empty>No labels.</Empty>
         ) : open ? (
-          <Table bordered={false} className="[&_td:first-child]:pl-[var(--page-px)] [&_th:first-child]:pl-[var(--page-px)] [&_td:last-child]:pr-[var(--page-px)] [&_th:last-child]:pr-[var(--page-px)]">
+          <Table bordered={false} className="[&_td:first-child]:pl-[16px] [&_th:first-child]:pl-[16px] [&_td:last-child]:pr-[16px] [&_th:last-child]:pr-[16px]">
             <Table.Header>
               <Table.Row>
                 <Table.Head>Label</Table.Head>
@@ -1396,8 +1371,7 @@ function LabelsPanel({ labels }: { labels: Record<string, string> }) {
         ) : (
           <Empty>{entries.slice(0, 4).map(([k]) => k).join(", ")}{entries.length > 4 ? `, and ${entries.length - 4} more` : ""}</Empty>
         )}
-      </Panel>
-    </section>
+    </Panel>
   );
 }
 
@@ -1540,7 +1514,7 @@ function StatsTab({
             description="The stats socket closed. Check that the host's agent is online, then reopen this tab."
           />
         ) : (
-          <div className="flex items-center gap-3 px-[var(--page-px)] py-9">
+          <div className="flex items-center gap-3 px-[16px] py-9">
             <Spinner size="sm" />
             <Text size="sm" color="muted">Connecting to live stats…</Text>
           </div>
@@ -1551,9 +1525,9 @@ function StatsTab({
 
   const labels = history.map((h) => new Date(h.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
   return (
-    <div className="flex flex-col gap-9">
-      <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
-        <dl className="m-0 grid grid-cols-2 gap-px bg-border md:grid-cols-3 xl:grid-cols-5">
+    <div className="flex flex-col gap-[20px]">
+      <section className="min-w-0 bg-card shadow-[inset_0_0_0_1px_var(--border)]">
+        <dl className="m-0 grid grid-cols-2 gap-px bg-border p-px md:grid-cols-3 xl:grid-cols-5">
           <Stat label="CPU" value={formatPercent(stats.cpuPercent)} tone={usageColor(stats.cpuPercent)} />
           <Stat
             label="Memory"
@@ -1566,13 +1540,13 @@ function StatsTab({
           <Stat label="Processes" value={String(stats.pids)} sub={status === "live" ? `live · ${history.length} samples` : status} />
         </dl>
       </section>
-      <section className="grid shadow-[inset_0_0_0_1px_var(--border)] bg-card lg:grid-cols-2">
-        <div className="min-w-0 lg:border-r">
+      <section className="grid gap-[20px] lg:grid-cols-2">
+        <div className="min-w-0">
           <Panel title="CPU" meta="% of one core per 100">
             <LineChart labels={labels} series={[{ name: "CPU", data: history.map((h) => h.s.cpuPercent), color: "primary" }]} unit="%" area height={200} />
           </Panel>
         </div>
-        <div className="min-w-0 border-t lg:border-t-0">
+        <div className="min-w-0">
           <Panel title="Memory" meta="% of limit">
             <LineChart labels={labels} series={[{ name: "Memory", data: history.map((h) => h.s.memPercent), color: "green" }]} unit="%" yMax={100} area height={200} />
           </Panel>
@@ -1584,8 +1558,8 @@ function StatsTab({
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Color }) {
   return (
-    <div className="flex min-w-0 flex-col gap-[2px] bg-card px-[var(--page-px)] py-[8px]">
-      <dt className="text-[12px] tracking-[0.06em] text-muted-foreground font-mono uppercase">{label}</dt>
+    <div className="flex min-w-0 flex-col gap-[2px] bg-card px-[16px] py-[8px]">
+      <dt className="text-[12px] tracking-normal text-muted-foreground font-sans ">{label}</dt>
       <dd className="m-0 truncate text-[20px] font-medium tracking-[-0.02em]" style={tone && tone !== "primary" ? { ...toneVars(tone), color: "var(--t-text)" } : undefined}>
         {value}
       </dd>
@@ -1620,8 +1594,8 @@ function ImageTab({
 }) {
   const digest = (d?: string) => (d ? d.replace(/^sha256:/, "").slice(0, 12) : "—");
   return (
-    <div className="flex flex-col gap-9">
-      <section className="shadow-[inset_0_0_0_1px_var(--border)] bg-card">
+    <div className="flex flex-col gap-[20px]">
+      <section>
         <Panel
           title="Image"
           actions={
@@ -1672,13 +1646,13 @@ function InspectTab({ data }: { data: ContainerInspect | undefined }) {
   const pretty = useMemo(() => (data ? JSON.stringify(data, null, 2) : ""), [data]);
   return (
     <>
-      <div className="flex items-center justify-between gap-5 border-b bg-muted/50 px-[var(--page-px)] py-[4px]">
+      <div className="flex items-center justify-between gap-5 border-b bg-muted/50 px-[16px] py-[4px]">
         <Text size="xs" color="muted">docker inspect · refreshes with the page</Text>
         <span className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
           Copy JSON <CopyButton value={pretty} label="Copy inspect JSON" />
         </span>
       </div>
-      <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-[var(--page-px)] py-5 font-mono text-[13px] leading-[1.55] whitespace-pre">
+      <pre className="m-0 min-h-0 flex-1 overflow-auto bg-card px-[16px] py-5 font-mono text-[13px] leading-[1.55] whitespace-pre">
         {pretty}
       </pre>
     </>
