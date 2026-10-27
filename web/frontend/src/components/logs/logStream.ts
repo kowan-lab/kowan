@@ -80,6 +80,17 @@ function parseLine(raw: string): {
   return { rawTs, tsLabel, text, level: detectLevel(text) };
 }
 
+/** True while the document is visible; flips on `visibilitychange`. */
+export function usePageVisible(): boolean {
+  const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
+  useEffect(() => {
+    const onChange = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", onChange);
+    return () => document.removeEventListener("visibilitychange", onChange);
+  }, []);
+  return visible;
+}
+
 interface UseLogStreamOptions {
   tail: number;
   follow: boolean;
@@ -94,6 +105,11 @@ interface UseLogStreamOptions {
  * and fully reopened when tail / follow / reloadKey change (those are connection
  * parameters). Lines are flushed to state on a short interval to batch renders
  * under bursty output.
+ *
+ * A hidden tab holds no sockets: hiding the page closes them all (keeping the
+ * lines already received), and nothing opens or reopens while it stays hidden
+ * (auto-refresh included). Becoming visible again reopens every source with a
+ * fresh backlog, the same as a manual reload.
  */
 export function useLogStream(
   sources: LogSource[],
@@ -106,7 +122,8 @@ export function useLogStream(
   const pendingRef = useRef<LogLine[]>([]);
   const seqRef = useRef(0);
   // Connection params that force a full reopen when they change.
-  const connRef = useRef({ tail, follow, reloadKey });
+  const visible = usePageVisible();
+  const connRef = useRef({ tail, follow, reloadKey, visible });
 
   // A stable key describing the current source set for the effect dependency.
   const sourcesKey = sources.map((s) => s.key).join(",");
@@ -121,14 +138,16 @@ export function useLogStream(
 
     // A change to any connection parameter reopens everything with a fresh
     // backlog.
-    if (
-      conn.tail !== tail ||
-      conn.follow !== follow ||
-      conn.reloadKey !== reloadKey
-    ) {
-      connRef.current = { tail, follow, reloadKey };
+    const reopen = conn.tail !== tail || conn.follow !== follow || conn.reloadKey !== reloadKey;
+    const shown = visible && !conn.visible;
+    if (reopen || shown || !visible) {
       for (const [, sock] of sockets) sock.close();
       sockets.clear();
+    }
+    connRef.current = { tail, follow, reloadKey, visible };
+    // Hidden: stay closed and keep what is on screen until the tab comes back.
+    if (!visible) return;
+    if (reopen || shown) {
       pendingRef.current = [];
       setEntriesReset();
     }
@@ -183,7 +202,7 @@ export function useLogStream(
       setLines([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourcesKey, tail, follow, reloadKey]);
+  }, [sourcesKey, tail, follow, reloadKey, visible]);
 
   // Close everything on unmount.
   useEffect(() => {

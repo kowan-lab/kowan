@@ -110,10 +110,13 @@ export default function LogViewer({
   });
 
   // Auto-refresh: only meaningful when not following a live stream. Re-open all
-  // sockets every refreshSec seconds by bumping the reload key.
+  // sockets every refreshSec seconds by bumping the reload key. A hidden tab
+  // skips the tick: useLogStream holds no sockets then and reopens on return.
   useEffect(() => {
     if (follow || refreshSec <= 0) return;
-    const id = setInterval(() => setReloadKey((k) => k + 1), refreshSec * 1000);
+    const id = setInterval(() => {
+      if (document.visibilityState !== "hidden") setReloadKey((k) => k + 1);
+    }, refreshSec * 1000);
     return () => clearInterval(id);
   }, [follow, refreshSec]);
 

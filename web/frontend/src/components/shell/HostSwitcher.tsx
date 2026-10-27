@@ -1,9 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Layers3, Plus, Server } from "lucide-react";
 import { DropdownMenu as M } from "radix-ui";
 import { useNavigate } from "react-router";
-import { listHosts } from "@/api/client";
 import { ALL_HOSTS, useHost } from "@/HostContext";
+import { useHosts } from "@/lib/hostsQuery";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import type { Host } from "@/types";
@@ -31,7 +30,7 @@ export default function HostSwitcher() {
     setHostId(id);
     navigate("/");
   };
-  const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, refetchInterval: 15_000 });
+  const hosts = useHosts();
   const list: Host[] = hosts.data ?? [];
   const current = list.find((h) => h.id === hostId);
   const online = list.filter((h) => h.online).length;

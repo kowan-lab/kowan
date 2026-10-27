@@ -78,6 +78,8 @@ export default function LogHistory({ initialWorkload }: { initialWorkload?: stri
     initialPageParam: 0,
     getNextPageParam: (last) => last.next ?? undefined,
     enabled: (retQ.data?.length ?? 0) > 0,
+    // Result pages can be large: free them a minute after leaving the view.
+    gcTime: 60_000,
   });
   const lines: ArchivedLogLine[] = useMemo(() => search.data?.pages.flatMap((p) => p.items) ?? [], [search.data]);
   const terms = useMemo(() => highlightTerms(q), [q]);

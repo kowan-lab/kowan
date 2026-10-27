@@ -1,9 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { reply, requests } from "../../test/api";
-import { currentPath, pageRoot, renderApp } from "../../test/render";
+import { mockApi, reply, requests } from "../../test/api";
+import { baseApi, currentPath, newQueryClient, pageRoot, Providers, renderApp } from "../../test/render";
 import { choose, dialog, press, toast } from "../../test/ui";
-import { Highlight, highlightTerms } from "../../components/logs/LogHistory";
+import LogHistory, { Highlight, highlightTerms } from "../../components/logs/LogHistory";
 import { daysLabel, workloadName } from "../../components/logs/retention";
 import { deployments, hosts } from "../../test/fixtures";
 
@@ -90,6 +90,21 @@ describe("logs history", () => {
     expect(await screen.findByText(/no matching lines/i, {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(requests("GET", "/log-archive/search")[0].query.workload).toBe("dep~d-shop");
     expect(screen.getByRole("checkbox", { name: /filter by shop/i })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("frees search results a minute after leaving the view", async () => {
+    baseApi("admin");
+    mockApi({ "GET /log-archive/retention": retention, "GET /log-archive/search": { items: [line(1, "kept a minute")], next: null } });
+    const client = newQueryClient();
+    const { unmount } = render(<Providers client={client}><LogHistory /></Providers>);
+    expect(await screen.findByText("kept a minute", {}, { timeout: 10_000 })).toBeInTheDocument();
+    const query = client.getQueryCache().findAll({ queryKey: ["log-archive"] })[0];
+    expect(query.gcTime).toBe(60_000);
+    unmount();
+    // The test client collects at once (gcTime 0): the retention list goes, the
+    // search results stay for their minute.
+    await waitFor(() => expect(client.getQueryCache().findAll({ queryKey: ["log-retention"] })).toHaveLength(0));
+    expect(client.getQueryCache().findAll({ queryKey: ["log-archive"] })).toHaveLength(1);
   });
 
   it("reports a failed search", async () => {

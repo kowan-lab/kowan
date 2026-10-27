@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { eventsWebSocketURL, getMyPermissions, listHosts } from "@/api/client";
+import { eventsWebSocketURL, getMyPermissions } from "@/api/client";
+import { useHosts } from "@/lib/hostsQuery";
 import { setEventsLive } from "@/lib/live";
 
 /**
@@ -18,7 +19,7 @@ const FAMILIES: Record<string, string[]> = {
 
 export function useDockerEvents(): void {
   const qc = useQueryClient();
-  const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, refetchInterval: 15_000 });
+  const hosts = useHosts();
   // Docker events are host-wide: team-scoped users are refused by the server,
   // so they stay on polling instead of retrying a socket that can never open.
   const perms = useQuery({ queryKey: ["me-permissions"], queryFn: getMyPermissions, staleTime: 300_000, retry: false });
