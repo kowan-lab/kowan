@@ -130,7 +130,7 @@ The built-in MCP server is described in [docs/mcp.md](docs/mcp.md). The **AI ass
 - [Testing](docs/testing.md)
 - [Permissions](docs/permissions.md) and [SSO](docs/sso.md)
 - [MCP server](docs/mcp.md)
-- [Connections](docs/connections-design.md), a design note on typed credentials
+- [Connections](docs/connections.md), typed credentials shared across services
 - [Changelog](docs/CHANGELOG.md)
 
 ## Contributing

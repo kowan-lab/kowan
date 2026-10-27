@@ -1,6 +1,6 @@
 """Capability contracts — what a typed credential (connection) can *do*.
 
-This is the foundation of the "connection" model (see ``docs/connections-design.md``).
+This is the foundation of the "connection" model (see ``docs/connections.md``).
 A **connection** is a typed credential (aws, docker-registry-login, github, vault,
 smtp, …); a **capability** is an interface it *implements* — a verb the platform
 can perform *with* it (mint a docker auth token, fetch a secret, send a message,
@@ -13,11 +13,9 @@ several capabilities (registry auth for ECR, secret fetch for Secrets Manager,
 message send for SES, object store for S3) — one credential, many verbs — which is
 impossible to express when a credential *is* "a registry".
 
-Phase 0 introduces only the vocabulary: the capability names, their Protocol
-signatures (for typing/docs), and a **manifest** declaring which capabilities each
-currently-implemented connection type satisfies. It changes no behaviour — the
-existing registry/notify/secret providers already implement these methods; here we
-merely name and declare them so later phases can dispatch by capability.
+This module holds the vocabulary: the capability names and a **manifest**
+declaring which capabilities each connection type satisfies. The dispatch itself
+(build a capability from a connection) is in ``kowan/connections.py``.
 """
 
 from __future__ import annotations
@@ -73,12 +71,11 @@ CAPABILITY_LABELS: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Manifest: which capabilities each currently-implemented connection type has.
 #
-# Grounded in the code as it exists today (Phase 0). Cloud registry types
-# (ecr/gcp/acr) are declared with dockerRegistryAuth for now; when they become the
-# first-class aws/gcp/azure *cloud* connections (Phase 5) they will implement
+# Only what the code can do today. Cloud registry types (ecr/gcp/acr) are declared
+# with dockerRegistryAuth; the aws/gcp/azure cloud connections implement
 # cloudIdentity and DERIVE dockerRegistryAuth + the other facets. Static secret
 # types (generic/git/env/token) are intentionally ABSENT — they are opaque values,
-# not connections (see docs/connections-design.md §6.3).
+# not connections (see docs/connections.md, "What stays out").
 # ---------------------------------------------------------------------------
 
 _MANIFEST: Dict[str, frozenset] = {
@@ -96,7 +93,7 @@ _MANIFEST: Dict[str, frozenset] = {
     # authenticates a git clone/fetch (consumed today by the git-commit trigger via a
     # [[secret]] that delegates to one of these); httpBearer attaches an auth header.
     # gitApi (webhooks/status) is intentionally ABSENT — no builder/consumer exists
-    # yet, so declaring it would be a lie (see docs/connections-design.md §6.5).
+    # yet, so declaring it would be a lie.
     "git-http": frozenset({CAP_GIT_FETCH, CAP_HTTP_BEARER}),
     "github": frozenset({CAP_GIT_FETCH, CAP_HTTP_BEARER}),
     "gitlab": frozenset({CAP_GIT_FETCH, CAP_HTTP_BEARER}),
@@ -112,7 +109,7 @@ _MANIFEST: Dict[str, frozenset] = {
     "discord": frozenset({CAP_MESSAGE_SEND}),
     # cloud identities -> implement cloudIdentity and DERIVE the leaf capabilities.
     # dockerRegistryAuth works today (reuses the ECR/ACR providers); secretFetch /
-    # messageSend / objectStore (Secrets Manager / SES / S3 …) are Phase-5 facets.
+    # messageSend / objectStore (Secrets Manager / SES / S3 …) have no builder yet.
     "aws": frozenset({CAP_CLOUD_IDENTITY}),
     "azure": frozenset({CAP_CLOUD_IDENTITY}),
     # gcp is both the registry type name and the cloud identity — upgrade it to a

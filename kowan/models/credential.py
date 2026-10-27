@@ -33,7 +33,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # configs; each may carry its own inline auth OR reference a
 # shared ``connection`` by id via ``meta.connectionRef`` and let it provide the
 # auth (see :mod:`kowan.connections`). This is the pragmatic realization of the
-# connection model (docs/connections-design.md): services reference shared
+# connection model (docs/connections.md): services reference shared
 # connections by capability instead of re-embedding the same secret everywhere.
 CredentialKindConnection = "connection"
 CredentialKindRegistry = "registry"
