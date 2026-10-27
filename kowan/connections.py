@@ -112,7 +112,7 @@ def _git_fetch(conn_type: str, data: Dict[str, str], meta: Dict[str, Any]) -> An
     """An object exposing ``git_auth(repo_url="") -> (username, token)`` for HTTP git
     authentication, from a git connection's non-secret ``username`` (meta) + secret
     ``token`` (data). Matches the (username, token) pair the git-commit trigger
-    passes to ``httpx`` for basic auth, so a connection can back a private clone."""
+    sends as HTTP Basic auth, so a connection can back a private clone."""
     # username is non-secret; depending on the create path it lands in data (the
     # connection form encrypts every field) or meta (a registry's identity) — accept
     # either so the builder is robust to both.

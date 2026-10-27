@@ -6,8 +6,9 @@ API v2 WITHOUT ever pulling the image.
 
 The digest resolution performs a HEAD on the manifest, the registry's
 anonymous-or-Basic Bearer token handshake on a 401, and a GET + local sha256
-fallback when the registry omits the ``Docker-Content-Digest`` header. HTTP uses
-``httpx`` (redirects followed so a registry's storage backend redirect works).
+fallback when the registry omits the ``Docker-Content-Digest`` header. HTTP goes
+through :mod:`kowan.httpcap` (redirects followed so a registry's storage
+backend redirect works; bodies capped).
 """
 
 from __future__ import annotations
@@ -16,9 +17,7 @@ import hashlib
 import json
 from typing import Dict, Optional, Tuple
 
-import httpx
-
-from kowan.httpcap import request_capped
+from kowan import httpcap
 
 from . import FieldSpec, KindPoll, Poller, TypeDockerImage, register
 
@@ -66,7 +65,7 @@ class _DockerImagePoller(Poller):
         On first run (state == "") it records the digest and reports
         ``fired=False`` so attaching the trigger never fires for past history.
         """
-        async with httpx.AsyncClient(
+        async with httpcap.Client(
             timeout=_DOCKER_IMAGE_TIMEOUT, follow_redirects=True
         ) as client:
             digest = await self._resolve_digest(client)
@@ -74,12 +73,13 @@ class _DockerImagePoller(Poller):
             return False, digest
         return digest != state, digest
 
-    async def _resolve_digest(self, client: httpx.AsyncClient) -> str:
+    async def _resolve_digest(self, client: httpcap.Client) -> str:
         manifest_url = (
             f"https://{self.registry}/v2/{self.repository}/manifests/{self.reference}"
         )
 
-        resp = await self._do(client, "HEAD", manifest_url, "")
+        token = ""
+        resp = await self._do(client, "HEAD", manifest_url, token)
         # On a 401 carrying a Bearer challenge, obtain a token and retry once.
         if resp.status_code == 401:
             challenge = resp.headers.get("WWW-Authenticate", "")
@@ -96,34 +96,37 @@ class _DockerImagePoller(Poller):
             return digest
 
         # Fallback: some registries omit the digest header on HEAD; GET the
-        # manifest and hash the raw body (the digest is sha256 over the bytes).
-        token = _auth_token(resp.request)
+        # manifest and hash the raw body (the digest is sha256 over the bytes),
+        # reusing the token already negotiated for the HEAD.
         get_resp = await self._do(client, "GET", manifest_url, token)
-        raw = get_resp.content[:_MANIFEST_BODY_LIMIT]
+        raw = get_resp.content
         if get_resp.status_code < 200 or get_resp.status_code >= 300:
-            snippet = raw.decode("utf-8", "replace").strip()
+            snippet = raw[:512].decode("utf-8", "replace").strip()
             raise ValueError(
                 f"docker-image: GET {manifest_url}: unexpected status {get_resp.status_code}: {snippet}"
             )
         digest = get_resp.headers.get("Docker-Content-Digest")
         if digest:
             return digest
+        if get_resp.truncated:
+            # A hash of a cut manifest would be a wrong digest.
+            raise ValueError(f"docker-image: GET {manifest_url}: manifest larger than {_MANIFEST_BODY_LIMIT} bytes")
         return "sha256:" + hashlib.sha256(raw).hexdigest()
 
     async def _do(
-        self, client: httpx.AsyncClient, method: str, manifest_url: str, token: str
-    ) -> httpx.Response:
+        self, client: httpcap.Client, method: str, manifest_url: str, token: str
+    ) -> httpcap.Response:
         """Issue one manifest request with the manifest Accept header and, when
         ``token`` is non-empty, a Bearer Authorization header."""
         headers = {"Accept": _DOCKER_MANIFEST_ACCEPT}
         if token:
             headers["Authorization"] = "Bearer " + token
         try:
-            return await client.request(method, manifest_url, headers=headers)
-        except httpx.HTTPError as err:
+            return await client.request(method, manifest_url, limit=_MANIFEST_BODY_LIMIT, headers=headers)
+        except httpcap.HTTPError as err:
             raise ValueError(f"docker-image: {method} {manifest_url}: {err}") from err
 
-    async def _fetch_token(self, client: httpx.AsyncClient, challenge: str) -> str:
+    async def _fetch_token(self, client: httpcap.Client, challenge: str) -> str:
         """Perform the registry token handshake for this poller's credentials.
 
         Thin wrapper over the shared :func:`_fetch_registry_token` so the browse
@@ -134,7 +137,7 @@ class _DockerImagePoller(Poller):
 
 
 async def _fetch_registry_token(
-    client: httpx.AsyncClient, challenge: str, username: str, password: str
+    client: httpcap.Client, challenge: str, username: str, password: str
 ) -> str:
     """Perform the registry token handshake described by a
     "Bearer realm=..,service=..,scope=.." challenge, adding HTTP Basic auth
@@ -165,15 +168,15 @@ async def _fetch_registry_token(
     if username or password:
         auth = (username, password)
     try:
-        resp = await request_capped(
-            client, "GET", realm, 1 << 20,
+        resp = await client.request(
+            "GET", realm, limit=1 << 20,
             params=query,
             headers={"Accept": "application/json"},
             auth=auth,
         )
-    except httpx.HTTPError as err:
+    except httpcap.HTTPError as err:
         raise ValueError(f"docker-image: token {realm}: {err}") from err
-    raw = resp.content[: 1 << 20]
+    raw = resp.content
     if resp.status_code < 200 or resp.status_code >= 300:
         snippet = raw.decode("utf-8", "replace").strip()
         raise ValueError(
@@ -187,17 +190,6 @@ async def _fetch_registry_token(
     if not token:
         raise ValueError("docker-image: token response carried no token")
     return token
-
-
-def _auth_token(req: Optional[httpx.Request]) -> str:
-    """Extract the Bearer token previously set on a request so the GET fallback
-    can reuse the token already negotiated for the HEAD."""
-    if req is None:
-        return ""
-    h = req.headers.get("Authorization", "")
-    if h.startswith("Bearer "):
-        return h[len("Bearer ") :]
-    return ""
 
 
 def _parse_challenge(s: str) -> Dict[str, str]:

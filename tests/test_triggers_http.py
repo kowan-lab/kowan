@@ -1,4 +1,4 @@
-"""Polling triggers over HTTP, with httpx's MockTransport standing in for the
+"""Polling triggers over HTTP, with an httpcap.mock handler standing in for the
 registry and the git host: the docker-image Bearer handshake and digest
 fallback, the git smart-HTTP ref advertisement, and the
 workflow poller seeding, firing a run, and recording errors."""
@@ -7,22 +7,12 @@ import asyncio
 import base64
 import hashlib
 import unittest
-from unittest import mock
 
-import httpx
-
-from kowan import triggers
+from kowan import httpcap, triggers
 from kowan.triggers import dockerimage, gitcommit
 from tests.apicase import ServerCase
 
-_RealClient = httpx.AsyncClient
-
-
-def _patch_transport(handler):
-    def factory(*args, **kw):
-        kw.pop("transport", None)
-        return _RealClient(*args, transport=httpx.MockTransport(handler), **kw)
-    return mock.patch.object(httpx, "AsyncClient", factory)
+_patch_transport = httpcap.mock
 
 
 class FakeRegistryHost:
@@ -34,20 +24,20 @@ class FakeRegistryHost:
         self.manifest = b'{"schemaVersion": 2}'
         self.token_requests = []
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpcap.Request) -> httpcap.Reply:
         url = request.url
         if url.path == "/token":
             self.token_requests.append(request)
             if request.headers.get("Authorization") != "Basic " + base64.b64encode(b"bob:pw").decode():
-                return httpx.Response(401, text="bad credentials")
-            return httpx.Response(200, json={"token": "T"})
+                return httpcap.Reply(401, text="bad credentials")
+            return httpcap.Reply(200, json={"token": "T"})
         if request.headers.get("Authorization") != "Bearer T":
-            return httpx.Response(401, headers={"WWW-Authenticate":
+            return httpcap.Reply(401, headers={"WWW-Authenticate":
                 'Bearer realm="https://registry.test/token",service="registry.test",scope="repository:app:pull,push"'})
         if url.path == "/v2/app/manifests/1.0":
             headers = {"Docker-Content-Digest": self.digest} if self.header else {}
-            return httpx.Response(200, headers=headers, content=b"" if request.method == "HEAD" else self.manifest)
-        return httpx.Response(404, text="nope")
+            return httpcap.Reply(200, headers=headers, content=b"" if request.method == "HEAD" else self.manifest)
+        return httpcap.Reply(404, text="nope")
 
 
 def _pkt(line: str) -> bytes:
@@ -66,7 +56,7 @@ class TestDockerImage(unittest.IsolatedAsyncioTestCase):
             p = self.poller()
             fired, state = await p.evaluate({}, "")
             self.assertEqual((fired, state), (False, reg.digest))
-            self.assertEqual(dict(reg.token_requests[0].url.params)["scope"], "repository:app:pull,push")
+            self.assertEqual(dict(reg.token_requests[0].url.query)["scope"], "repository:app:pull,push")
             self.assertEqual(await p.evaluate({}, state), (False, reg.digest))
             reg.digest = "sha256:" + "b" * 64
             self.assertEqual(await p.evaluate({}, state), (True, reg.digest))
@@ -83,20 +73,28 @@ class TestDockerImage(unittest.IsolatedAsyncioTestCase):
             self.assertIn("token", str(cm.exception))
             with self.assertRaises(ValueError):
                 await self.poller(tag="2.0").evaluate({}, "")
-        with _patch_transport(lambda r: httpx.Response(401, headers={"WWW-Authenticate": 'Basic realm="x"'})):
+        with _patch_transport(lambda r: httpcap.Reply(401, headers={"WWW-Authenticate": 'Basic realm="x"'})):
             with self.assertRaises(ValueError):
                 await self.poller().evaluate({}, "")
-        with _patch_transport(lambda r: httpx.Response(401, headers={"WWW-Authenticate": "Bearer service=x"})):
+        with _patch_transport(lambda r: httpcap.Reply(401, headers={"WWW-Authenticate": "Bearer service=x"})):
             with self.assertRaises(ValueError):
                 await self.poller().evaluate({}, "")
 
         def bad_token(r):
             if r.url.path == "/token":
-                return httpx.Response(200, text="not json")
-            return httpx.Response(401, headers={"WWW-Authenticate": 'Bearer realm="https://registry.test/token"'})
+                return httpcap.Reply(200, text="not json")
+            return httpcap.Reply(401, headers={"WWW-Authenticate": 'Bearer realm="https://registry.test/token"'})
 
         with _patch_transport(bad_token):
             with self.assertRaises(ValueError):
+                await self.poller().evaluate({}, "")
+
+    async def test_oversized_manifest_is_not_hashed(self):
+        reg = FakeRegistryHost()
+        reg.header = False
+        reg.manifest = b"x" * ((4 << 20) + 1)
+        with _patch_transport(reg):
+            with self.assertRaisesRegex(ValueError, "manifest larger than"):
                 await self.poller().evaluate({}, "")
 
     def test_config_and_challenge(self):
@@ -120,8 +118,8 @@ class TestGitCommit(unittest.IsolatedAsyncioTestCase):
         refs = {"refs/heads/main": "1" * 40, "refs/heads/dev": "2" * 40, "refs/tags/v1": "3" * 40}
 
         def host(request):
-            self.assertEqual(request.url.params["service"], "git-upload-pack")
-            return httpx.Response(200, content=self.adv(refs))
+            self.assertEqual(request.url.query["service"], "git-upload-pack")
+            return httpcap.Reply(200, content=self.adv(refs))
 
         with _patch_transport(host):
             p = triggers.build(triggers.TypeGitCommit, {"repo": "https://git.test/a/b.git", "token": "t"})
@@ -133,18 +131,44 @@ class TestGitCommit(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await triggers.build(triggers.TypeGitCommit, {"repo": "https://git.test/x", "branch": "nope"}).evaluate({}, "")
         # master fallback, errors.
-        with _patch_transport(lambda r: httpx.Response(200, content=self.adv({"refs/heads/master": "5" * 40}))):
+        with _patch_transport(lambda r: httpcap.Reply(200, content=self.adv({"refs/heads/master": "5" * 40}))):
             p = triggers.build(triggers.TypeGitCommit, {"repo": "https://git.test/old"})
             self.assertEqual((await p.evaluate({}, ""))[1], "5" * 40)
-        with _patch_transport(lambda r: httpx.Response(403, text="forbidden")):
+        with _patch_transport(lambda r: httpcap.Reply(403, text="forbidden")):
             with self.assertRaises(ValueError):
                 await p.evaluate({}, "")
-        with _patch_transport(lambda r: httpx.Response(200, content=b"zzzzjunk")):
+        with _patch_transport(lambda r: httpcap.Reply(200, content=b"zzzzjunk")):
             with self.assertRaises(ValueError):
                 await p.evaluate({}, "")
         with self.assertRaises(ValueError):
             triggers.build(triggers.TypeGitCommit, {})
         self.assertFalse(gitcommit._is_hex40("x" * 40))
+
+
+class TestRSSFetch(unittest.IsolatedAsyncioTestCase):
+    async def test_fetch_seed_fire_and_errors(self):
+        feed = {"guid": "a"}
+
+        def host(request):
+            self.assertIn("application/rss+xml", request.headers["Accept"])
+            return httpcap.Reply(200, content=(f'<rss version="2.0"><channel><item><guid>{feed["guid"]}</guid>'
+                                               "</item></channel></rss>").encode())
+
+        p = triggers.build(triggers.TypeRSS, {"url": "https://feed.test/rss"})
+        with _patch_transport(host):
+            self.assertEqual(await p.evaluate({}, ""), (False, "a"))
+            feed["guid"] = "b"
+            self.assertEqual(await p.evaluate({}, "a"), (True, "b"))
+        with _patch_transport(lambda r: httpcap.Reply(500, text="down")):
+            with self.assertRaisesRegex(ValueError, "unexpected status 500: down"):
+                await p.evaluate({}, "")
+
+        def unreachable(r):
+            raise httpcap.HTTPError("refused")
+
+        with _patch_transport(unreachable):
+            with self.assertRaisesRegex(ValueError, "rss: fetch https://feed.test/rss: refused"):
+                await p.evaluate({}, "")
 
 
 class TestWorkflowPoller(ServerCase):
@@ -215,7 +239,7 @@ class TestPollerErrorPaths(ServerCase):
         def host(request):
             seen.append(request.headers.get("Authorization", ""))
             data = _pkt("# service=git-upload-pack\n") + b"0000" + _pkt(f"{'9' * 40} refs/heads/main\x00caps\n") + b"0000"
-            return httpx.Response(200, content=data)
+            return httpcap.Reply(200, content=data)
 
         with _patch_transport(host):
             await poller.poll_once()

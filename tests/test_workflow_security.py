@@ -15,6 +15,7 @@ from unittest import mock
 
 from aiohttp.test_utils import TestClient, TestServer
 
+from kowan import httpcap
 from kowan.config import ServerConfig
 from kowan.models import WorkflowPayload, WorkflowStep
 from kowan.server import build_app
@@ -59,21 +60,13 @@ class _SecretStore:
 
 class TestHttpStepRendering(unittest.TestCase):
     def test_caller_values_cannot_reference_secrets(self):
-        import httpx
-
         sent = {}
 
         async def handler(request):
             sent["url"] = str(request.url)
             sent["body"] = request.content.decode()
             sent["auth"] = request.headers.get("x-token")
-            return httpx.Response(200, text="ok")
-
-        real_client = httpx.AsyncClient
-
-        def client(**kw):
-            kw.pop("follow_redirects", None)
-            return real_client(transport=httpx.MockTransport(handler), **kw)
+            return httpcap.Reply(200, text="ok")
 
         step = WorkflowStep(type="http", config={
             "url": "https://relay.example/hook?q={{query.q}}",
@@ -84,7 +77,7 @@ class TestHttpStepRendering(unittest.TestCase):
                                   headers={"X-User": "[[db-password]]"}, query={"q": "[[db-password]]"})
         env = {"SECRET_VAR": "should-not-expand", "KOWAN_WEBHOOK_HEADER_X_USER": "[[db-password]]"}
         engine = Engine(Deps(store=_SecretStore()))
-        with mock.patch("kowan.workflow.engine.httpx.AsyncClient", client):
+        with httpcap.mock(handler):
             asyncio.run(engine._run_http(step, payload, env))
 
         # The step's own reference resolves; the caller's stay literal text.

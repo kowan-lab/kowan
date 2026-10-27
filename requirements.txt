@@ -9,7 +9,6 @@
 aiohttp==3.14.5
 pydantic==2.14.1
 cryptography==50.0.2
-httpx==0.28.1
 typer==0.27.3
 pyyaml==6.0.3
 # IANA time zones for schedules (zoneinfo): the images start FROM scratch and

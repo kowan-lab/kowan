@@ -1,18 +1,14 @@
-"""Every notification provider builds the right HTTP request (httpx
-MockTransport plays Slack/Discord/Telegram/ntfy/webhook) and reports a failing
+"""Every notification provider builds the right HTTP request (an httpcap.mock
+handler plays Slack/Discord/Telegram/ntfy/webhook) and reports a failing
 endpoint; required fields are enforced."""
 
 import json
 import unittest
-from unittest import mock
 
-import httpx
-
+from kowan import httpcap
 from kowan.errors import Validation
 from kowan.notify import Message
 from kowan.notify import provider as notify
-
-_RealClient = httpx.AsyncClient
 
 
 class TestProviders(unittest.IsolatedAsyncioTestCase):
@@ -24,12 +20,9 @@ class TestProviders(unittest.IsolatedAsyncioTestCase):
     def transport(self):
         def handler(request):
             self.requests.append(request)
-            return httpx.Response(self.status, text="ok" if self.status < 400 else "boom")
+            return httpcap.Reply(self.status, text="ok" if self.status < 400 else "boom")
 
-        def factory(*args, **kw):
-            kw.pop("transport", None)
-            return _RealClient(*args, transport=httpx.MockTransport(handler), **kw)
-        return mock.patch.object(httpx, "AsyncClient", factory)
+        return httpcap.mock(handler)
 
     async def send(self, ptype, config, level="critical"):
         p = notify.build(ptype, config)

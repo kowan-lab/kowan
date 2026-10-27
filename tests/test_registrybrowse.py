@@ -1,7 +1,7 @@
 """Unit tests for the docker-image trigger's registry-connection rework.
 
 Two surfaces are covered, both offline (a tiny synchronous fake store, no SQLite /
-no network / no httpx):
+no network / no HTTP client):
 
   * ``TriggerPoller._apply_connection`` resolving a ``dockerRegistryAuth`` connection
     into ``config`` username/password + registry host (mirroring the git-commit

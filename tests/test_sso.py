@@ -12,12 +12,12 @@ import unittest
 import uuid
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
 from aiohttp.test_utils import TestClient, TestServer
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
+from kowan import httpcap
 from kowan.api import sso as sso_api
 from kowan.auth import hash_password
 from kowan.authn.github import GitHubClient
@@ -80,7 +80,7 @@ class Keys:
 
 
 class MockIdP:
-    """An in-process OIDC provider behind httpx.MockTransport."""
+    """An in-process OIDC provider behind an httpcap handler."""
 
     def __init__(self, keys: Keys, issuer: str = ISS):
         self.keys = keys
@@ -91,39 +91,38 @@ class MockIdP:
         self.claims_extra = {}
         self.token_requests = []
 
-    def handler(self, request: httpx.Request) -> httpx.Response:
+    def handler(self, request: httpcap.Request) -> httpcap.Reply:
         url = str(request.url)
         if url == self.issuer + "/.well-known/openid-configuration":
-            return httpx.Response(200, json={
+            return httpcap.Reply(200, json={
                 "issuer": self.issuer, "authorization_endpoint": self.issuer + "/auth",
                 "token_endpoint": self.issuer + "/token", "jwks_uri": self.issuer + "/jwks",
                 "userinfo_endpoint": self.issuer + "/userinfo",
                 "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"]})
         if url == self.issuer + "/jwks":
             self.jwks_hits += 1
-            return httpx.Response(200, json={"keys": self.jwks})
+            return httpcap.Reply(200, json={"keys": self.jwks})
         if url == self.issuer + "/token":
             form = parse_qs(request.content.decode())
             self.token_requests.append((form, request.headers.get("authorization", "")))
             code = form.get("code", [""])[0]
             entry = self.codes.pop(code, None)
             if entry is None:
-                return httpx.Response(400, json={"error": "invalid_grant"})
+                return httpcap.Reply(400, json={"error": "invalid_grant"})
             if code_challenge(form["code_verifier"][0]) != entry["challenge"]:
-                return httpx.Response(400, json={"error": "invalid_grant"})
+                return httpcap.Reply(400, json={"error": "invalid_grant"})
             claims = {"iss": self.issuer, "aud": CID, "sub": entry.get("sub", "user-1"), "exp": time.time() + 300,
                       "iat": time.time(), "nonce": entry["nonce"], "email": "dev@example.test",
                       "email_verified": True, "preferred_username": "dev", "groups": ["devs", "kowan-ops"]}
             claims.update(self.claims_extra)
-            return httpx.Response(200, json={"access_token": "at", "token_type": "Bearer",
+            return httpcap.Reply(200, json={"access_token": "at", "token_type": "Bearer",
                                              "id_token": self.keys.sign(claims)})
         if url == self.issuer + "/userinfo":
-            return httpx.Response(200, json={"sub": "user-1", "name": "Dev"})
-        return httpx.Response(404)
+            return httpcap.Reply(200, json={"sub": "user-1", "name": "Dev"})
+        return httpcap.Reply(404)
 
     def factory(self):
-        transport = httpx.MockTransport(self.handler)
-        return lambda: httpx.AsyncClient(transport=transport)
+        return lambda: httpcap.Client(handler=self.handler)
 
     def authorize(self, auth_url: str, sub="user-1") -> str:
         q = parse_qs(urlsplit(auth_url).query)
@@ -214,7 +213,7 @@ class TestIDTokenValidation(unittest.IsolatedAsyncioTestCase):
         def bad(req):
             r = orig(req)
             if str(req.url).endswith("openid-configuration"):
-                return httpx.Response(200, json={**r.json(), "issuer": "https://evil.test"})
+                return httpcap.Reply(200, json={**r.json, "issuer": "https://evil.test"})
             return r
 
         idp.handler = bad
@@ -231,7 +230,7 @@ class TestIDTokenValidation(unittest.IsolatedAsyncioTestCase):
         def h(req):
             r = orig(req)
             if str(req.url).endswith("openid-configuration"):
-                return httpx.Response(200, json={**r.json(), "issuer": tmpl})
+                return httpcap.Reply(200, json={**r.json, "issuer": tmpl})
             return r
 
         idp.handler = h
@@ -246,17 +245,16 @@ class TestIDTokenValidation(unittest.IsolatedAsyncioTestCase):
 
 class TestOIDCProviderFailures(unittest.IsolatedAsyncioTestCase):
     def client_for(self, handler):
-        transport = httpx.MockTransport(handler)
-        return OIDCClient(ISS, CID, "s3cret", http=lambda: httpx.AsyncClient(transport=transport))
+        return OIDCClient(ISS, CID, "s3cret", http=lambda: httpcap.Client(handler=handler))
 
     async def test_discovery_and_token_endpoint_errors(self):
         def unreachable(r):
-            raise httpx.ConnectError("refused")
+            raise httpcap.HTTPError("refused")
 
         for handler, code in ((unreachable, "provider_unreachable"),
-                              (lambda r: httpx.Response(200, text="{not json"), "provider_error"),
-                              (lambda r: httpx.Response(200, json=[1]), "provider_error"),
-                              (lambda r: httpx.Response(200, json={"issuer": ISS}), "provider_error")):
+                              (lambda r: httpcap.Reply(200, text="{not json"), "provider_error"),
+                              (lambda r: httpcap.Reply(200, json=[1]), "provider_error"),
+                              (lambda r: httpcap.Reply(200, json={"issuer": ISS}), "provider_error")):
             with self.assertRaises(OIDCError) as cm:
                 await self.client_for(handler).discovery()
             self.assertEqual(cm.exception.code, code)
@@ -267,13 +265,13 @@ class TestOIDCProviderFailures(unittest.IsolatedAsyncioTestCase):
         def no_basic(request):
             url = str(request.url)
             if url.endswith("/.well-known/openid-configuration"):
-                return httpx.Response(200, json={
+                return httpcap.Reply(200, json={
                     "issuer": ISS, "authorization_endpoint": ISS + "/auth", "token_endpoint": ISS + "/token",
                     "jwks_uri": ISS + "/jwks", "token_endpoint_auth_methods_supported": ["client_secret_post"]})
             if url == ISS + "/token":
                 form = parse_qs(request.content.decode())
                 assert form["client_secret"] == ["s3cret"]  # client_secret_post
-                return httpx.Response(400, json={"error": "invalid_grant"})
+                return httpcap.Reply(400, json={"error": "invalid_grant"})
             return idp.handler(request)
 
         c = self.client_for(no_basic)
@@ -427,21 +425,20 @@ class TestGitHub(unittest.IsolatedAsyncioTestCase):
             if u.endswith("/login/oauth/access_token"):
                 form = parse_qs(req.content.decode())
                 assert form["code_verifier"]
-                return httpx.Response(200, json={"access_token": "gho_x", "token_type": "bearer"})
+                return httpcap.Reply(200, json={"access_token": "gho_x", "token_type": "bearer"})
             assert req.headers["authorization"] == "Bearer gho_x"
             if u.endswith("/user"):
-                return httpx.Response(200, json={"id": 42, "login": "octo", "name": "Octo"})
+                return httpcap.Reply(200, json={"id": 42, "login": "octo", "name": "Octo"})
             if u.endswith("/user/emails"):
-                return httpx.Response(200, json=[{"email": "o@x.test", "primary": True, "verified": True},
+                return httpcap.Reply(200, json=[{"email": "o@x.test", "primary": True, "verified": True},
                                                  {"email": "u@x.test", "primary": False, "verified": False}])
             if "/user/orgs" in u:
-                return httpx.Response(200, json=[{"login": "acme"}])
+                return httpcap.Reply(200, json=[{"login": "acme"}])
             if "/user/teams" in u:
-                return httpx.Response(200, json=[{"slug": "ops", "organization": {"login": "acme"}}])
-            return httpx.Response(404)
+                return httpcap.Reply(200, json=[{"slug": "ops", "organization": {"login": "acme"}}])
+            return httpcap.Reply(404)
 
-        t = httpx.MockTransport(handler)
-        gh = GitHubClient("cid", "sec", http=lambda: httpx.AsyncClient(transport=t))
+        gh = GitHubClient("cid", "sec", http=lambda: httpcap.Client(handler=handler))
         url = gh.authorization_url("https://kowan.test/cb", ["read:user"], "st", "ch")
         self.assertIn("code_challenge=ch", url)
         tok = await gh.exchange_code("code", "https://kowan.test/cb", "verifier")
@@ -468,7 +465,8 @@ class TestSSOFlow(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.keys = Keys()
         self.idp = MockIdP(self.keys)
-        sso_api.HTTP_FACTORY = self.idp.factory()
+        self._mock = httpcap.mock(lambda r: self.idp.handler(r))
+        self._mock.__enter__()
         app, self.svc = await build_app(_cfg())
         self.client = TestClient(TestServer(app))
         await self.client.start_server()
@@ -477,7 +475,7 @@ class TestSSOFlow(unittest.IsolatedAsyncioTestCase):
         self.admin_h = {"Authorization": "Bearer " + self.svc.jwt.issue(admin.id, admin.username, admin.role)}
 
     async def asyncTearDown(self):
-        sso_api.HTTP_FACTORY = None
+        self._mock.__exit__(None, None, None)
         await self.client.close()
 
     async def create_provider(self, **extra):

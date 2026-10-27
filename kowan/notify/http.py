@@ -5,10 +5,10 @@ remote endpoint; these helpers centralise the shared client, timeout, and the
 "any non-2xx response is an error" contract so per-provider ``send`` methods stay
 tiny.
 
-Uses ``httpx`` (async) — the one allowed HTTP client dep — instead of a shared
-module-level client, because an httpx.AsyncClient is bound to a
-specific event loop; a per-call client keeps the providers usable from whatever
-loop the notifier runs on.
+Uses :mod:`kowan.httpcap` with a per-call client instead of a shared
+module-level one, because an aiohttp session is bound to a specific event
+loop; a per-call client keeps the providers usable from whatever loop the
+notifier runs on.
 """
 
 from __future__ import annotations
@@ -16,10 +16,7 @@ from __future__ import annotations
 import json as _json
 from typing import Any, Dict, Optional
 
-import httpx
-
-from kowan.httpcap import request_capped
-
+from kowan import httpcap
 from kowan.errors import BadGateway
 
 # httpTimeout bounds every outbound HTTP provider request.
@@ -56,9 +53,8 @@ async def post(
         hdrs.update(headers)
 
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await request_capped(client, "POST", url, 512, content=body, headers=hdrs)
-    except httpx.HTTPError as err:
+        resp = await httpcap.request("POST", url, limit=512, timeout=HTTP_TIMEOUT, content=body, headers=hdrs)
+    except httpcap.HTTPError as err:
         raise BadGateway(f"do request: {err}") from err
 
     if resp.status_code < 200 or resp.status_code >= 300:

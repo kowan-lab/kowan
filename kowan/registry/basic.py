@@ -6,7 +6,7 @@ username/password. :meth:`BasicProvider.validate` probes the Docker Registry V2
 API (``GET /v2/``) and detects plain-HTTP / untrusted-TLS endpoints.
 
 TLS failures are reclassified via a retry with verification disabled, using
-:mod:`httpx`: a first verified request,
+:mod:`kowan.httpcap`: a first verified request,
 then — over HTTPS only — a retry with ``verify=False`` to distinguish an
 untrusted/self-signed certificate (insecure but reachable) from a genuine
 connection failure.
@@ -18,14 +18,16 @@ import base64
 import json
 from typing import Optional, Tuple
 
-import httpx
-
+from kowan import httpcap
 from kowan.models import Registry
 
 from .provider import Provider
 
 # Bounds a single probe request.
 _PROBE_TIMEOUT = 15.0
+
+# Body bytes read from a probe or token answer (only status/headers matter).
+_PROBE_LIMIT = 64 << 10
 
 
 def build_registry_auth(username: str, password: str, server_address: str) -> str:
@@ -84,8 +86,8 @@ def registry_reachable(status_code: int, www_authenticate: str) -> bool:
 def is_tls_error(err: BaseException) -> bool:
     """Report whether ``err`` is a TLS verification/handshake failure.
 
-    httpx wraps the underlying ``ssl.SSLError`` inside a ``ConnectError``, so we
-    match on the message text.
+    aiohttp wraps the underlying ``ssl.SSLError`` inside a connector error (and
+    httpcap in an ``HTTPError``), so we match on the message text.
     """
     msg = str(err).lower()
     return (
@@ -167,7 +169,7 @@ class BasicProvider(Provider):
             f"registry {host} returned unexpected status {resp.status_code}",
         )
 
-    async def _credentials_problem(self, resp: httpx.Response, host: str, *, skip_verify: bool) -> Optional[str]:
+    async def _credentials_problem(self, resp: httpcap.Response, host: str, *, skip_verify: bool) -> Optional[str]:
         """Whether the stored credentials actually work, not just whether the
         registry answers: a 401 with a challenge proves only that it is alive.
 
@@ -191,9 +193,9 @@ class BasicProvider(Provider):
             return f"registry {host}: malformed auth challenge"
         query = {k: params[k] for k in ("service", "scope") if params.get(k)}
         try:
-            async with httpx.AsyncClient(verify=not skip_verify, timeout=_PROBE_TIMEOUT,
-                                         follow_redirects=False) as client:
-                token = await client.get(realm, params=query or None, auth=(self._username, self._password))
+            token = await httpcap.request("GET", realm, limit=_PROBE_LIMIT, verify=not skip_verify,
+                                          timeout=_PROBE_TIMEOUT, follow_redirects=False, params=query or None,
+                                          auth=(self._username, self._password))
         except Exception as err:  # noqa: BLE001
             return f"registry {host}: token request failed: {err}"
         if token.status_code in (401, 403):
@@ -202,7 +204,7 @@ class BasicProvider(Provider):
             return f"registry {host}: token endpoint returned {token.status_code}"
         return None
 
-    async def _probe(self, endpoint: str, skip_verify: bool) -> httpx.Response:
+    async def _probe(self, endpoint: str, skip_verify: bool) -> httpcap.Response:
         """Perform ``GET /v2/`` with basic auth. ``skip_verify`` disables TLS
         certificate verification (used only to detect untrusted-TLS endpoints)."""
         auth = None
@@ -210,12 +212,8 @@ class BasicProvider(Provider):
             auth = (self._username, self._password)
         # Do not follow redirects to other hosts during a reachability probe; the
         # status/challenge from the addressed endpoint is what we want.
-        async with httpx.AsyncClient(
-            verify=not skip_verify,
-            timeout=_PROBE_TIMEOUT,
-            follow_redirects=False,
-        ) as client:
-            return await client.get(endpoint, auth=auth)
+        return await httpcap.request("GET", endpoint, limit=_PROBE_LIMIT, verify=not skip_verify,
+                                     timeout=_PROBE_TIMEOUT, follow_redirects=False, auth=auth)
 
 
 def _speaks_plain_http(err: BaseException) -> bool:

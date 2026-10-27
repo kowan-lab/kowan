@@ -1,7 +1,7 @@
 """RSS / Atom feed polling trigger.
 
 Mirrors the structure of ``gitcommit.py`` / ``dockerimage.py``: a :class:`Poller`
-that fetches a feed URL with ``httpx`` and parses it with the stdlib
+that fetches a feed URL with :mod:`kowan.httpcap` and parses it with the stdlib
 ``xml.etree.ElementTree`` (no third-party feed library). It fires whenever the
 newest entry id changes.
 
@@ -22,9 +22,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from typing import Dict, Optional, Tuple
 
-import httpx
-
-from kowan.httpcap import request_capped
+from kowan import httpcap
 
 from . import FieldSpec, KindPoll, Poller, TypeRSS, register
 
@@ -66,23 +64,20 @@ class _RSSPoller(Poller):
     async def _fetch(self) -> bytes:
         """GET the feed URL and return the (capped) raw body bytes. Raises
         ``ValueError`` on a transport error or a non-2xx status."""
-        async with httpx.AsyncClient(
-            timeout=_RSS_TIMEOUT, follow_redirects=True
-        ) as client:
-            try:
-                resp = await request_capped(
-                    client, "GET", self.url, _RSS_MAX_BODY,
-                    headers={"Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"},
-                )
-            except httpx.HTTPError as err:
-                raise ValueError(f"rss: fetch {self.url}: {err}") from err
-            body = resp.content[:_RSS_MAX_BODY]
-            if resp.status_code < 200 or resp.status_code >= 300:
-                snippet = body.decode("utf-8", "replace").strip()
-                raise ValueError(
-                    f"rss: {self.url}: unexpected status {resp.status_code}: {snippet}"
-                )
-            return body
+        try:
+            resp = await httpcap.request(
+                "GET", self.url, limit=_RSS_MAX_BODY, timeout=_RSS_TIMEOUT, follow_redirects=True,
+                headers={"Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"},
+            )
+        except httpcap.HTTPError as err:
+            raise ValueError(f"rss: fetch {self.url}: {err}") from err
+        body = resp.content
+        if resp.status_code < 200 or resp.status_code >= 300:
+            snippet = body.decode("utf-8", "replace").strip()
+            raise ValueError(
+                f"rss: {self.url}: unexpected status {resp.status_code}: {snippet}"
+            )
+        return body
 
 
 def _local(tag: str) -> str:

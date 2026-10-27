@@ -25,10 +25,10 @@ import os
 import sys
 from typing import Any, List, Optional, TextIO
 
-import httpx
 import typer
 
 from .config import first_non_empty
+from .httpclient import HTTPError, Response, Session
 
 SESSION_HEADER = "Mcp-Session-Id"
 VERSION_HEADER = "MCP-Protocol-Version"
@@ -46,11 +46,12 @@ class Bridge:
     """Forward JSON-RPC lines to ``<server>/mcp`` and return the reply lines."""
 
     def __init__(self, server: str, api_key: str = "", token: str = "",
-                 http: Optional[httpx.Client] = None, log: Optional[TextIO] = None) -> None:
+                 http: Optional[Session] = None, log: Optional[TextIO] = None) -> None:
         self.url = server.strip().rstrip("/") + "/mcp"
         self.credential = (api_key or token or "").strip()
-        # verify=False like the rest of kowanctl: servers often use self-signed certs.
-        self.http = http or httpx.Client(verify=False, timeout=httpx.Timeout(900.0, connect=10.0))
+        # Unverified TLS like the rest of kowanctl: servers often use self-signed
+        # certs. A tool call may take minutes; connecting may not.
+        self.http = http or Session(timeout=900.0, connect_timeout=10.0)
         self.log = log or sys.stderr
         self.session_id = ""
         self.protocol_version = ""
@@ -68,11 +69,11 @@ class Bridge:
             h[VERSION_HEADER] = self.protocol_version
         return h
 
-    def _post(self, msg: dict) -> httpx.Response:
-        return self.http.post(self.url, content=_dump(msg).encode("utf-8"), headers=self._headers())
+    def _post(self, msg: dict) -> Response:
+        return self.http.request("POST", self.url, content=_dump(msg).encode("utf-8"), headers=self._headers())
 
     @staticmethod
-    def _parse(resp: httpx.Response) -> List[dict]:
+    def _parse(resp: Response) -> List[dict]:
         ctype = resp.headers.get("content-type", "")
         if not resp.content:
             return []
@@ -101,14 +102,14 @@ class Bridge:
         self.session_id = ""
         try:
             resp = self._post(self._init_msg)
-        except httpx.HTTPError:
+        except HTTPError:
             return False
         if resp.status_code != 200 or not resp.headers.get(SESSION_HEADER):
             return False
         self.session_id = resp.headers[SESSION_HEADER]
         try:
             self._post({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        except httpx.HTTPError:
+        except HTTPError:
             pass
         print("kowanctl mcp: session expired; re-initialized", file=self.log)
         return True
@@ -133,7 +134,7 @@ class Bridge:
             resp = self._post(msg)
             if resp.status_code == 404 and self.session_id and not is_init and self._reinitialize():
                 resp = self._post(msg)
-        except httpx.HTTPError as err:
+        except HTTPError as err:
             print(f"kowanctl mcp: {self.url}: {err}", file=self.log)
             return [_dump(_err(msg_id, -32603, f"Kowan server unreachable: {err}"))] if msg_id is not None else []
 
@@ -161,8 +162,8 @@ class Bridge:
     def close(self) -> None:
         if self.session_id:
             try:
-                self.http.delete(self.url, headers=self._headers())
-            except httpx.HTTPError:
+                self.http.request("DELETE", self.url, headers=self._headers())
+            except HTTPError:
                 pass
             self.session_id = ""
         self.http.close()

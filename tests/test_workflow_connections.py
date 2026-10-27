@@ -8,7 +8,7 @@ registries/secrets/channels/volumes:
   * the HTTP ACTION (httpBearer)        -> an Authorization/Bearer header.
 
 Both tests use a tiny synchronous fake store (the ``test_volumeauth.py`` style):
-no SQLite, no network, no httpx. The git side exercises
+no SQLite, no network, no HTTP client. The git side exercises
 ``TriggerPoller._apply_connection`` directly; the http side exercises the same
 ``connections.resolve(...).auth_headers()`` path the engine's ``_run_http`` uses.
 """
@@ -102,7 +102,7 @@ class TestGitCommitConnection(unittest.TestCase):
 
 class TestHttpBearerConnection(unittest.TestCase):
     """The HTTP action resolves an httpBearer connection into an auth header via the
-    same ``connections.resolve`` path the engine's _run_http uses (no httpx)."""
+    same ``connections.resolve`` path the engine's _run_http uses (no HTTP)."""
 
     def test_api_token_connection_yields_bearer_header(self):
         # meta {header, scheme} + data {token} -> a single Authorization: Bearer header.

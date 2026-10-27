@@ -19,8 +19,7 @@ import hmac
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
-
+from kowan import httpcap
 from kowan.models import Registry
 
 from .basic import build_registry_auth
@@ -166,12 +165,12 @@ class ECRProvider(Provider):
         headers = self._sign_v4(host, body, now, target)
 
         try:
-            async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-                resp = await client.post(endpoint, content=body, headers=headers)
+            resp = await httpcap.request("POST", endpoint, limit=_MAX_BODY, timeout=_REQUEST_TIMEOUT,
+                                         content=body, headers=headers)
         except Exception as err:  # noqa: BLE001
             raise ValueError(f"ecr: call {op}: {err}")
 
-        resp_body = resp.content[:_MAX_BODY]
+        resp_body = resp.content
         if resp.status_code != 200:
             text = resp_body.decode("utf-8", "replace").strip()
             raise ValueError(f"ecr: {op} returned {resp.status_code}: {text}")

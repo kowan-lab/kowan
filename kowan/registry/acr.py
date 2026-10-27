@@ -15,8 +15,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
 
-import httpx
-
+from kowan import httpcap
 from kowan.models import Registry
 
 from .basic import build_registry_auth, scheme_and_host
@@ -185,17 +184,16 @@ async def _bearer_get_json(url: str, access_token: str) -> Any:
     Bounded like the token exchanges (timeout + body cap). Raises ``ValueError``
     on transport error or a non-2xx status."""
     try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.get(
-                url,
-                headers={
-                    "Authorization": "Bearer " + access_token,
-                    "Accept": "application/json",
-                },
-            )
+        resp = await httpcap.request(
+            "GET", url, limit=_MAX_BODY, timeout=_REQUEST_TIMEOUT,
+            headers={
+                "Authorization": "Bearer " + access_token,
+                "Accept": "application/json",
+            },
+        )
     except Exception as err:  # noqa: BLE001
         raise ValueError(str(err))
-    body = resp.content[:_MAX_BODY]
+    body = resp.content
     if resp.status_code < 200 or resp.status_code >= 300:
         raise ValueError(
             f"acr: {url} returned {resp.status_code}: "
@@ -211,15 +209,10 @@ async def _do_request(url: str, form: dict[str, str]) -> Tuple[bytes, int]:
     A transport error raises ``ValueError`` with the underlying message.
     """
     try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.post(
-                url,
-                data=form,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+        resp = await httpcap.request("POST", url, limit=_MAX_BODY, timeout=_REQUEST_TIMEOUT, data=form)
     except Exception as err:  # noqa: BLE001
         raise ValueError(str(err))
-    return resp.content[:_MAX_BODY], resp.status_code
+    return resp.content, resp.status_code
 
 
 def _json(body: bytes):

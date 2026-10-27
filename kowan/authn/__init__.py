@@ -11,5 +11,5 @@
 * :mod:`kowan.authn.provision` just-in-time provisioning and account linking.
 * :mod:`kowan.authn.state`     the sealed transient login-state cookie.
 
-No authlib / pyjwt: everything is built on httpx + cryptography. See docs/sso.md.
+No authlib / pyjwt: everything is built on aiohttp's client (kowan.httpcap) + cryptography. See docs/sso.md.
 """

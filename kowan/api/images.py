@@ -101,7 +101,7 @@ def _resp(response: web.Response) -> web.HTTPException:
 
     ``error_response`` returns a ``web.Response`` (not an exception); the
     middleware chain renders raised ``HTTPException``s, so we adapt one into the
-    other by copying its status/body, matching how the httpx JSONError path works.
+    other by copying its status/body, matching how the web.responses JSONError path works.
     """
     # NOTE: assigning ``status_code`` on an already-constructed HTTPException
     # does not change the status it renders (aiohttp fixes it at __init__), so
@@ -110,7 +110,7 @@ def _resp(response: web.Response) -> web.HTTPException:
     # before construction.
     import json as _json
 
-    from kowan.web.httpx import JSONError
+    from kowan.web.responses import JSONError
 
     try:
         msg = _json.loads(response.text).get("error", "")

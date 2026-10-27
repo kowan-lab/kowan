@@ -80,7 +80,7 @@ async def _repositories(svc: "Services", request: web.Request) -> web.Response:
 
     try:
         repos = await provider.list_repositories()
-    except Exception as err:  # noqa: BLE001 - registry/httpx error; best effort
+    except Exception as err:  # noqa: BLE001 - registry/HTTP error; best effort
         log.info("registry repositories: list failed id=%s err=%s", cid, err)
         return json_response({"repositories": []})
 
@@ -106,7 +106,7 @@ async def _tags(svc: "Services", request: web.Request) -> web.Response:
 
     try:
         tag_list = await provider.list_tags(repo)
-    except Exception as err:  # noqa: BLE001 - registry/httpx error; best effort
+    except Exception as err:  # noqa: BLE001 - registry/HTTP error; best effort
         log.info("registry tags: list failed id=%s repo=%s err=%s", cid, repo, err)
         return json_response({"tags": []})
 

@@ -3,14 +3,20 @@
 It speaks the same JSON contracts the server exposes under /api/v1,
 authenticating with a bearer JWT and/or an admin-managed API key ("pk_...").
 It accepts self-signed TLS certificates so the CLI works
-against a server using an auto-generated certificate.
+against a server using an auto-generated certificate. HTTP is the stdlib's,
+through :mod:`kowan.cli.httpclient`.
 """
 
 from __future__ import annotations
 
-from typing import Any, BinaryIO
+import os
+import secrets
+from typing import Any, BinaryIO, Iterator
 
-import httpx
+from .httpclient import HTTPError, Response, Session
+
+# Error bodies are read up to this many bytes.
+_ERROR_BODY_LIMIT = 1 << 20
 
 
 class APIError(Exception):
@@ -24,13 +30,13 @@ class APIError(Exception):
 class Client:
     """A typed HTTP client for the Kowan server REST API."""
 
-    def __init__(self, server: str, token: str = "", api_key: str = "") -> None:
+    def __init__(self, server: str, token: str = "", api_key: str = "", http: Session | None = None) -> None:
         # Normalise the server URL by trimming trailing slashes / whitespace.
         self.server = server.strip().rstrip("/")
         self.token = token or ""
         self.api_key = (api_key or "").strip()
-        # verify=False accepts self-signed server certs.
-        self._http = httpx.Client(verify=False, timeout=60.0)
+        # Certificates are not verified: self-signed server certs are accepted.
+        self._http = http or Session(timeout=60.0)
 
     # -- context-manager sugar so callers can `with Client(...) as c:` --
     def __enter__(self) -> "Client":
@@ -52,8 +58,8 @@ class Client:
             headers["Authorization"] = "Bearer " + self.token
         return headers
 
-    def _status_error(self, method: str, path: str, resp: httpx.Response) -> APIError:
-        data = resp.content[: 1 << 20]
+    def _status_error(self, method: str, path: str, resp: Response) -> APIError:
+        data = resp.read(_ERROR_BODY_LIMIT)
         msg = ""
         try:
             body = resp.json()
@@ -77,16 +83,14 @@ class Client:
         """Perform an HTTP request. On non-2xx raise APIError; else decode JSON."""
         headers = self._auth_headers()
         headers["Accept"] = "application/json"
-        json_body = None
+        kw: dict[str, Any] = {}
         if body is not None:
-            json_body = body
+            kw["json"] = body
             headers["Content-Type"] = "application/json"
 
         try:
-            resp = self._http.request(
-                method, self.server + path, json=json_body, headers=headers
-            )
-        except httpx.HTTPError as e:
+            resp = self._http.request(method, self.server + path, headers=headers, **kw)
+        except HTTPError as e:
             raise APIError(f"{method} {path}: {e}") from e
 
         if not (200 <= resp.status_code < 300):
@@ -94,6 +98,8 @@ class Client:
 
         if not decode:
             return None
+        if resp.truncated:
+            raise APIError(f"{method} {path}: response too large")
         if not resp.content:
             return None
         try:
@@ -285,25 +291,39 @@ class Client:
         headers["Accept"] = "application/gzip"
         url = self.server + "/api/v1/backup"
         try:
-            with self._http.stream("GET", url, headers=headers) as resp:
+            with self._http.request("GET", url, headers=headers, stream=True) as resp:
                 if not (200 <= resp.status_code < 300):
-                    # Materialise the body so the error envelope can be read.
-                    resp.read()
                     raise self._status_error("GET", "/api/v1/backup", resp)
                 for chunk in resp.iter_bytes():
                     w.write(chunk)
-        except httpx.HTTPError as e:
+        except HTTPError as e:
             raise APIError(f"GET /api/v1/backup: {e}") from e
 
     def restore(self, r: BinaryIO) -> None:
-        """Upload a backup archive to POST /restore as a multipart 'file' field."""
+        """Upload a backup archive to POST /restore as a multipart 'file' field,
+        streamed from ``r`` (never held in memory)."""
         headers = self._auth_headers()
         headers["Accept"] = "application/json"
         url = self.server + "/api/v1/restore"
-        files = {"file": ("kowan-backup.tar.gz", r, "application/gzip")}
+        boundary = secrets.token_hex(16)
+        head = (f"--{boundary}\r\n"
+                'Content-Disposition: form-data; name="file"; filename="kowan-backup.tar.gz"\r\n'
+                "Content-Type: application/gzip\r\n\r\n").encode("ascii")
+        tail = f"\r\n--{boundary}--\r\n".encode("ascii")
+        headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+        size = _remaining(r)
+        if size is not None:
+            headers["Content-Length"] = str(len(head) + size + len(tail))
+
+        def parts() -> Iterator[bytes]:
+            yield head
+            while chunk := r.read(64 << 10):
+                yield chunk
+            yield tail
+
         try:
-            resp = self._http.post(url, headers=headers, files=files)
-        except httpx.HTTPError as e:
+            resp = self._http.request("POST", url, headers=headers, content=parts())
+        except HTTPError as e:
             raise APIError(f"POST /api/v1/restore: {e}") from e
         if not (200 <= resp.status_code < 300):
             raise self._status_error("POST", "/api/v1/restore", resp)
@@ -333,3 +353,11 @@ class Client:
 
     def delete_api_key(self, id_: str) -> None:
         self._do("DELETE", f"/api/v1/apikeys/{id_}", decode=False)
+
+
+def _remaining(r: BinaryIO) -> int | None:
+    """Bytes left in a regular file (for Content-Length), or None (chunked)."""
+    try:
+        return os.fstat(r.fileno()).st_size - r.tell()
+    except (AttributeError, OSError, ValueError):
+        return None

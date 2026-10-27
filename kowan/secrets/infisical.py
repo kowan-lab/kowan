@@ -3,7 +3,7 @@
 Authenticates with Machine Identity
 "Universal Auth" (clientId/clientSecret -> short-lived access token), then reads a
 single secret value via the raw secrets API. Two live HTTP calls (login + read)
-bounded by an 8s total timeout via ``httpx``.
+each bounded by an 8s timeout and a 1 MiB body cap via :mod:`kowan.httpcap`.
 """
 
 from __future__ import annotations
@@ -11,12 +11,15 @@ from __future__ import annotations
 from typing import Dict
 from urllib.parse import quote
 
-import httpx
+from kowan import httpcap
 
 from .provider import FieldSpec, Provider, register
 
 # infisical_timeout bounds the two live HTTP calls of one resolution (seconds).
 INFISICAL_TIMEOUT = 8.0
+
+# Cap on each answer's body.
+_MAX_BODY = 1 << 20
 
 # InfisicalType is the registered provider/secret type for Infisical.
 InfisicalType = "infisical"
@@ -58,20 +61,20 @@ class _InfisicalProvider:
         if not name:
             raise ValueError("infisical: secret name (key) is required")
 
-        async with httpx.AsyncClient(timeout=INFISICAL_TIMEOUT) as client:
+        async with httpcap.Client(timeout=INFISICAL_TIMEOUT) as client:
             token = await self._login(client)
             return await self._read_secret(client, token, name)
 
-    async def _login(self, client: httpx.AsyncClient) -> str:
+    async def _login(self, client: httpcap.Client) -> str:
         """Perform the Universal Auth exchange and return a short-lived token."""
         url = self._address + "/api/v1/auth/universal-auth/login"
         try:
-            resp = await client.post(
-                url,
+            resp = await client.request(
+                "POST", url, limit=_MAX_BODY,
                 json={"clientId": self._client_id, "clientSecret": self._client_secret},
                 headers={"Accept": "application/json"},
             )
-        except httpx.HTTPError as e:
+        except httpcap.HTTPError as e:
             raise ValueError(f"infisical: login {url}: {e}") from e
         if resp.status_code != 200:
             raise ValueError(
@@ -86,7 +89,7 @@ class _InfisicalProvider:
             raise ValueError("infisical: login returned no access token")
         return token
 
-    async def _read_secret(self, client: httpx.AsyncClient, token: str, name: str) -> str:
+    async def _read_secret(self, client: httpcap.Client, token: str, name: str) -> str:
         """Read a single secret value by name from the raw secrets API."""
         params = {
             "workspaceId": self._project_id,
@@ -97,12 +100,12 @@ class _InfisicalProvider:
         # path segment.
         endpoint = f"{self._address}/api/v3/secrets/raw/{quote(name, safe='')}"
         try:
-            resp = await client.get(
-                endpoint,
+            resp = await client.request(
+                "GET", endpoint, limit=_MAX_BODY,
                 params=params,
                 headers={"Authorization": "Bearer " + token, "Accept": "application/json"},
             )
-        except httpx.HTTPError as e:
+        except httpcap.HTTPError as e:
             raise ValueError(f"infisical: read {endpoint}: {e}") from e
         if resp.status_code != 200:
             raise ValueError(

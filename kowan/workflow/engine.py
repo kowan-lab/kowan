@@ -36,9 +36,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Awaitable, Callable, Dict, Optional
 
-import httpx
-
-from kowan.httpcap import request_capped
+from kowan import httpcap
 
 # Response bytes an HTTP step keeps (shown in the run output).
 _HTTP_STEP_MAX_BODY = 64 << 10
@@ -951,11 +949,9 @@ class Engine:
 
         content = body.encode("utf-8") if body != "" else None
         try:
-            async with httpx.AsyncClient(
-                timeout=_HTTP_STEP_TIMEOUT, follow_redirects=True
-            ) as client:
-                resp = await request_capped(client, method, url, _HTTP_STEP_MAX_BODY, headers=headers, content=content)
-        except httpx.HTTPError as err:
+            resp = await httpcap.request(method, url, limit=_HTTP_STEP_MAX_BODY, timeout=_HTTP_STEP_TIMEOUT,
+                                         follow_redirects=True, headers=headers, content=content)
+        except httpcap.HTTPError as err:
             raise ValueError(f"http step: {method} {url}: {err}")
 
         resp_body = resp.content.decode("utf-8", "replace").strip()

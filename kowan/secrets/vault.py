@@ -1,8 +1,9 @@
 """HashiCorp Vault external secret provider.
 
 Reads a single value from a Vault KV v2
-engine via the raw HTTP API (no vault client library), using ``httpx`` with an 8s
-timeout so a slow/unreachable Vault cannot stall a deploy.
+engine via the raw HTTP API (no vault client library), using :mod:`kowan.httpcap`
+with an 8s timeout (and a 1 MiB body cap) so a slow/unreachable Vault cannot
+stall a deploy.
 
 Register via :func:`register_vault` (called from the package ``__init__``). The
 field keys match the ``models.VaultField*`` names so a vault secret's stored data
@@ -14,12 +15,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict
 
-import httpx
+from kowan import httpcap
 
 from .provider import FieldSpec, Provider, register
 
 # vault_timeout bounds a single live fetch from Vault (seconds).
 VAULT_TIMEOUT = 8.0
+
+# Cap on the answer's body.
+_MAX_BODY = 1 << 20
 
 # VaultType is the registered provider/secret type for HashiCorp Vault.
 VaultType = "vault"
@@ -86,12 +90,11 @@ async def fetch_vault(cfg: VaultConfig) -> str:
     url = f"{address}/v1/{mount}/data/{path}"
 
     try:
-        async with httpx.AsyncClient(timeout=VAULT_TIMEOUT) as client:
-            resp = await client.get(
-                url,
-                headers={"X-Vault-Token": cfg.token, "Accept": "application/json"},
-            )
-    except httpx.HTTPError as e:
+        resp = await httpcap.request(
+            "GET", url, limit=_MAX_BODY, timeout=VAULT_TIMEOUT,
+            headers={"X-Vault-Token": cfg.token, "Accept": "application/json"},
+        )
+    except httpcap.HTTPError as e:
         raise ValueError(f"vault: request {url}: {e}") from e
 
     body = resp.text

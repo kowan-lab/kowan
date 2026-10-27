@@ -1,4 +1,4 @@
-"""Cloud registry providers against mocked cloud APIs (httpx MockTransport):
+"""Cloud registry providers against mocked cloud APIs (httpcap.mock):
 AWS ECR (SigV4-signed JSON API, token decode, paginated browse), Azure ACR
 (AAD client-credentials -> exchange -> scoped access token) and Google
 (RS256 service-account assertion -> access token)."""
@@ -6,27 +6,19 @@ AWS ECR (SigV4-signed JSON API, token decode, paginated browse), Azure ACR
 import base64
 import json
 import unittest
-from unittest import mock
 from urllib.parse import parse_qs
 
-import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
+from kowan import httpcap
 from kowan.models import Registry
 from kowan.registry.acr import ACRProvider
 from kowan.docker.local import decode_registry_auth
 from kowan.registry.ecr import ECRProvider
 from kowan.registry.gcp import GCPProvider
 
-_RealClient = httpx.AsyncClient
-
-
-def transport(handler):
-    def factory(*args, **kw):
-        kw.pop("transport", None)
-        return _RealClient(*args, transport=httpx.MockTransport(handler), **kw)
-    return mock.patch.object(httpx, "AsyncClient", factory)
+transport = httpcap.mock
 
 
 class TestECR(unittest.IsolatedAsyncioTestCase):
@@ -44,16 +36,16 @@ class TestECR(unittest.IsolatedAsyncioTestCase):
         op = target.rsplit(".", 1)[1]
         body = json.loads(request.content or b"{}")
         if op == "GetAuthorizationToken":
-            return httpx.Response(200, json={"authorizationData": [{
+            return httpcap.Reply(200, json={"authorizationData": [{
                 "authorizationToken": base64.b64encode(b"AWS:ecr-password").decode(),
                 "proxyEndpoint": "https://123.dkr.ecr.eu-west-1.amazonaws.com"}]})
         if op == "DescribeRepositories":
             if not body.get("nextToken"):
-                return httpx.Response(200, json={"repositories": [{"repositoryName": "a"}], "nextToken": "p2"})
-            return httpx.Response(200, json={"repositories": [{"repositoryName": "b"}]})
+                return httpcap.Reply(200, json={"repositories": [{"repositoryName": "a"}], "nextToken": "p2"})
+            return httpcap.Reply(200, json={"repositories": [{"repositoryName": "b"}]})
         if op == "ListImages":
-            return httpx.Response(200, json={"imageIds": [{"imageTag": "1.0"}, {"imageDigest": "sha256:x"}]})
-        return httpx.Response(400, json={"message": "unknown op"})
+            return httpcap.Reply(200, json={"imageIds": [{"imageTag": "1.0"}, {"imageDigest": "sha256:x"}]})
+        return httpcap.Reply(400, json={"message": "unknown op"})
 
     async def test_token_browse_and_errors(self):
         p = ECRProvider(self.reg)
@@ -67,14 +59,14 @@ class TestECR(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await p.list_tags(" ")
         self.assertEqual(str(self.calls[0].url), "https://api.ecr.eu-west-1.amazonaws.com/")
-        with transport(lambda r: httpx.Response(403, json={"message": "denied"})):
+        with transport(lambda r: httpcap.Reply(403, json={"message": "denied"})):
             ok, err = await p.validate()
             self.assertIn("403", err)
-        with transport(lambda r: httpx.Response(200, json={"authorizationData": []})):
+        with transport(lambda r: httpcap.Reply(200, json={"authorizationData": []})):
             self.assertIn("empty", (await p.validate())[1])
-        with transport(lambda r: httpx.Response(200, json={"authorizationData": [{"authorizationToken": "bm9jb2xvbg=="}]})):
+        with transport(lambda r: httpcap.Reply(200, json={"authorizationData": [{"authorizationToken": "bm9jb2xvbg=="}]})):
             self.assertIn("malformed", (await p.validate())[1])
-        with transport(lambda r: httpx.Response(200, text="not json")):
+        with transport(lambda r: httpcap.Reply(200, text="not json")):
             self.assertIn("decode", (await p.validate())[1])
         with self.assertRaises(ValueError):
             ECRProvider(Registry(type="ecr", url="x", config={"region": "eu-west-1"}))
@@ -90,20 +82,20 @@ class TestACR(unittest.IsolatedAsyncioTestCase):
         form = parse_qs(request.content.decode()) if request.method == "POST" else {}
         if url == "https://login.microsoftonline.com/t1/oauth2/v2.0/token":
             if form.get("client_secret") != ["cs"]:
-                return httpx.Response(401, json={"error": "invalid_client"})
-            return httpx.Response(200, json={"access_token": "aad"})
+                return httpcap.Reply(401, json={"error": "invalid_client"})
+            return httpcap.Reply(200, json={"access_token": "aad"})
         if url == "https://myreg.azurecr.io/oauth2/exchange":
             assert form["access_token"] == ["aad"]
-            return httpx.Response(200, json={"refresh_token": "refresh"})
+            return httpcap.Reply(200, json={"refresh_token": "refresh"})
         if url == "https://myreg.azurecr.io/oauth2/token":
             assert form["refresh_token"] == ["refresh"]
-            return httpx.Response(200, json={"access_token": "access-" + form["scope"][0]})
+            return httpcap.Reply(200, json={"access_token": "access-" + form["scope"][0]})
         if url == "https://myreg.azurecr.io/v2/_catalog":
             assert request.headers["Authorization"] == "Bearer access-registry:catalog:*"
-            return httpx.Response(200, json={"repositories": ["web"]})
+            return httpcap.Reply(200, json={"repositories": ["web"]})
         if url == "https://myreg.azurecr.io/v2/web/tags/list":
-            return httpx.Response(200, json={"tags": ["v1", "v2"]})
-        return httpx.Response(404, text="nope")
+            return httpcap.Reply(200, json={"tags": ["v1", "v2"]})
+        return httpcap.Reply(404, text="nope")
 
     async def test_exchange_and_browse(self):
         p = ACRProvider(self.reg)
@@ -118,9 +110,9 @@ class TestACR(unittest.IsolatedAsyncioTestCase):
         bad = ACRProvider(Registry(type="acr", url=self.reg.url, config={**self.reg.config, "clientSecret": "x"}))
         with transport(self.handler):
             self.assertIn("401", (await bad.validate())[1])
-        with transport(lambda r: httpx.Response(200, json={})):
+        with transport(lambda r: httpcap.Reply(200, json={})):
             self.assertIn("empty", (await p.validate())[1])
-        with transport(lambda r: httpx.Response(200, text="<html>")):
+        with transport(lambda r: httpcap.Reply(200, text="<html>")):
             self.assertIn("decode", (await p.validate())[1])
         with self.assertRaises(ValueError):
             ACRProvider(Registry(type="acr", url="x", config={}))
@@ -143,7 +135,7 @@ class TestGCP(unittest.IsolatedAsyncioTestCase):
                                      padding.PKCS1v15(), hashes.SHA256())
         c = json.loads(base64.urlsafe_b64decode(pad(claims)))
         assert c["iss"] == self.sa["client_email"] and c["aud"] == self.sa["token_uri"]
-        return httpx.Response(200, json={"access_token": "ya29.token"})
+        return httpcap.Reply(200, json={"access_token": "ya29.token"})
 
     async def test_assertion_and_errors(self):
         p = GCPProvider(Registry(type="gcp", url="europe-docker.pkg.dev", config={"jsonKey": json.dumps(self.sa)}))
@@ -151,9 +143,9 @@ class TestGCP(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await p.credentials(), ("oauth2accesstoken", "ya29.token", "europe-docker.pkg.dev"))
             self.assertEqual(decode_registry_auth(await p.docker_auth())[0], "oauth2accesstoken")
             self.assertEqual(await p.validate(), (False, None))
-        with transport(lambda r: httpx.Response(400, text="invalid_grant")):
+        with transport(lambda r: httpcap.Reply(400, text="invalid_grant")):
             self.assertIn("400", (await p.validate())[1])
-        with transport(lambda r: httpx.Response(200, json={})):
+        with transport(lambda r: httpcap.Reply(200, json={})):
             self.assertIn("empty", (await p.validate())[1])
         for key in ("{bad", json.dumps([1]), json.dumps({"client_email": "x"}),
                     json.dumps({"client_email": "x", "private_key": "not a pem"})):

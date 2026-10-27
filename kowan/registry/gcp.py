@@ -22,10 +22,10 @@ import json
 import time
 from typing import Optional, Tuple
 
-import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
+from kowan import httpcap
 from kowan.models import Registry
 
 from .basic import build_registry_auth
@@ -41,6 +41,9 @@ _DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 _ASSERTION_TTL = 3600
 
 _REQUEST_TIMEOUT = 20.0
+
+# Cap on the token endpoint's answer.
+_MAX_BODY = 1 << 20
 
 
 class GCPProvider(Provider):
@@ -97,15 +100,13 @@ class GCPProvider(Provider):
         assertion = _signed_assertion(client_email, private_key, token_uri)
 
         try:
-            async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-                resp = await client.post(
-                    token_uri,
-                    data={
-                        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                        "assertion": assertion,
-                    },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
-                )
+            resp = await httpcap.request(
+                "POST", token_uri, limit=_MAX_BODY, timeout=_REQUEST_TIMEOUT,
+                data={
+                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                    "assertion": assertion,
+                },
+            )
         except Exception as err:  # noqa: BLE001
             raise ValueError(f"gcp: fetch access token: {err}")
 
@@ -114,7 +115,7 @@ class GCPProvider(Provider):
             raise ValueError(f"gcp: fetch access token: {resp.status_code}: {text}")
         try:
             out = resp.json()
-        except (ValueError, httpx.DecodingError) as err:
+        except ValueError as err:
             raise ValueError(f"gcp: decode token: {err}")
         access = out.get("access_token", "") if isinstance(out, dict) else ""
         if not access:

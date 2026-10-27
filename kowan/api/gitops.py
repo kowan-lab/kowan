@@ -43,7 +43,7 @@ from kowan.gitops.export import export_files, list_exportable, push_files, zip_b
 from kowan.gitops.kinds import Context
 from kowan.gitops.service import MIN_INTERVAL, GitOpsService, new_token
 from kowan.web import SERVICES_KEY, add_public_route, api_route, json_response, read_json
-from kowan.web.httpx import read_body
+from kowan.web.responses import read_body
 
 log = logging.getLogger("kowan.api.gitops")
 

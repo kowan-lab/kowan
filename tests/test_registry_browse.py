@@ -12,7 +12,7 @@ Covers the browse rework that made cloud registries listable:
     credentials — the old ``registry_view`` path ignored the connection and built a
     credential-less generic provider that could never see a cloud registry.
 
-No SQLite / no network / no httpx: a tiny fake store plus mocked provider I/O.
+No SQLite / no network / no HTTP client: a tiny fake store plus mocked provider I/O.
 """
 
 import asyncio

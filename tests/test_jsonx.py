@@ -19,7 +19,7 @@ from unittest import mock
 from pydantic import BaseModel, ConfigDict, Field
 
 from kowan import eventloop, jsonx
-from kowan.web import httpx
+from kowan.web import responses
 
 
 class _Inner(BaseModel):
@@ -125,7 +125,7 @@ class TestLoads(unittest.TestCase):
 
 class TestHttpHelpers(unittest.TestCase):
     def test_json_response_body(self):
-        resp = httpx.json_response([_Outer(imageId="i")], status=201)
+        resp = responses.json_response([_Outer(imageId="i")], status=201)
         self.assertEqual(resp.status, 201)
         self.assertEqual(resp.content_type, "application/json")
         self.assertEqual(
@@ -134,7 +134,7 @@ class TestHttpHelpers(unittest.TestCase):
         )
 
     def test_json_response_none_is_empty(self):
-        self.assertIsNone(httpx.json_response(None, 204).body)
+        self.assertIsNone(responses.json_response(None, 204).body)
 
 
 class TestEventLoop(unittest.TestCase):

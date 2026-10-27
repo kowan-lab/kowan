@@ -5,17 +5,15 @@ git smart-HTTP protocol (GET ``.../info/refs?service=git-upload-pack``) with no
 git binary and no clone, firing whenever the tip moves.
 
 The response is a pkt-line ref advertisement; we parse it into refname -> SHA
-and pick the configured branch (falling back main -> master). HTTP uses
-``httpx`` with optional HTTP Basic auth for private repos.
+and pick the configured branch (falling back main -> master). HTTP goes
+through :mod:`kowan.httpcap` with optional HTTP Basic auth for private repos.
 """
 
 from __future__ import annotations
 
 from typing import Dict, Tuple
 
-import httpx
-
-from kowan.httpcap import request_capped
+from kowan import httpcap
 
 from . import FieldSpec, KindPoll, Poller, TypeGitCommit, register
 
@@ -72,17 +70,17 @@ class _GitCommitPoller(Poller):
         if self.username or self.token:
             auth = (self.username, self.token)
 
-        async with httpx.AsyncClient(timeout=_GIT_COMMIT_TIMEOUT, follow_redirects=True) as client:
-            try:
-                resp = await request_capped(client, "GET", request_url, _GIT_COMMIT_MAX_BODY, headers=headers, auth=auth)
-            except httpx.HTTPError as err:
-                raise ValueError(f"git-commit: fetch {request_url}: {err}") from err
-            body = resp.content[:_GIT_COMMIT_MAX_BODY]
-            if resp.status_code != 200:
-                snippet = body.decode("utf-8", "replace").strip()
-                raise ValueError(
-                    f"git-commit: {request_url}: unexpected status {resp.status_code}: {snippet}"
-                )
+        try:
+            resp = await httpcap.request("GET", request_url, limit=_GIT_COMMIT_MAX_BODY, timeout=_GIT_COMMIT_TIMEOUT,
+                                         follow_redirects=True, headers=headers, auth=auth)
+        except httpcap.HTTPError as err:
+            raise ValueError(f"git-commit: fetch {request_url}: {err}") from err
+        body = resp.content
+        if resp.status_code != 200:
+            snippet = body.decode("utf-8", "replace").strip()
+            raise ValueError(
+                f"git-commit: {request_url}: unexpected status {resp.status_code}: {snippet}"
+            )
 
         try:
             return _parse_pkt_refs(body)

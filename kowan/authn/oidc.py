@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlencode
 
-import httpx
+from kowan import httpcap
 
 from . import jose
 
@@ -80,24 +80,24 @@ def consteq(a: str, b: str) -> bool:
 # HTTP
 # ---------------------------------------------------------------------------
 
-# Tests inject an httpx transport (httpx.MockTransport) here.
-HttpFactory = Callable[[], httpx.AsyncClient]
+# Builds the client for one exchange (tests swap the network with httpcap.mock).
+HttpFactory = Callable[[], httpcap.Client]
 
 
-def default_http() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=False,
-                             headers={"User-Agent": "kowan-sso/1", "Accept": "application/json"})
+def default_http() -> httpcap.Client:
+    return httpcap.Client(timeout=HTTP_TIMEOUT, follow_redirects=False,
+                          headers={"User-Agent": "kowan-sso/1", "Accept": "application/json"})
 
 
 async def get_json(http: HttpFactory, url: str, headers: Optional[dict] = None) -> Any:
     async with http() as client:
         try:
-            resp = await client.get(url, headers=headers or {})
-        except httpx.HTTPError as err:
+            resp = await client.request("GET", url, limit=MAX_RESPONSE_BYTES, headers=headers or {})
+        except httpcap.HTTPError as err:
             raise OIDCError(f"GET {url}: {err}", "provider_unreachable") from err
     if resp.status_code != 200:
         raise OIDCError(f"GET {url}: HTTP {resp.status_code}", "provider_error")
-    if len(resp.content) > MAX_RESPONSE_BYTES:
+    if resp.truncated:
         raise OIDCError(f"GET {url}: response too large", "provider_error")
     try:
         return resp.json()
@@ -108,8 +108,9 @@ async def get_json(http: HttpFactory, url: str, headers: Optional[dict] = None) 
 async def post_form(http: HttpFactory, url: str, data: dict, auth: Optional[tuple] = None) -> Any:
     async with http() as client:
         try:
-            resp = await client.post(url, data=data, auth=auth, headers={"Accept": "application/json"})
-        except httpx.HTTPError as err:
+            resp = await client.request("POST", url, limit=MAX_RESPONSE_BYTES, data=data, auth=auth,
+                                        headers={"Accept": "application/json"})
+        except httpcap.HTTPError as err:
             raise OIDCError(f"POST {url}: {err}", "provider_unreachable") from err
     try:
         body = resp.json()

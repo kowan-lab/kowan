@@ -24,7 +24,9 @@ The standard library's `unittest`, no plugins. The base pieces:
   events, pulls with digests (`registry`), injected errors (`fail`,
   `fail_once`) and containers that exit with a code (`runners`).
 - Registries, secret servers (Vault, Infisical, Phase), SMTP and HTTP receivers
-  are fakes too; `httpx` is swapped for a `MockTransport`.
+  are fakes too: `kowan.httpcap.mock(handler)` (or `httpcap.Client(handler=…)`)
+  answers outbound requests in place of the network, and the CLI's
+  `kowan.cli.httpclient.Session(handler=…)` does the same for `kowanctl`.
 - The agent runs for real: `test_agent_e2e.py` connects it to the server in
   edge and direct mode, and `test_remote_client.py` repeats the local client's
   suite through the tunnel.

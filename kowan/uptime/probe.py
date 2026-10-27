@@ -13,18 +13,13 @@ import ssl
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import urlsplit
 
-import httpx
-
-from kowan.httpcap import request_capped
+from kowan import httpcap
 
 # Body bytes read for the keyword check.
 _BODY_LIMIT = 1 << 20
-
-# Tests swap this for a factory returning an httpx client on a MockTransport.
-HTTP_FACTORY: Callable[..., httpx.AsyncClient] = httpx.AsyncClient
 
 
 @dataclass
@@ -75,12 +70,12 @@ async def http_probe(target: str, *, method: str, expect: str, keyword: str, ver
     ranges = parse_expect(expect)
     start = time.monotonic()
     try:
-        async with HTTP_FACTORY(verify=verify_tls, follow_redirects=True, timeout=timeout) as client:
-            resp = await request_capped(client, method or "GET", target, _BODY_LIMIT,
-                                        headers={"User-Agent": "Kowan-Uptime/1"})
-    except httpx.TimeoutException:
+        resp = await httpcap.request(method or "GET", target, limit=_BODY_LIMIT, verify=verify_tls,
+                                     follow_redirects=True, timeout=timeout,
+                                     headers={"User-Agent": "Kowan-Uptime/1"})
+    except httpcap.Timeout:
         return Result(False, (time.monotonic() - start) * 1000, error=f"timed out after {timeout:g}s")
-    except httpx.HTTPError as err:
+    except httpcap.HTTPError as err:
         return Result(False, (time.monotonic() - start) * 1000, error=_short(err))
     latency = (time.monotonic() - start) * 1000
     code = resp.status_code

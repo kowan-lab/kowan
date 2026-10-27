@@ -18,8 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-import httpx
-
+from kowan import httpcap
 from kowan.models import Registry
 
 from .basic import scheme_and_host
@@ -56,7 +55,7 @@ class _V2Client:
         return None
 
     async def get(
-        self, path: str, query: Optional[Dict[str, str]], _client: httpx.AsyncClient
+        self, path: str, query: Optional[Dict[str, str]], _client: httpcap.Client
     ) -> Any:
         """Authenticated GET of a ``/v2`` path, transparently satisfying a Bearer
         challenge when the registry returns 401 with ``WWW-Authenticate``.
@@ -74,7 +73,7 @@ class _V2Client:
             else:
                 raise ValueError(f"registry {self._host}: authentication required")
 
-        body = resp.content[:_MAX_BODY]
+        body = resp.content
         if resp.status_code == 404:
             raise ValueError("not found")
         if resp.status_code < 200 or resp.status_code >= 300:
@@ -82,9 +81,11 @@ class _V2Client:
             raise ValueError(
                 f"registry {self._host}: status {resp.status_code}: {text}"
             )
+        if resp.truncated:
+            raise ValueError(f"registry {self._host}: response larger than {_MAX_BODY} bytes")
         try:
             return resp.json()
-        except (ValueError, httpx.DecodingError) as err:
+        except ValueError as err:
             raise ValueError(f"registry {self._host}: decode response: {err}")
 
     async def _do(
@@ -92,8 +93,8 @@ class _V2Client:
         endpoint: str,
         bearer: str,
         query: Optional[Dict[str, str]],
-        client: httpx.AsyncClient,
-    ) -> httpx.Response:
+        client: httpcap.Client,
+    ) -> httpcap.Response:
         """Issue one GET with either a Bearer token (when non-empty) or HTTP basic
         auth (when credentials are configured and no token is supplied)."""
         headers = {"Accept": "application/json"}
@@ -102,9 +103,12 @@ class _V2Client:
             headers["Authorization"] = "Bearer " + bearer
         else:
             auth = self._basic_auth()
-        return await client.get(endpoint, headers=headers, params=query, auth=auth)
+        try:
+            return await client.request("GET", endpoint, limit=_MAX_BODY, headers=headers, params=query, auth=auth)
+        except httpcap.HTTPError as err:
+            raise ValueError(f"registry {self._host}: {err}") from err
 
-    async def _fetch_token(self, challenge: str, client: httpx.AsyncClient) -> str:
+    async def _fetch_token(self, challenge: str, client: httpcap.Client) -> str:
         """Satisfy a ``Bearer realm=...,service=...,scope=...`` challenge by
         requesting a token from the realm (with basic auth when credentials
         exist)."""
@@ -119,7 +123,8 @@ class _V2Client:
             q["scope"] = params["scope"]
 
         try:
-            resp = await client.get(realm, params=q or None, auth=self._basic_auth())
+            resp = await client.request("GET", realm, limit=httpcap.JSON_LIMIT, params=q or None,
+                                        auth=self._basic_auth())
         except Exception as err:  # noqa: BLE001
             raise ValueError(f"registry {self._host}: token request: {err}")
         if resp.status_code != 200:
@@ -128,7 +133,7 @@ class _V2Client:
             )
         try:
             parsed = resp.json()
-        except (ValueError, httpx.DecodingError) as err:
+        except ValueError as err:
             raise ValueError(f"registry {self._host}: decode token: {err}")
         if isinstance(parsed, dict):
             if parsed.get("token"):
@@ -189,7 +194,7 @@ async def v2_repositories(
     scheme, host = scheme_and_host(server)
     client = _V2Client(scheme, host, username, password, insecure)
     q: Dict[str, str] = {"n": str(limit)} if limit > 0 else {}
-    async with httpx.AsyncClient(verify=client._verify, timeout=_BROWSE_TIMEOUT) as http:
+    async with httpcap.Client(verify=client._verify, timeout=_BROWSE_TIMEOUT) as http:
         out = await client.get("/v2/_catalog", q or None, http)
     repos = out.get("repositories") if isinstance(out, dict) else None
     return [str(r) for r in repos] if isinstance(repos, list) else []
@@ -208,7 +213,7 @@ async def v2_tags(
         raise ValueError("repository is required")
     scheme, host = scheme_and_host(server)
     client = _V2Client(scheme, host, username, password, insecure)
-    async with httpx.AsyncClient(verify=client._verify, timeout=_BROWSE_TIMEOUT) as http:
+    async with httpcap.Client(verify=client._verify, timeout=_BROWSE_TIMEOUT) as http:
         out = await client.get(f"/v2/{repository}/tags/list", None, http)
     tag_list = out.get("tags") if isinstance(out, dict) else None
     return [str(t) for t in tag_list] if isinstance(tag_list, list) else []
@@ -225,7 +230,7 @@ async def catalog(reg: Registry, limit: int) -> List[str]:
     q: Dict[str, str] = {}
     if limit > 0:
         q["n"] = str(limit)
-    async with httpx.AsyncClient(
+    async with httpcap.Client(
         verify=client._verify, timeout=_BROWSE_TIMEOUT
     ) as http:
         out = await client.get("/v2/_catalog", q or None, http)
@@ -239,7 +244,7 @@ async def tags(reg: Registry, repo: str) -> List[str]:
     if repo == "":
         raise ValueError("repository is required")
     client = await _new_v2(reg)
-    async with httpx.AsyncClient(
+    async with httpcap.Client(
         verify=client._verify, timeout=_BROWSE_TIMEOUT
     ) as http:
         out = await client.get(f"/v2/{repo}/tags/list", None, http)

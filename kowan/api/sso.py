@@ -80,9 +80,6 @@ _CONFIG_KEYS = {
     "allowedDomains", "useUserinfo", "extraAuthParams", "tokenAuthMethod", "baseUrl", "apiUrl",
 }
 
-# Tests inject an httpx client factory (with a MockTransport) here.
-HTTP_FACTORY = None
-
 
 def _svc(request: web.Request):
     return request.app[SERVICES_KEY]
@@ -161,9 +158,9 @@ def _client_for(svc: Any, p: SSOProvider) -> Any:
         return hit[1]
     if p.type == TYPE_GITHUB:
         client: Any = GitHubClient(p.client_id, p.client_secret, base_url=p.config.get("baseUrl", ""),
-                                   api_url=p.config.get("apiUrl", ""), http=HTTP_FACTORY)
+                                   api_url=p.config.get("apiUrl", ""))
     else:
-        client = OIDCClient(p.issuer, p.client_id, p.client_secret, http=HTTP_FACTORY,
+        client = OIDCClient(p.issuer, p.client_id, p.client_secret,
                             token_auth_method=str(p.config.get("tokenAuthMethod") or ""))
     cache[p.id] = (fp, client)
     return client

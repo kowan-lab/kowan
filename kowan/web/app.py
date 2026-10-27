@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 from aiohttp import web
 
 from .accesslog import redact
-from .httpx import error_response
+from .responses import error_response
 
 # The auth module is the AUTHORITATIVE owner of the request-identity contract:
 # it defines REQUEST_USER_KEY ("user"), the CtxUser principal, the
@@ -324,7 +324,7 @@ async def recover_middleware(request: web.Request, handler):
     try:
         return await handler(request)
     except web.HTTPException as exc:
-        # HTTPExceptions raised by handlers/helpers (e.g. httpx.JSONError) are
+        # HTTPExceptions raised by handlers/helpers (e.g. responses.JSONError) are
         # intentional responses — let aiohttp render them.
         if exc.content_type == "application/json" or exc.text:
             raise

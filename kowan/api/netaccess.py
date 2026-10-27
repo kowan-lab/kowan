@@ -22,7 +22,7 @@ from aiohttp import web
 
 from kowan.auth import require_role, user_from, verify_password
 from kowan.web import api_route, error_response, json_response, read_json
-from kowan.web.httpx import reject_unknown_fields
+from kowan.web.responses import reject_unknown_fields
 from kowan.web.netpolicy import EDGE_SETTING, UI_SETTING, NetPolicy, parse_cidrs
 
 MAX_ENTRIES = 100

@@ -5,7 +5,10 @@ A Docker management platform written in **Python** (asyncio): a control plane
 that serves a REST API and a React SPA, an agent per host, and a CLI.
 Frameworks: **aiohttp** (REST, WebSocket, the static SPA), **pydantic v2**
 (models), stdlib **sqlite3** (store), **cryptography** (secret encryption and
-the agent's self-signed TLS), **httpx** (clients), **typer** (CLI). Passwords
+the agent's self-signed TLS), **typer** (CLI). Outbound HTTP from the server
+and the agent uses aiohttp's client through `kowan/httpcap.py` (every response
+body read up to a cap); `kowanctl` uses the stdlib (`kowan/cli/httpclient.py`).
+Passwords
 use **scrypt**, JWTs are **HS256** written by hand, and Docker is reached
 through the **Engine API** on its unix socket: no dependencies beyond
 `requirements.txt` (no fastapi, docker-py, bcrypt or pyjwt).

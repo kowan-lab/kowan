@@ -18,7 +18,7 @@ from aiohttp import web
 
 from .. import jsonx
 
-log = logging.getLogger("kowan.httpx")
+log = logging.getLogger("kowan.web")
 
 # Reject request bodies larger than 1 MiB.
 _MAX_BODY = 1 << 20  # 1 MiB
@@ -39,7 +39,7 @@ def json_response(data: Any, status: int = 200) -> web.Response:
     try:
         body = jsonx.dumps_response(data)
     except (TypeError, ValueError) as err:  # pragma: no cover - defensive
-        log.error("httpx: failed to encode JSON response: %s", err)
+        log.error("web: failed to encode JSON response: %s", err)
         body = b"null"
     return web.Response(status=status, body=body, content_type="application/json", charset="utf-8")
 

@@ -2,7 +2,7 @@
 
 `orjson <https://github.com/ijl/orjson>`_ (Rust) serializes/parses several times
 faster than :mod:`json`, which matters on the hot paths: every REST response
-(``kowan.web.httpx.json_response``), request bodies (``read_json``), Docker Engine
+(``kowan.web.responses.json_response``), request bodies (``read_json``), Docker Engine
 responses (``LocalClient._request_json``) and the agent RPC frames. It's an
 *optional* dependency: when it isn't installed (or a platform has no wheel) we
 transparently use the stdlib, and the output is the same JSON value either way.

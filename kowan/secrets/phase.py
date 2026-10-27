@@ -3,19 +3,22 @@
 Phase exposes a public REST API that
 returns secret values in plaintext to a holder of a valid service/user token, so
 resolution is a single authenticated GET — no client-side decryption. Bounded by
-an 8s timeout via ``httpx``.
+an 8s timeout and a 1 MiB body cap via :mod:`kowan.httpcap`.
 """
 
 from __future__ import annotations
 
 from typing import Dict
 
-import httpx
+from kowan import httpcap
 
 from .provider import FieldSpec, Provider, register
 
 # phase_timeout bounds the single live HTTP read of one resolution (seconds).
 PHASE_TIMEOUT = 8.0
+
+# Cap on the answer's body.
+_MAX_BODY = 1 << 20
 
 # PhaseType is the registered provider/secret type for Phase.
 PhaseType = "phase"
@@ -63,13 +66,12 @@ class _PhaseProvider:
             "key": name,
         }
         try:
-            async with httpx.AsyncClient(timeout=PHASE_TIMEOUT) as client:
-                resp = await client.get(
-                    endpoint,
-                    params=params,
-                    headers={"Authorization": "Bearer " + self._token, "Accept": "application/json"},
-                )
-        except httpx.HTTPError as e:
+            resp = await httpcap.request(
+                "GET", endpoint, limit=_MAX_BODY, timeout=PHASE_TIMEOUT,
+                params=params,
+                headers={"Authorization": "Bearer " + self._token, "Accept": "application/json"},
+            )
+        except httpcap.HTTPError as e:
             raise ValueError(f"phase: read {endpoint}: {e}") from e
 
         if resp.status_code != 200:

@@ -3,7 +3,7 @@
 Kowan signs users in with **OpenID Connect** (Keycloak, Authentik, Authelia,
 Microsoft Entra ID, Google, Dex, …) and with **GitHub** (OAuth2 + the user API,
 since GitHub is not an OIDC provider). No third-party auth libraries: discovery,
-JWKS, PKCE and ID-token validation are implemented on `httpx` + `cryptography`
+JWKS, PKCE and ID-token validation are implemented on aiohttp's client (`kowan/httpcap.py`) + `cryptography`
 in `kowan/authn/`.
 
 ## Set-up

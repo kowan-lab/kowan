@@ -1,5 +1,5 @@
 """Tests for the ``kowanctl mcp`` stdio <-> HTTP bridge against a fake server
-(httpx.MockTransport): session handling, headers, notifications, SSE replies,
+(a kowan.cli.httpclient handler): session handling, headers, notifications, SSE replies,
 HTTP errors, re-initialization after a lost session and cleanup."""
 
 from __future__ import annotations
@@ -10,8 +10,7 @@ import os
 import unittest
 from unittest import mock
 
-import httpx
-
+from kowan.cli.httpclient import HTTPError, Reply, Request, Session
 from kowan.cli.mcp import Bridge, resolve_bridge_config
 
 
@@ -23,35 +22,35 @@ class FakeServer:
         self.sse = False
         self.fail_status = None
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: Request) -> Reply:
         self.requests.append(request)
         if self.fail_status:
-            return httpx.Response(self.fail_status, json={"jsonrpc": "2.0", "id": None,
-                                                          "error": {"code": -32000, "message": "nope"}})
+            return Reply(self.fail_status, json={"jsonrpc": "2.0", "id": None,
+                                                 "error": {"code": -32000, "message": "nope"}})
         if request.method == "DELETE":
             self.sessions.discard(request.headers.get("mcp-session-id"))
-            return httpx.Response(204)
+            return Reply(204)
         msg = json.loads(request.content)
         if msg.get("method") == "initialize":
             self.counter += 1
             sid = f"s{self.counter}"
             self.sessions.add(sid)
-            return httpx.Response(200, headers={"Mcp-Session-Id": sid}, json={
+            return Reply(200, headers={"Mcp-Session-Id": sid}, json={
                 "jsonrpc": "2.0", "id": msg["id"], "result": {"protocolVersion": "2025-06-18"}})
         if request.headers.get("mcp-session-id") not in self.sessions:
-            return httpx.Response(404, json={"jsonrpc": "2.0", "id": None,
-                                             "error": {"code": -32000, "message": "unknown session"}})
+            return Reply(404, json={"jsonrpc": "2.0", "id": None,
+                                    "error": {"code": -32000, "message": "unknown session"}})
         if "id" not in msg:
-            return httpx.Response(202)
+            return Reply(202)
         body = {"jsonrpc": "2.0", "id": msg["id"], "result": {"echo": msg["method"]}}
         if self.sse:
-            return httpx.Response(200, headers={"Content-Type": "text/event-stream"},
-                                  content=f"event: message\ndata: {json.dumps(body)}\n\n".encode())
-        return httpx.Response(200, json=body)
+            return Reply(200, headers={"Content-Type": "text/event-stream"},
+                         content=f"event: message\ndata: {json.dumps(body)}\n\n".encode())
+        return Reply(200, json=body)
 
 
 def make_bridge(server: FakeServer) -> Bridge:
-    http = httpx.Client(transport=httpx.MockTransport(server))
+    http = Session(handler=server)
     return Bridge("http://kowan.test/", api_key="pk_test", http=http, log=io.StringIO())
 
 
@@ -114,9 +113,9 @@ class TestBridge(unittest.TestCase):
 
     def test_unreachable_server(self):
         def boom(request):
-            raise httpx.ConnectError("refused", request=request)
+            raise HTTPError("refused")
 
-        b = Bridge("http://kowan.test", api_key="pk", http=httpx.Client(transport=httpx.MockTransport(boom)),
+        b = Bridge("http://kowan.test", api_key="pk", http=Session(handler=boom),
                    log=io.StringIO())
         out = b.handle_line('{"jsonrpc":"2.0","id":1,"method":"ping"}')
         self.assertIn("unreachable", json.loads(out[0])["error"]["message"])

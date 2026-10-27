@@ -21,7 +21,7 @@ import unittest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from kowan.web.httpx import read_body, read_json
+from kowan.web.responses import read_body, read_json
 
 # A compose spec shaped like the real thing: many lines, quotes and colons —
 # all of which live inside ONE JSON string, which is what used to get cut.

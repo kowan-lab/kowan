@@ -1,4 +1,4 @@
-"""kowanctl end to end: the real CLI (typer app + httpx client) against a real
+"""kowanctl end to end: the real CLI (typer app + stdlib HTTP client) against a real
 server (with the fake Docker Engine) running in a background thread. Every
 command group runs once, with its output, its errors and the saved config."""
 
@@ -14,11 +14,11 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-import httpx
 from aiohttp import web
 
 from kowan.cli import output
 from kowan.cli.client import APIError, Client
+from kowan.cli.httpclient import Reply, Session
 from kowan.server import build_app
 from tests.apicase import config
 from tests.fakeengine import FakeEngine
@@ -63,7 +63,7 @@ class CLICase(unittest.TestCase):
     def setUpClass(cls):
         cls.server = ThreadedServer()
         cls.url = cls.server.start()
-        r = httpx.post(cls.url + "/api/v1/auth/init", json={
+        r = Session().request("POST", cls.url + "/api/v1/auth/init", json={
             "username": "root", "password": "supersecret", "setupToken": cls.server.svc.setup_token})
         cls.token = r.json()["token"]
 
@@ -272,7 +272,7 @@ class TestDeploymentsAndBackup(CLICase):
         self.run_cli("restore", os.path.join(self.home, "missing.tar.gz"), code=1)
 
     def test_workflows(self):
-        r = httpx.post(self.url + "/api/v1/workflows", headers={"Authorization": "Bearer " + self.token}, json={
+        r = Session().request("POST", self.url + "/api/v1/workflows", headers={"Authorization": "Bearer " + self.token}, json={
             "name": "cli-wf", "enabled": True, "steps": [{"name": "b", "type": "backup", "config": {}}]})
         wf_id = r.json()["id"]
         out, _ = self.run_cli("workflow", "ls")
@@ -303,12 +303,13 @@ class TestClientAndOutput(unittest.TestCase):
         self.assertEqual(c._auth_headers()["X-API-Key"], "pk_x")
         self.assertTrue(c.container_logs_ws_url("local", "abc").startswith("wss://k.example/"))
         self.assertTrue(Client("http://k").container_logs_ws_url("local", "a").startswith("ws://"))
-        resp = httpx.Response(500, content=b"plain failure", request=httpx.Request("GET", "http://k"))
-        self.assertIn("plain failure", str(c._status_error("GET", "/x", resp)))
-        resp = httpx.Response(404, json={"error": "gone"}, request=httpx.Request("GET", "http://k"))
-        self.assertEqual(str(c._status_error("GET", "/x", resp)), "GET /x: gone (404)")
-        resp = httpx.Response(418, content=b"", request=httpx.Request("GET", "http://k"))
-        self.assertIn("418", str(c._status_error("GET", "/x", resp)))
+        def resp(reply):
+            return Session(handler=lambda r: reply).request("GET", "http://k")
+
+        self.assertIn("plain failure", str(c._status_error("GET", "/x", resp(Reply(500, content=b"plain failure")))))
+        self.assertEqual(str(c._status_error("GET", "/x", resp(Reply(404, json={"error": "gone"})))),
+                         "GET /x: gone (404)")
+        self.assertIn("418", str(c._status_error("GET", "/x", resp(Reply(418)))))
         self.assertTrue(issubclass(APIError, Exception))
         c.close()
 

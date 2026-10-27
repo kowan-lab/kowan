@@ -21,7 +21,8 @@ Learner notes:
     trigger module. Importing ``kowan.triggers`` therefore populates the catalog.
   - ``Poller`` is an abstract base class. A ``Factory`` (``config -> Poller``)
     is a plain callable.
-  - Evaluate is ``async`` because the poll HTTP I/O uses ``httpx.AsyncClient``.
+  - Evaluate is ``async`` because the poll HTTP I/O goes through :mod:`kowan.httpcap`
+    (aiohttp's client).
 """
 
 from __future__ import annotations

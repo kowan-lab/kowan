@@ -11,14 +11,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 
-import httpx
+from kowan import httpcap
 
-from kowan.httpcap import request_capped
-
-HTTP_FACTORY: Callable[..., httpx.AsyncClient] = httpx.AsyncClient
 _LIMIT = 8 << 20
 _TIMEOUT = 15.0
 
@@ -64,8 +61,8 @@ class Client:
         self._verify = verify
         self._headers: Dict[str, str] = {}
 
-    async def _get(self, client: httpx.AsyncClient, path: str) -> Any:
-        resp = await request_capped(client, "GET", self.url + path, _LIMIT, headers=self._headers)
+    async def _get(self, client: httpcap.Client, path: str) -> Any:
+        resp = await client.request("GET", self.url + path, limit=_LIMIT, headers=self._headers)
         if resp.status_code in (401, 403):
             raise PortainerError("Portainer refused the credentials")
         if resp.status_code >= 400:
@@ -77,13 +74,13 @@ class Client:
         except ValueError:
             raise PortainerError(f"Portainer's answer on {path} is not JSON (is the URL right?)") from None
 
-    async def _login(self, client: httpx.AsyncClient) -> None:
+    async def _login(self, client: httpcap.Client) -> None:
         if self._api_key:
             self._headers = {"X-API-Key": self._api_key}
             return
         if not (self._username and self._password):
             raise PortainerError("an access token, or a username and password, is required")
-        resp = await request_capped(client, "POST", self.url + "/api/auth", 1 << 16,
+        resp = await client.request("POST", self.url + "/api/auth", limit=1 << 16,
                                     json={"Username": self._username, "Password": self._password})
         if resp.status_code in (401, 403, 422):
             raise PortainerError("Portainer refused the username or password")
@@ -100,7 +97,7 @@ class Client:
     async def stacks(self) -> List[Stack]:
         """Every stack with its compose file (git stacks: the repository)."""
         try:
-            async with HTTP_FACTORY(verify=self._verify, timeout=_TIMEOUT, follow_redirects=False) as client:
+            async with httpcap.Client(verify=self._verify, timeout=_TIMEOUT, follow_redirects=False) as client:
                 await self._login(client)
                 endpoints = {int(e.get("Id", 0)): str(e.get("Name", "")) for e in await self._get(client, "/api/endpoints") or []}
                 out: List[Stack] = []
@@ -122,5 +119,5 @@ class Client:
                         st.compose = str((f or {}).get("StackFileContent") or "")
                     out.append(st)
                 return out
-        except httpx.HTTPError as err:
+        except httpcap.HTTPError as err:
             raise PortainerError(f"cannot reach Portainer: {err.__class__.__name__}: {err}") from None
