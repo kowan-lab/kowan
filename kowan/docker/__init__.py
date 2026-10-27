@@ -8,7 +8,7 @@ concrete implementation (local vs remote/edge) for a given host.
 from .base import (
     Ops,
     ImageHistoryLayer,
-    VolumeFile,
+    VolumeListing,
     ContainerStats,
     DiskUsage,
     SystemInfo,
@@ -36,7 +36,7 @@ __all__ = [
     "decode_registry_auth",
     "registry_host_from_ref",
     "ImageHistoryLayer",
-    "VolumeFile",
+    "VolumeListing",
     "ContainerStats",
     "DiskUsage",
     "SystemInfo",
