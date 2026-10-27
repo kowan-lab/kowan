@@ -23,13 +23,15 @@ test("deploys a container, stops it and deletes the deployment", async ({ page }
   // The Overview tab carries the container count ("Overview 1").
   await page.getByRole("tab", { name: /^overview\b/i }).click();
 
-  await page.getByRole("button", { name: /^stop$/i }).click();
+  // The header's actions sit in one menu.
+  await page.getByRole("button", { name: /^actions$/i }).click();
+  await page.getByRole("menuitem", { name: /^stop$/i }).click();
   await expect(page.getByText(/stopped|exited/i).first()).toBeVisible({ timeout: 60_000 });
 
-  await page.getByRole("button", { name: /^more$/i }).click();
+  await page.getByRole("button", { name: /^actions$/i }).click();
   await page.getByRole("menuitem", { name: /remove containers/i }).click();
   await page.getByRole("dialog").getByRole("button").last().click();
-  await page.getByRole("button", { name: /^more$/i }).click();
+  await page.getByRole("button", { name: /^actions$/i }).click();
   await page.getByRole("menuitem", { name: /delete deployment/i }).click();
   const confirm = page.getByRole("dialog").getByRole("textbox");
   if (await confirm.count()) await confirm.fill(name);
