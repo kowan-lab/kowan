@@ -1,5 +1,9 @@
 # Kowan — Changelog
 
+## 0.1.5 — 2026-10-27
+
+- **Update to the new release in one click.** A server or agent running an image pinned to a release (`kowan:0.1.3`) used to pull that same version again when updated without an image, so moving to a new release meant typing its image by hand. It now moves to the newest release's tag (`kowan:0.1.4`); `latest`, `0.1` and custom tags still update in place. The panel's button reads "Update to 0.1.4" and the dialog shows the image it will pull; another image can still be given.
+
 ## 0.1.4 — 2026-10-27
 
 - **Volume browsing no longer loads the volume into memory.** Browse, read, download, zip download and upload stream through the server and the agent: on a 64 MiB volume the peak went from 135–283 MB to under 5 MB, so a volume of tens of GB no longer risks running them out of memory. A huge folder lists its first 5000 entries (or 1 GiB of archive) and the explorer says the list is cut.
