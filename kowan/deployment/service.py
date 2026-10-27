@@ -452,9 +452,16 @@ class DeploymentService:
         return dispatched
 
     async def _needs_reconcile(self, dep: Deployment, listings: Dict[str, Any]) -> bool:
-        """Whether any target of ``dep`` is not up (missing/stopped/errored)."""
+        """Whether any target of ``dep`` is not up (missing/stopped/errored).
+
+        A host that cannot be reached (an agent updating, or not yet back after
+        a server restart) says nothing about its containers: redeploying there
+        would only fail and leave the deployment marked as errored.
+        """
         targets = await self.status(dep.id, listings)
         if not targets:
+            return False
+        if any(t.state == STATE_INACTIVE or isinstance(listings.get(t.host_id), Exception) for t in targets):
             return False
         return any(t.state not in (STATE_RUNNING, STATE_ACTIVE) for t in targets)
 

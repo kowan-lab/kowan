@@ -346,6 +346,22 @@ class TestComposeStatus(ServiceCase):
         self.assertEqual([c for c in self.host.calls if c[0] == "list_containers"], [("list_containers",)])
         self.assertEqual(sorted(hosts), ["h1", "h1", "h2"])
 
+    async def test_reconcile_leaves_an_unreachable_host_alone(self):
+        # An agent updating, or not yet back after a server restart: its
+        # containers are unknown, and a redeploy would fail and mark the
+        # deployment as errored.
+        async def gone(_all):
+            raise ConnectionError("agent not connected")
+        self.host.list_containers = gone  # type: ignore[method-assign]
+        with mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()) as dispatch:
+            self.assertEqual(await self.s.reconcile_once(), 0)
+        dispatch.assert_not_called()
+        self.assertEqual(self.store.get_deployment("d1").status, "deployed")
+
+        # A swarm manager that cannot be reached (inactive) is left alone too.
+        with mock.patch.object(self.s, "status", mock.AsyncMock(return_value=[SimpleNamespace(state="inactive", host_id="h1")])):
+            self.assertFalse(await self.s._needs_reconcile(dep(), {}))
+
     async def test_reconcile_forgets_deleted_deployments_and_spent_cooldowns(self):
         self.s._reconcile_at.update({"gone": 1.0, "d1": 1.0})
         self.s._deploy_errs.update({"gone": {"h1": "x"}, "d1": {"h1": "y"}})
@@ -369,7 +385,7 @@ class TestReconcileAndBackground(ServiceCase):
         dispatched = []
 
         async def status(dep_id, listings=None):
-            return [SimpleNamespace(state="exited")]
+            return [SimpleNamespace(state="exited", host_id="h1")]
 
         async def dispatch(dep_id, *, redeploy=False):
             dispatched.append(dep_id)
@@ -395,7 +411,7 @@ class TestReconcileAndBackground(ServiceCase):
         async def status(dep_id, listings=None):
             if dep_id == "boom":
                 raise RuntimeError("host gone")
-            return [SimpleNamespace(state=states[dep_id])]
+            return [SimpleNamespace(state=states[dep_id], host_id="h1")]
 
         dispatched = []
 
