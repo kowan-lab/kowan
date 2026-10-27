@@ -42,7 +42,7 @@ from ..models import (  # canonical Docker return/option structs, re-exported
     PluginInstallOptions,
     SystemInfo,
     VolumeCreateOptions,
-    VolumeFile,
+    VolumeListing,
 )
 
 
@@ -76,7 +76,7 @@ class ExecStream(Protocol):
     async def close(self) -> None: ...
 
 
-# The Docker-specific return/option structs (ImageHistoryLayer, VolumeFile,
+# The Docker-specific return/option structs (ImageHistoryLayer, VolumeListing,
 # VolumeCreateOptions, NetworkCreateOptions, ContainerStats, DiskUsage,
 # SystemInfo, BuildOptions, BuildResult, PluginInfo, PluginInstallOptions) are
 # imported from ``kowan.models`` at the top of this module and re-exported here.
@@ -290,10 +290,11 @@ class Ops(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def browse_volume(self, name: str, sub_path: str) -> List[VolumeFile]:
+    async def browse_volume(self, name: str, sub_path: str) -> VolumeListing:
         """List the immediate entries at ``sub_path`` within a volume.
 
         ``sub_path`` is relative to the volume root ("" or "/" is the root).
+        A huge directory comes back cut short, with ``truncated`` set.
         """
         raise NotImplementedError
 

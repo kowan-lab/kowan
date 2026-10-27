@@ -12,7 +12,10 @@ const tree: Record<string, unknown[]> = {
   "/conf": [f("site.conf", "/conf")],
 };
 const api = {
-  "GET /hosts/:h/volumes/:name/browse": (r: { query: Record<string, string> }) => tree[r.query.path] ?? [],
+  "GET /hosts/:h/volumes/:name/browse": (r: { query: Record<string, string> }) => ({
+    entries: tree[r.query.path] ?? [],
+    truncated: r.query.path === "/conf",
+  }),
   "GET /hosts/:h/volumes/:name/file": (r: { query: Record<string, string> }) =>
     reply(200, r.query.path.endsWith(".bin") ? "\u0000\u0001ELF" : `contents of ${r.query.path}`, { "content-type": "text/plain" }),
   "GET /hosts/:h/volumes/:name/download": reply(200, new Blob(["x"]), { "content-type": "application/octet-stream" }),
@@ -28,6 +31,7 @@ describe("volume explorer", () => {
   it("browses folders and previews text files", async () => {
     const { user } = renderApp(URL, { api });
     await ready();
+    expect(screen.queryByText(/only the first/i)).not.toBeInTheDocument();
     await user.click(screen.getByText("app.log"));
     expect(await screen.findByText("contents of /app.log")).toBeInTheDocument();
     await user.click(screen.getByText("data.bin"));
@@ -37,6 +41,7 @@ describe("volume explorer", () => {
     await press(user, /^close$/i, pageRoot());
     await user.click(screen.getByText("conf"));
     expect(await screen.findByText("site.conf")).toBeInTheDocument();
+    expect(screen.getByText(/only the first 1 entries are shown/i)).toBeInTheDocument();
     await user.click(screen.getByText(".."));
     expect(await screen.findByText("app.log")).toBeInTheDocument();
   });

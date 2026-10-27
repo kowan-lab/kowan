@@ -8,6 +8,7 @@ import tarfile
 import unittest
 import zipfile
 
+from kowan.docker import local as local_mod
 from kowan.docker.local import LocalClient
 from kowan.errors import BadGateway, Conflict, NotFound, Validation
 from kowan.models import ContainerSpec, KeyValue, PortMapping, VolumeMapping
@@ -197,9 +198,9 @@ class TestVolumes(EngineCase):
     async def test_browse_read_download_upload(self):
         self.engine.add_image("alpine:3.20")
         self.engine.add_volume("site", {"/index.html": b"<h1>hi</h1>", "/assets/app.css": b"body{}"})
-        files = await self.client.browse_volume("site", "/")
-        names = sorted(f.name for f in files)
-        self.assertEqual(names, ["assets", "index.html"])
+        listing = await self.client.browse_volume("site", "/")
+        self.assertEqual([f.name for f in listing.entries], ["assets", "index.html"])
+        self.assertFalse(listing.truncated)
         self.assertEqual(await self.client.read_volume_file("site", "/index.html"), b"<h1>hi</h1>")
         raw = await _read_all(await self.client.download_volume_file("site", "/index.html"))
         self.assertEqual(raw, b"<h1>hi</h1>")
@@ -215,7 +216,22 @@ class TestVolumes(EngineCase):
         await self.client.upload_volume_file("site", "/assets", "big.bin", len(big), _Reader(big))
         self.assertEqual(await _read_all(await self.client.download_volume_file("site", "/assets/big.bin")), big)
         self.assertEqual(await self.client.read_volume_file("site", "/assets/big.bin"), big[:2 << 20])
-        self.assertIn("big.bin", [f.name for f in await self.client.browse_volume("site", "/assets")])
+        self.assertIn("big.bin", [f.name for f in (await self.client.browse_volume("site", "/assets")).entries])
+        # A huge directory is cut short: by entry count, or by tar bytes read.
+        tar = io.BytesIO()
+        with tarfile.open(fileobj=tar, mode="w") as tf:
+            for i in range(10):
+                info = tarfile.TarInfo(f"__kowan_vol/f{i}")
+                info.size = 1000
+                tf.addfile(info, io.BytesIO(b"x" * 1000))
+        raw_tar = tar.getvalue()
+        cut = await local_mod._list_tar_children(_Reader(raw_tar), "/", limit=3)
+        self.assertEqual(([f.name for f in cut.entries], cut.truncated), (["f0", "f1", "f2"], True))
+        cut = await local_mod._list_tar_children(_Reader(raw_tar), "/", max_scan_bytes=4000)
+        self.assertTrue(cut.truncated)
+        self.assertLess(len(cut.entries), 10)
+        whole = await local_mod._list_tar_children(_Reader(raw_tar), "/")
+        self.assertEqual((len(whole.entries), whole.truncated), (10, False))
         with self.assertRaises(Validation):
             await self.client.read_volume_file("site", "/assets")
         with self.assertRaises(Validation):

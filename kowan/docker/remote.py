@@ -31,7 +31,7 @@ from ..models import (
     PluginInstallOptions,
     SystemInfo,
     VolumeCreateOptions,
-    VolumeFile,
+    VolumeListing,
 )
 from .base import AsyncByteStream, ExecStream, Ops
 
@@ -254,11 +254,11 @@ class RemoteClient(Ops):
     async def inspect_volume(self, name: str) -> Dict[str, Any]:
         return await self._call("inspect_volume", {"name": name}) or {}
 
-    async def browse_volume(self, name: str, sub_path: str) -> List[VolumeFile]:
+    async def browse_volume(self, name: str, sub_path: str) -> VolumeListing:
         meta = await self._call(
             "browse_volume", {"name": name, "subPath": sub_path}
         )
-        return [VolumeFile.model_validate(m) for m in (meta or [])]
+        return VolumeListing.model_validate(meta or {})
 
     async def read_volume_file(self, name: str, sub_path: str) -> bytes:
         body = await self._stream(

@@ -231,7 +231,7 @@ function ExplorerBody({ host, volume }: ExplorerBodyProps) {
     navigateTo(parent === "/" ? "/" : parent);
   };
 
-  const entries = browseQuery.data ?? [];
+  const entries = browseQuery.data?.entries ?? [];
 
   return (
     <Card variant="raised" style={{ overflow: "hidden" }}>
@@ -337,7 +337,13 @@ function ExplorerBody({ host, volume }: ExplorerBodyProps) {
                 </Callout>
               </Box>
             ) : (
-              <Table hoverable stickyHeader>
+              <>
+                {browseQuery.data?.truncated && (
+                  <Box padding={2}>
+                    <Callout color="warning">This folder is large: only the first {entries.length} entries are shown.</Callout>
+                  </Box>
+                )}
+                <Table hoverable stickyHeader>
                 <Table.Header>
                   <Table.Row>
                     <Table.Head minWidth={32} />
@@ -437,7 +443,8 @@ function ExplorerBody({ host, volume }: ExplorerBodyProps) {
                     </Table.Row>
                   )}
                 </Table.Body>
-              </Table>
+                </Table>
+              </>
             )}
           </Box>
         </Box>

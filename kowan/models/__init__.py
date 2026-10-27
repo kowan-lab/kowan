@@ -72,6 +72,7 @@ from .container import (
     Volume,
     VolumeCreateOptions,
     VolumeFile,
+    VolumeListing,
 )
 from .deployment import (
     ContainerSpec,
@@ -232,6 +233,7 @@ __all__ = [
     "Image",
     "ImageHistoryLayer",
     "VolumeFile",
+    "VolumeListing",
     "Volume",
     "VolumeCreateOptions",
     "Network",

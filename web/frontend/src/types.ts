@@ -316,6 +316,12 @@ export interface VolumeFile {
   modTime: number;
 }
 
+/** One directory of a volume; `truncated` when a huge folder was cut short. */
+export interface VolumeListing {
+  entries: VolumeFile[];
+  truncated: boolean;
+}
+
 /**
  * An admin-managed API key used to authenticate API requests (kowanctl, webhook
  * scripts, CI) without a username/password login. Keys are role-scoped and

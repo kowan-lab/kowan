@@ -182,7 +182,8 @@ class TestVolumesAPI(ServerCase):
         # Browsing the content is operator+ (it can hold secrets).
         await self.roles("GET", H + "/volumes/site/browse", "operator", params={"path": "/"})
         _, files = await self.call("GET", H + "/volumes/site/browse", "operator", params={"path": "/"}, expect=200)
-        self.assertEqual([f["name"] for f in files], ["index.html"])
+        self.assertEqual([f["name"] for f in files["entries"]], ["index.html"])
+        self.assertFalse(files["truncated"])
         _, content = await self.call("GET", H + "/volumes/site/file", "operator", params={"path": "/index.html"})
         self.assertIn("hi", content["content"] if isinstance(content, dict) else content.decode())
         _, raw = await self.call("GET", H + "/volumes/site/download", "operator", params={"path": "/index.html"}, expect=200)

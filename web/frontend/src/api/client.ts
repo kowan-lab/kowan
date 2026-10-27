@@ -43,6 +43,7 @@ import type {
   Volume,
   VolumeCreateOptions,
   VolumeFile,
+  VolumeListing,
   Workflow,
   WorkflowRun,
 } from "../types";
@@ -755,8 +756,8 @@ export async function browseVolume(
   hostId: string,
   name: string,
   path: string,
-): Promise<VolumeFile[]> {
-  const { data } = await api.get<VolumeFile[]>(
+): Promise<VolumeListing> {
+  const { data } = await api.get<VolumeListing>(
     `/hosts/${hostId}/volumes/${encodeURIComponent(name)}/browse`,
     { params: { path } },
   );

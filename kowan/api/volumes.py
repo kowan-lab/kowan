@@ -199,8 +199,6 @@ async def _browse_volume(svc: "Services", request: web.Request) -> web.Response:
         out = await ops.browse_volume(request.match_info["name"], sub)
     except Exception as err:  # noqa: BLE001
         return ops_error_response(err)
-    if out is None:
-        out = []
     return json_response(out)
 
 

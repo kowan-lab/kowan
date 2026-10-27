@@ -494,9 +494,18 @@ def _clean_volume_sub_path(sub: str) -> str:
     return p
 
 
-async def _list_tar_children(src: Any, clean: str) -> List[models.VolumeFile]:
+# Volume browse stops after this many entries or this much tar read.
+_VOLUME_LIST_MAX = 5000
+_VOLUME_SCAN_MAX = 1 << 30
+
+
+async def _list_tar_children(src: Any, clean: str, limit: int = _VOLUME_LIST_MAX,
+                             max_scan_bytes: int = _VOLUME_SCAN_MAX) -> models.VolumeListing:
     """Return only the IMMEDIATE children of a docker-cp tar stream; the rest
-    of the archive is skipped, never buffered."""
+    of the archive is skipped, never buffered. Stops, marking the listing
+    truncated, after ``limit`` children or ``max_scan_bytes`` of tar read: the
+    Engine tars the whole subtree, so a huge directory would otherwise be read
+    to the end."""
     from .containerfs import AsyncTarReader
 
     # rstrip the trailing slash before basename: at the volume root clean == "/"
@@ -506,13 +515,18 @@ async def _list_tar_children(src: Any, clean: str) -> List[models.VolumeFile]:
     base = posixpath.basename((_VOLUME_MOUNT_BASE + clean).rstrip("/"))
     prefix = base + "/"
     out: List[models.VolumeFile] = []
-    async for h in AsyncTarReader(src):
+    reader = AsyncTarReader(src)
+    async for h in reader:
+        if reader.consumed > max_scan_bytes:
+            return models.VolumeListing(entries=out, truncated=True)
         nm = h.name.rstrip("/")
         if not nm.startswith(prefix):
             continue
         rel = nm[len(prefix) :]
         if rel == "" or "/" in rel:
             continue
+        if len(out) >= limit:
+            return models.VolumeListing(entries=out, truncated=True)
         out.append(
             models.VolumeFile(
                 name=rel,
@@ -523,7 +537,7 @@ async def _list_tar_children(src: Any, clean: str) -> List[models.VolumeFile]:
                 mod_time=int(h.mtime),
             )
         )
-    return out
+    return models.VolumeListing(entries=out)
 
 
 def _tar_mode_string(mode: int, kind: bytes) -> str:
@@ -1387,10 +1401,10 @@ class LocalClient(Ops):
     async def inspect_volume(self, name: str) -> Dict[str, Any]:
         return await self._request_json("GET", f"/volumes/{name}")
 
-    async def browse_volume(self, name: str, sub_path: str) -> List[models.VolumeFile]:
+    async def browse_volume(self, name: str, sub_path: str) -> models.VolumeListing:
         clean = _clean_volume_sub_path(sub_path)
         out = await self._with_volume_archive(name, clean, lambda src: _list_tar_children(src, clean))
-        _sort_volume_files(out)
+        _sort_volume_files(out.entries)
         return out
 
     async def read_volume_file(self, name: str, sub_path: str) -> bytes:

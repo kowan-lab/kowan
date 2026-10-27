@@ -86,6 +86,14 @@ class VolumeFile(BaseModel):
     mod_time: int = Field(default=0, alias="modTime")
 
 
+class VolumeListing(BaseModel):
+    """The entries of one directory of a volume. ``truncated`` is set when the
+    listing stopped early (too many entries, or too much of the tar read)."""
+
+    entries: list[VolumeFile] = Field(default_factory=list)
+    truncated: bool = Field(default=False)
+
+
 class Volume(BaseModel):
     """A Docker volume."""
 
