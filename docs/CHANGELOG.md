@@ -1,5 +1,15 @@
 # Kowan — Changelog
 
+## 0.1.4 — 2026-10-27
+
+- **Volume browsing no longer loads the volume into memory.** Browse, read, download, zip download and upload stream through the server and the agent: on a 64 MiB volume the peak went from 135–283 MB to under 5 MB, so a volume of tens of GB no longer risks running them out of memory. A huge folder lists its first 5000 entries (or 1 GiB of archive) and the explorer says the list is cut.
+- **Bounded memory everywhere a peer or a remote service sends data**: an agent that ignores the tunnel's flow control has its stream reset, and the control plane refuses streams opened by an agent; exec output stops at 4 MiB; the agent protocol caps its header line; every outbound HTTP call (registries, cloud auth, secret backends, SSO, triggers, uptime, notifications, workflow steps, Portainer import) stops reading a response at a per-call limit.
+- **Host metrics over long ranges** come back as at most 720 averaged points instead of every sample (about 40k rows for a day).
+- **Less work and less state over time**: the reconcile loop lists each host's containers once per pass instead of once per deployment; the log archive caps a line without a newline; hosts, rules, checks and images that are gone, and idle locks, are dropped from memory.
+- **Lighter agent and image**: httpx is no longer a dependency (outbound HTTP uses aiohttp, the CLI the standard library), and the agent no longer imports the server-only modules at start.
+- **The UI**: log streams close while the tab is hidden and reconnect when it is shown, log search results leave memory a minute after the view closes, the hosts list is polled once, and the CSS is 30 KiB smaller (unused components removed).
+- Removed: `GET /scans/summary` and the `kowan.hidden` label, which nothing used. The volume browse API answers `{entries, truncated}`.
+
 ## 0.1.3 — 2026-10-26
 
 - **Settings at the bottom of the sidebar**, instead of in the account menu; it opens the same Settings area.
