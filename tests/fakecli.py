@@ -42,7 +42,9 @@ sys.exit(code)
 
 class FakeDockerCLI:
     def __init__(self) -> None:
-        self._dir = tempfile.TemporaryDirectory(prefix="fakecli")
+        # A deploy the test left running can still be appending to the log
+        # when the test tears down; a leftover file must not fail the test.
+        self._dir = tempfile.TemporaryDirectory(prefix="fakecli", ignore_cleanup_errors=True)
         d = self._dir.name
         self.log = os.path.join(d, "calls.jsonl")
         self._code = os.path.join(d, "code")
