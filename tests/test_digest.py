@@ -92,7 +92,9 @@ class TestDigestAPI(ServerCase):
         st.create_alert(Alert(id=str(uuid.uuid4()), ruleId="r", level="info", title="done", resolved=True, createdAt=ts(NOW)))
         _, check = await self.call("POST", "/uptime/checks", json={"name": "Shop", "kind": "http", "target": "https://shop.example.com"},
                                    expect=201)
-        st.save_uptime_state(check["id"], {"cert_expires_at": ts(NOW + timedelta(days=5))})
+        # The preview runs at the real time, so this expiry is relative to it:
+        # 4 full days left, between app.example.com (3) and shop.example.com.
+        st.save_uptime_state(check["id"], {"cert_expires_at": ts(datetime.now(timezone.utc) + timedelta(days=5))})
         _, ch = await self.call("POST", "/credentials", json={"kind": "channel", "name": "ops", "type": "webhook", "enabled": True,
                                                               "config": {"url": "https://hooks.example/ops"}}, expect=201)
         _, ch2 = await self.call("POST", "/credentials", json={"kind": "channel", "name": "mail", "type": "webhook", "enabled": True,
@@ -130,7 +132,6 @@ class TestDigestAPI(ServerCase):
         self.assertEqual(s["updates"], [{"host": "local", "container": "web", "image": "nginx:1.27"}])
         self.assertEqual([c["image"] for c in s["cves"]], ["nginx:1.20"])
         self.assertEqual([(b["job"], b["error"]) for b in s["backups"]], [("nightly", "repo locked")])
-        # The uptime certificate expires 5 days after NOW; the preview runs at the real time.
         self.assertEqual([c["name"] for c in s["certificates"]], ["app.example.com", "https://shop.example.com", "shop.example.com"])
         self.assertEqual(s["certificates"][1]["where"], "uptime check Shop")
         self.assertEqual([a["title"] for a in s["alerts"]], ["Disk almost full"])
