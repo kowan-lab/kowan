@@ -1,5 +1,9 @@
 # Kowan — Changelog
 
+## 0.1.6 — 2026-10-27
+
+- **Updating an agent or restarting the server no longer marks deployments as failed.** While a host could not be reached, the reconcile pass took its containers as missing, redeployed, failed and left the deployment showing "The last operation failed" with no detail. It now leaves an unreachable host alone and picks it up again once it is back. A deployment already marked as failed this way needs one Redeploy.
+
 ## 0.1.5 — 2026-10-27
 
 - **Update to the new release in one click.** A server or agent running an image pinned to a release (`kowan:0.1.3`) used to pull that same version again when updated without an image, so moving to a new release meant typing its image by hand. It now moves to the newest release's tag (`kowan:0.1.4`); `latest`, `0.1` and custom tags still update in place. The panel's button reads "Update to 0.1.4" and the dialog shows the image it will pull; another image can still be given.
