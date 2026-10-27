@@ -15,6 +15,7 @@ Prune is a mutation and requires the operator role.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -34,6 +35,8 @@ log = logging.getLogger("kowan.api.system")
 # The lookback applied when the request omits ?since=, so
 # the dashboard gets a sensible chart without each client computing a timestamp.
 DEFAULT_METRICS_WINDOW = timedelta(hours=1)
+# Upper bound on the points /metrics returns, whatever the range.
+MAX_METRIC_POINTS = 720
 
 
 async def _resolve_ops(svc: "Services", request: web.Request) -> Ops:
@@ -113,7 +116,8 @@ async def _metrics(svc: "Services", request: web.Request) -> web.Response:
     Unlike the docker-operation routes it does not resolve a docker client: the
     samples are read from the store (recorded by the monitor), so an unreachable
     host still returns its history. The host is validated first so an unknown id
-    is a 404. ``?since=`` (RFC3339) defaults to the last hour when absent.
+    is a 404. ``?since=`` (RFC3339) defaults to the last hour when absent; long
+    ranges are averaged down to about ``MAX_METRIC_POINTS`` points.
     """
     host_id = request.match_info.get("hostID", "")
     if not host_id:
@@ -139,8 +143,13 @@ async def _metrics(svc: "Services", request: web.Request) -> web.Response:
         # Normalise to UTC so the comparison matches stored timestamps.
         since = parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Bound the response: a long ?since= returns at most ~MAX_METRIC_POINTS
+    # averaged buckets instead of every stored sample.
+    since_dt = _parse_rfc3339(since)
+    span = (datetime.now(timezone.utc) - since_dt).total_seconds() if since_dt else 0
+    step = max(1, math.ceil(span / MAX_METRIC_POINTS))
     try:
-        samples = svc.store.list_metrics(host_id, since)
+        samples = svc.store.list_metrics(host_id, since, step)
     except Exception as err:  # noqa: BLE001
         return error_response(500, str(err))
     if samples is None:

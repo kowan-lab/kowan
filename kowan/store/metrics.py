@@ -41,12 +41,21 @@ class _MetricMixin(_Base):
             (m.host_id, m.time, m.running, m.total, m.images, m.cpu_percent, m.mem_used, m.mem_total),
         )
 
-    def list_metrics(self, host_id: str, since: str) -> list[MetricSample]:
+    def list_metrics(self, host_id: str, since: str, step: int = 1) -> list[MetricSample]:
         """Return the samples for a host recorded at or after ``since`` (RFC3339),
-        ordered by time ascending so charts plot left-to-right."""
+        ordered by time ascending so charts plot left-to-right.
+
+        Samples are averaged into buckets of ``step`` seconds, so a long range
+        returns a bounded number of points instead of every row; with a step
+        below the sampling interval each bucket holds one sample and comes back
+        unchanged. Counts and totals take the bucket's maximum."""
         rows = self._query(
-            f"SELECT {_METRIC_COLUMNS} FROM metrics WHERE host_id = ? AND time >= ? ORDER BY time ASC",
-            (host_id, since),
+            "SELECT host_id, MIN(time) AS time, MAX(running) AS running, MAX(total) AS total, "
+            "MAX(images) AS images, AVG(cpu_percent) AS cpu_percent, "
+            "CAST(AVG(mem_used) AS INTEGER) AS mem_used, MAX(mem_total) AS mem_total "
+            "FROM metrics WHERE host_id = ? AND time >= ? "
+            "GROUP BY CAST(strftime('%s', time) AS INTEGER) / ? ORDER BY time ASC",
+            (host_id, since, max(1, int(step))),
         )
         return [_row_to_metric(r) for r in rows]
 

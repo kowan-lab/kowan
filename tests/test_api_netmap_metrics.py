@@ -46,9 +46,36 @@ class TestMetrics(ServerCase):
         self.assertEqual(none, [])
         _, some = await self.call("GET", "/hosts/local/metrics", "viewer",
                                   params={"since": "2000-01-01T00:00:00+02:00"}, expect=200)
-        self.assertEqual(len(some), len(samples))
+        # Since 2000 the range is decades: every recent sample lands in one or
+        # two averaged buckets.
+        self.assertIn(len(some), (1, 2))
         await self.call("GET", "/hosts/local/metrics", "viewer", params={"since": "yesterday"}, expect=400)
         await self.call("GET", "/hosts/nope/metrics", "viewer", expect=404)
+
+    async def test_long_range_is_downsampled(self):
+        from datetime import datetime, timedelta, timezone
+
+        from kowan.api.system import MAX_METRIC_POINTS
+        from kowan.models import MetricSample
+
+        now = datetime.now(timezone.utc)
+        for i in range(3000):  # a sample every 30 s over 25 hours
+            t = (now - timedelta(seconds=30 * i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.svc.store.create_metric(MetricSample(hostId="local", time=t, running=i % 3, total=5, images=2,
+                                                      cpuPercent=10.0 if i % 2 else 30.0, memUsed=100, memTotal=1000))
+        since = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _, pts = await self.call("GET", "/hosts/local/metrics", "viewer", params={"since": since}, expect=200)
+        self.assertLessEqual(len(pts), MAX_METRIC_POINTS + 1)
+        self.assertGreater(len(pts), MAX_METRIC_POINTS // 2)
+        mid = pts[len(pts) // 2]
+        self.assertAlmostEqual(mid["cpuPercent"], 20.0, delta=10.0)
+        self.assertEqual(mid["memUsed"], 100)
+        self.assertEqual(mid["total"], 5)
+        self.assertEqual([p["time"] for p in pts], sorted(p["time"] for p in pts))
+        # A short range keeps every sample.
+        since = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _, recent = await self.call("GET", "/hosts/local/metrics", "viewer", params={"since": since}, expect=200)
+        self.assertGreaterEqual(len([p for p in recent if p["memUsed"] == 100]), 20)
 
 
 if __name__ == "__main__":
