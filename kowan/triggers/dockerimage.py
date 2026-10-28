@@ -5,7 +5,8 @@ changes (i.e. the tag was re-pushed / rebuilt), resolved via the Registry HTTP
 API v2 WITHOUT ever pulling the image.
 
 The digest resolution performs a HEAD on the manifest, the registry's
-anonymous-or-Basic Bearer token handshake on a 401, and a GET + local sha256
+anonymous-or-Basic Bearer token handshake on a 401 (or plain Basic auth when the
+challenge asks for it, as ECR does), and a GET + local sha256
 fallback when the registry omits the ``Docker-Content-Digest`` header. HTTP goes
 through :mod:`kowan.httpcap` (redirects followed so a registry's storage
 backend redirect works; bodies capped).
@@ -13,6 +14,7 @@ backend redirect works; bodies capped).
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from typing import Dict, Optional, Tuple
@@ -78,13 +80,13 @@ class _DockerImagePoller(Poller):
             f"https://{self.registry}/v2/{self.repository}/manifests/{self.reference}"
         )
 
-        token = ""
-        resp = await self._do(client, "HEAD", manifest_url, token)
-        # On a 401 carrying a Bearer challenge, obtain a token and retry once.
+        auth = ""
+        resp = await self._do(client, "HEAD", manifest_url, auth)
+        # On a 401, answer the challenge and retry once.
         if resp.status_code == 401:
             challenge = resp.headers.get("WWW-Authenticate", "")
-            token = await self._fetch_token(client, challenge)
-            resp = await self._do(client, "HEAD", manifest_url, token)
+            auth = await self._authorization(client, challenge, manifest_url)
+            resp = await self._do(client, "HEAD", manifest_url, auth)
 
         if resp.status_code < 200 or resp.status_code >= 300:
             raise ValueError(
@@ -97,8 +99,8 @@ class _DockerImagePoller(Poller):
 
         # Fallback: some registries omit the digest header on HEAD; GET the
         # manifest and hash the raw body (the digest is sha256 over the bytes),
-        # reusing the token already negotiated for the HEAD.
-        get_resp = await self._do(client, "GET", manifest_url, token)
+        # reusing the authorization already negotiated for the HEAD.
+        get_resp = await self._do(client, "GET", manifest_url, auth)
         raw = get_resp.content
         if get_resp.status_code < 200 or get_resp.status_code >= 300:
             snippet = raw[:512].decode("utf-8", "replace").strip()
@@ -114,26 +116,34 @@ class _DockerImagePoller(Poller):
         return "sha256:" + hashlib.sha256(raw).hexdigest()
 
     async def _do(
-        self, client: httpcap.Client, method: str, manifest_url: str, token: str
+        self, client: httpcap.Client, method: str, manifest_url: str, auth: str
     ) -> httpcap.Response:
         """Issue one manifest request with the manifest Accept header and, when
-        ``token`` is non-empty, a Bearer Authorization header."""
+        ``auth`` is non-empty, that Authorization header."""
         headers = {"Accept": _DOCKER_MANIFEST_ACCEPT}
-        if token:
-            headers["Authorization"] = "Bearer " + token
+        if auth:
+            headers["Authorization"] = auth
         try:
             return await client.request(method, manifest_url, limit=_MANIFEST_BODY_LIMIT, headers=headers)
         except httpcap.HTTPError as err:
             raise ValueError(f"docker-image: {method} {manifest_url}: {err}") from err
 
-    async def _fetch_token(self, client: httpcap.Client, challenge: str) -> str:
-        """Perform the registry token handshake for this poller's credentials.
+    async def _authorization(self, client: httpcap.Client, challenge: str, manifest_url: str) -> str:
+        """The Authorization header answering a 401's ``challenge``.
 
-        Thin wrapper over the shared :func:`_fetch_registry_token` so the browse
-        API can reuse the identical Bearer-challenge flow."""
-        return await _fetch_registry_token(
-            client, challenge, self.username, self.password
-        )
+        A Basic challenge (ECR, some self-hosted registries) takes the
+        credentials as they are: for ECR that is the ``AWS:<token>`` pair its
+        API hands out. Without credentials there is nothing to answer with, so
+        it is reported as the 401 it is. Any other challenge goes through the
+        shared Bearer handshake (:func:`_fetch_registry_token`), the same flow
+        the browse API uses."""
+        if challenge.strip().lower().startswith("basic"):
+            if not (self.username or self.password):
+                raise ValueError(f"docker-image: HEAD {manifest_url}: unexpected status 401 (the registry wants credentials)")
+            pair = f"{self.username}:{self.password}".encode("utf-8")
+            return "Basic " + base64.b64encode(pair).decode("ascii")
+        token = await _fetch_registry_token(client, challenge, self.username, self.password)
+        return "Bearer " + token
 
 
 async def _fetch_registry_token(

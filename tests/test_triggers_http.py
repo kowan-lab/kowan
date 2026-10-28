@@ -40,6 +40,22 @@ class FakeRegistryHost:
         return httpcap.Reply(404, text="nope")
 
 
+class FakeECRHost:
+    """An ECR-style registry: a Basic challenge on 401, then the AWS:<token> pair
+    the ECR API hands out sent as HTTP Basic auth; no token endpoint."""
+
+    def __init__(self):
+        self.digest = "sha256:" + "e" * 64
+
+    def __call__(self, request: httpcap.Request) -> httpcap.Reply:
+        if request.headers.get("Authorization") != "Basic " + base64.b64encode(b"AWS:ecr-token").decode():
+            return httpcap.Reply(401, headers={"WWW-Authenticate":
+                'Basic realm="https://123.dkr.ecr.eu-west-1.amazonaws.com/",service="ecr.amazonaws.com"'})
+        if request.url.path == "/v2/team/app/manifests/1.0":
+            return httpcap.Reply(200, headers={"Docker-Content-Digest": self.digest})
+        return httpcap.Reply(404, text="nope")
+
+
 def _pkt(line: str) -> bytes:
     data = line.encode()
     return f"{len(data) + 4:04x}".encode() + data
@@ -88,6 +104,17 @@ class TestDockerImage(unittest.IsolatedAsyncioTestCase):
         with _patch_transport(bad_token):
             with self.assertRaises(ValueError):
                 await self.poller().evaluate({}, "")
+
+    async def test_basic_challenge_sends_the_credentials(self):
+        # ECR: the check used to stop at "unauthorized without a Bearer challenge".
+        reg = FakeECRHost()
+        ecr = {"registry": "123.dkr.ecr.eu-west-1.amazonaws.com", "repository": "team/app"}
+        with _patch_transport(reg):
+            self.assertEqual(await self.poller(**ecr, username="AWS", password="ecr-token").evaluate({}, ""), (False, reg.digest))
+            with self.assertRaisesRegex(ValueError, "unexpected status 401"):
+                await self.poller(**ecr, username="AWS", password="expired").evaluate({}, "")
+            with self.assertRaisesRegex(ValueError, "unexpected status 401"):
+                await self.poller(**ecr, username="", password="").evaluate({}, "")
 
     async def test_oversized_manifest_is_not_hashed(self):
         reg = FakeRegistryHost()
