@@ -191,9 +191,9 @@ Agents (check: operator, act: admin):
 - `POST /hosts/{hostID}/agent/rollback` → `202 {id}`
 - `GET  /hosts/{hostID}/agent/updates?limit=20` → `Update[]`
 - `POST /agents/update` body `{hostIds: string[], image?}` → `202 {batchId, ids}`:
-  rolling update, one host at a time, stops at the first failure. All records
-  are created up front (status `running`, first phase `queued`); the ones never
-  reached end as `aborted` with "rolling update stopped: ...".
+  every host is updated at the same time, each with its own health check and
+  rollback, so a failure on one does not stop the others. All records are
+  created up front (status `running`, first phase `queued`).
 
 `Update` object:
 ```

@@ -1,5 +1,10 @@
 # Kowan — Changelog
 
+## 0.1.8 — 2026-10-28
+
+- **Agents update at the same time.** Updating every agent from Hosts no longer goes one host after another and stops at the first failure: all of them update together, each with its own health check and automatic rollback, so one that fails rolls back alone while the others carry on.
+- **The update dialog keeps every host and shows progress.** An agent restarting goes offline for a few seconds and its row used to disappear; the list now stays as it was when the update started. Each host has a progress bar with its current step (pulling the image, testing it, restarting, checking health), and an overall bar counts the hosts done.
+
 ## 0.1.7 — 2026-10-27
 
 - **A new look, the same on every page.** Each page opens with a header card: the breadcrumb trail with a button that goes up one level, the title, its facts on one line and the actions beside them. Below it, sections are framed cards and page sections are tabs in a toolbar card.

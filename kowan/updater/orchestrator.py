@@ -860,7 +860,7 @@ class UpdateManager:
             for h in hosts:
                 rec = self._new_record(None, COMPONENT_AGENT, h.id, MODE_UPDATE, image, user, batch_id)
                 rec["phases"].append({"phase": "queued", "ok": True, "at": rec["startedAt"],
-                                      "detail": f"batch {batch_id}, position {len(recs) + 1}/{len(hosts)}"})
+                                      "detail": f"batch {batch_id}, host {len(recs) + 1} of {len(hosts)}"})
                 blocking = self.store.acquire_update(rec, _ts_minus(LOCK_STALE_SECONDS))
                 if blocking is not None:
                     for r in recs:
@@ -890,31 +890,28 @@ class UpdateManager:
             await asyncio.sleep(interval)
 
     async def _run_batch(self, pairs: List[Tuple[Any, Dict[str, Any]]]) -> None:
-        stopped_by = ""
-        for i, (host, rec) in enumerate(pairs):
-            if stopped_by:
-                self._finish(rec, STATUS_ABORTED, f"rolling update stopped: {stopped_by}")
-                self._busy.discard(rec["id"])
-                continue
-            try:
-                target, reason = await self.resolve_target(COMPONENT_AGENT, host)
-            except Exception as err:  # noqa: BLE001
-                target, reason = None, str(err)
-            if target is None:
-                self._phase(rec, "lock", False, reason, save=False)
-                self._finish(rec, STATUS_ABORTED, reason)
-                self._busy.discard(rec["id"])
-                stopped_by = f"host {getattr(host, 'name', host.id)}: {reason}"
-                continue
-            rec.update({"fromImage": target.image_ref, "fromDigest": target.digest,
-                        "fromVersion": target.version})
-            self._phase(rec, "lock", True, f"agent {target.name}")
-            await self._drive(rec, target)
-            final = await self.wait_final(rec["id"], BATCH_STEP_TIMEOUT)
-            if final["status"] != STATUS_UPDATED:
-                stopped_by = (f"host {getattr(host, 'name', host.id)} ended as {final['status']}"
-                              + (f" ({final.get('error')})" if final.get("error") else ""))
+        """Update every host of the batch at the same time.
 
+        Each agent is health-checked and rolled back on its own, so one that
+        fails says nothing about the others: they all run to the end.
+        """
+        await asyncio.gather(*(self._run_batch_host(host, rec) for host, rec in pairs), return_exceptions=True)
+
+    async def _run_batch_host(self, host: Any, rec: Dict[str, Any]) -> None:
+        try:
+            target, reason = await self.resolve_target(COMPONENT_AGENT, host)
+        except Exception as err:  # noqa: BLE001
+            target, reason = None, str(err)
+        if target is None:
+            self._phase(rec, "lock", False, reason, save=False)
+            self._finish(rec, STATUS_ABORTED, reason)
+            self._busy.discard(rec["id"])
+            return
+        rec.update({"fromImage": target.image_ref, "fromDigest": target.digest,
+                    "fromVersion": target.version})
+        self._phase(rec, "lock", True, f"agent {target.name}")
+        await self._drive(rec, target)
+        await self.wait_final(rec["id"], BATCH_STEP_TIMEOUT)
 
 def _preflight_summary(text: str) -> str:
     """The preflight's JSON summary line if present, else the last log line."""

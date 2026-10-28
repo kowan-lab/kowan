@@ -113,6 +113,7 @@ describe("hosts page", () => {
     expect(within(d).getByRole("checkbox", { name: "Update agent-b" })).not.toBeChecked();
     await press(user, /update 1 agent$/i, d);
     await waitFor(() => expect(requests("POST", "/agents/update")[0]?.body).toEqual({ hostIds: ["h-a"] }));
+    expect(within(d).getByRole("progressbar", { name: /update progress/i })).toBeInTheDocument();
     expect(await within(d).findAllByRole("button", { name: /^close$/i })).toHaveLength(2);
   });
 

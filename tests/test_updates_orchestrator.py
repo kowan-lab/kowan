@@ -428,8 +428,9 @@ class TestAgentUpdate(_Base):
         st = await self.m.status("agent", self.store.get_host("local"))
         self.assertFalse(st["supported"])
 
-    async def test_batch_stops_at_first_failure(self):
+    async def test_batch_updates_hosts_in_parallel(self):
         self.hub.up.add("h1")
+        self.hub.up.add("h2")
         self.store.create_host(_host("h2"))
         self.svc.docker.ops_by_host["h2"] = self.aops
         h1, h2 = self.store.get_host("h1"), self.store.get_host("h2")
@@ -437,13 +438,14 @@ class TestAgentUpdate(_Base):
         with mock.patch("kowan.updater.orchestrator.BATCH_STEP_TIMEOUT", 5):
             res = await self.m.start_batch([h1, h2], image="ghcr.io/kowan-lab/kowan-agent:v2", user="admin")
             self.assertEqual(len(res["ids"]), 2)
-            self.assertEqual(self.store.get_update(res["ids"][1])["status"], "running")
             await self.m._tasks[res["batchId"]]
         a, b = (self.store.get_update(i) for i in res["ids"])
-        self.assertEqual(a["status"], "aborted")
-        self.assertEqual(b["status"], "aborted")
-        self.assertIn("rolling update stopped", b["error"])
-        self.assertEqual(a["batchId"], res["batchId"])
+        # A failing host does not stop the other: both were tried on their own.
+        for rec in (a, b):
+            self.assertNotEqual(rec["status"], "running")
+            self.assertNotIn("rolling update stopped", rec.get("error") or "")
+            self.assertIn("lock", [ph["phase"] for ph in rec["phases"]])
+            self.assertEqual(rec["batchId"], res["batchId"])
 
     async def test_batch_conflict(self):
         h1 = self.store.get_host("h1")
