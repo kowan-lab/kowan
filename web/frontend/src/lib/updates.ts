@@ -123,11 +123,15 @@ export function useUpdateContainer(onDone?: (res: ContainerUpdateResult, vars: {
   return useMutation({
     mutationFn: ({ host, id }: { host: string; id: string }) => updateContainer(host, id),
     onSuccess: (res, vars) => {
-      notify({ color: "green", title: "Container updated", message: `Recreated from the latest ${res.image}` });
+      notify(
+        res.deploymentId
+          ? { color: "green", title: `${res.deployment} updated`, message: res.message || "Its deployment was redeployed with the newer images." }
+          : { color: "green", title: "Container updated", message: `Recreated from the latest ${res.image}` },
+      );
       queryClient.invalidateQueries({
         predicate: (q) => {
           const key = String(q.queryKey[0]);
-          return key.startsWith("containers") || key === UPDATES_KEY || key === "container-inspect";
+          return key.startsWith("containers") || key === UPDATES_KEY || key === "container-inspect" || key === "deployment";
         },
       });
       onDone?.(res, vars);

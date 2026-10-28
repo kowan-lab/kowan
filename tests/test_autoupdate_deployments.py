@@ -241,3 +241,58 @@ class TestContainersAndTick(ServerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUpdateNow(DeploymentUpdateCase):
+    """The workload's Update button: no policy needed, one redeploy."""
+
+    async def test_update_deployment_now(self):
+        url = f"/deployments/{self.dep['id']}/update"
+        await self.roles("POST", url, "operator")
+        _, res = await self.call("POST", url, "operator", expect=200)
+        self.assertEqual(res["outcome"], "updated", res)
+        self.assertIn(NEW, self.image_of_app()["RepoDigests"][0])
+        _, res = await self.call("POST", url, "operator", expect=200)
+        self.assertEqual(res["outcome"], "up_to_date", res)
+        await self.call("POST", "/deployments/nope/update", "operator", expect=404)
+
+    async def test_retries_a_version_rolled_back_before(self):
+        def crash_if_new(c):
+            img = next(i for i in self.engine.images.values() if i["Id"] == c["Image"])
+            return (1, ["panic"]) if any(NEW in d for d in img["RepoDigests"]) else None
+
+        self.engine.runners.append(("nginx", crash_if_new))
+        status, res = await self.call("POST", f"/deployments/{self.dep['id']}/update", "operator")
+        self.assertEqual((status, res["outcome"]), (502, "rolled_back"), res)
+        self.engine.runners.clear()
+        _, res = await self.call("POST", f"/deployments/{self.dep['id']}/update", "operator", expect=200)
+        self.assertEqual(res["outcome"], "updated", res)
+
+    async def test_container_update_goes_through_its_deployment(self):
+        cid = self.engine.container("app")["Id"]
+        _, res = await self.call("POST", f"/hosts/local/containers/{cid}/update", "operator", json={}, expect=200)
+        self.assertEqual((res["deploymentId"], res["outcome"]), (self.dep["id"], "updated"), res)
+        self.assertIn(NEW, self.image_of_app()["RepoDigests"][0])
+
+
+class TestUpdateStack(DeploymentUpdateCase):
+    async def test_update_an_unmanaged_stack(self):
+        from unittest import mock
+
+        from kowan.api import updates
+
+        labels = {"com.docker.compose.project": "mon", "com.docker.compose.service": "web"}
+        self.engine.add_container("mon-web-1", "nginx:1.27", labels=labels)
+        self.engine.add_container("mon-db-1", "redis:7", labels={**labels, "com.docker.compose.service": "db"})
+
+        async def remote(store, ref):
+            return NEW if ref.repository == "library/nginx" else "sha256:" + "0" * 64
+
+        with mock.patch.object(updates, "_remote_digest", remote):
+            await self.roles("POST", "/hosts/local/stacks/mon/update", "operator")
+            _, res = await self.call("POST", "/hosts/local/stacks/mon/update", "operator", expect=200)
+            self.assertEqual(res["updated"], 1, res)
+            self.assertEqual({r["name"]: r["outcome"] for r in res["results"]}["mon-web-1"], "updated")
+            # A Kowan deployment's project is refused: its deployment is updated instead.
+            status, _ = await self.call("POST", "/hosts/local/stacks/app/update", "operator")
+        self.assertIn(status, (200, 409))

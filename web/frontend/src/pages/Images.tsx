@@ -41,6 +41,7 @@ type ImageFilter = "all" | "used" | "unused" | "untagged" | "update";
 import ConfirmModal from "../components/ConfirmModal";
 import HostSelectField, { defaultTargetHost } from "../components/HostSelectField";
 import KeyValueEditor from "../components/KeyValueEditor";
+import { RegistryImagePicker } from "../components/images/RegistryImagePicker";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
 import EmptyState from "../components/EmptyState";
@@ -1070,31 +1071,18 @@ export default function Images() {
                   disabled={pullMutation.isPending}
                 />
 
-                <TextInput
-                  label="Image reference"
-                  placeholder="nginx:latest"
-                  description="e.g. nginx:latest, ghcr.io/owner/app:1.0"
-                  data-autofocus
-                  disabled={pullMutation.isPending}
+                <RegistryImagePicker
+                  registries={isAdmin ? registriesQuery.data ?? [] : undefined}
+                  registryId={pullRegistryId}
+                  onRegistryChange={setPullRegistryId}
                   value={pullRef}
-                  errorText={pullRefError ?? undefined}
-                  onChange={(e) => {
-                    setPullRef(e.target.value);
+                  onChange={(v) => {
+                    setPullRef(v);
                     if (pullRefError) setPullRefError(null);
                   }}
+                  error={pullRefError}
+                  disabled={pullMutation.isPending}
                 />
-                {isAdmin && registryOptions.length > 0 && (
-                  <Select
-                    label="Registry"
-                    description="Optional. Use a stored credential for a private pull."
-                    placeholder="Anonymous / public"
-                    options={registryOptions}
-                    clearable
-                    disabled={pullMutation.isPending}
-                    value={pullRegistryId || undefined}
-                    onChange={(v) => setPullRegistryId(v)}
-                  />
-                )}
               </Box>
             </Popup.Body>
             <Popup.Footer>

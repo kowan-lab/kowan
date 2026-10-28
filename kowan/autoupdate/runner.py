@@ -39,6 +39,7 @@ from kowan.events import Event
 from . import engine
 from .policy import (
     LABEL_UPDATE,
+    MODE_APPLY,
     MODE_NOTIFY,
     MODE_OFF,
     MODE_PULL,
@@ -555,6 +556,30 @@ class AutoUpdater:
         return {"kind": kind, "target": name, "result": out.outcome, "message": out.message}
 
     # -- deployment ----------------------------------------------------------------
+    async def update_deployment_now(self, dep: Any) -> Dict[str, Any]:
+        """Update a deployment to the newest images of its tags right now (the
+        workload's Update button): every service whose image changed is pulled,
+        gated by the scan policy, redeployed, verified and rolled back on
+        failure, as an ``apply`` policy would, but with no window or minimum
+        age, and even for versions rolled back before."""
+        if getattr(dep, "strategy", "") == "swarm":
+            raise ValueError("swarm deployments are updated by swarm itself")
+        if not dep.targets:
+            raise ValueError("the deployment has no target host")
+        host = self.store.get_host(dep.targets[0])
+        ops = self._ops(host)
+        containers = await ops.list_containers(True)
+        project = dep.resource_name()
+        members = [c for c in containers
+                   if (c.labels or {}).get(LABEL_DEPLOYMENT_ID) == dep.id
+                   or (dep.type == "compose" and (c.labels or {}).get(COMPOSE_PROJECT_LABEL) == project)]
+        stored = self.store.get_autoupdate_policy("deployment", "", dep.id) or {}
+        eff = resolve_policy({}, stored, self.defaults())
+        eff.mode, eff.window, eff.min_age = MODE_APPLY, "", ""
+        # Asked for by hand: try again versions that were rolled back before.
+        self._save_state("deployment", "", dep.id, {"badSignature": ""})
+        return await self.process_deployment(host, ops, dep, members, eff, check_registry=True, trigger="manual")
+
     async def process_deployment(self, host: Any, ops: Any, dep: Any, members: List[Any], eff: EffectivePolicy, *,
                                  check_registry: bool, trigger: str = "auto") -> Dict[str, Any]:
         key = ("deployment", "", dep.id)

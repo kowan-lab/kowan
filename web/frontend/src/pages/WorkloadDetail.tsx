@@ -38,6 +38,7 @@ import { PoliciesTab, PolicyStrip } from "../components/apps/PolicyPanels";
 import WorkloadResources from "../components/apps/WorkloadResources";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import ScaleControl from "../components/apps/ScaleControl";
+import { NewVersionsButton, UpdateWorkloadButton } from "../components/apps/WorkloadUpdates";
 import { Band, Btn, BtnLink, CalloutBar, Crumbs, LBL, Pill, StateSquares, Tag, btnClass } from "../components/apps/ui";
 import { cn } from "@/lib/utils";
 
@@ -243,6 +244,8 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
           <h1 className="m-0 min-w-0 truncate text-[24px] leading-[32px] font-extrabold tracking-[-0.02em] uppercase">{app.name}</h1>
           <Pill tone={app.tone}>{app.label}</Pill>
           <div className="ml-auto flex flex-wrap gap-[8px]">
+            {canOperate && <UpdateWorkloadButton app={app} />}
+            {canOperate && <NewVersionsButton app={app} />}
             <Btn solid onClick={() => setTab("logs")}>View logs</Btn>
             {d ? (canOperate ? <DeploymentActions deployment={d} compact /> : null) : <ContainerActions app={app} canOperate={canOperate} />}
           </div>

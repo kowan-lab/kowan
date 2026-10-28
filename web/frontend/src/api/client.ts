@@ -1568,6 +1568,62 @@ export async function updateContainer(
   return data;
 }
 
+/** Outcome of updating a whole deployment or stack to the newest images of its tags. */
+export interface WorkloadUpdateResult {
+  outcome?: string;
+  message?: string;
+  error?: string;
+  /** Stack updates: how many containers changed, and each one's outcome. */
+  updated?: number;
+  results?: { name?: string; outcome?: string; error?: string }[];
+}
+
+/** Every service of a deployment to the newest image of its tag: one redeploy, verified, rolled back on failure. */
+export async function updateDeploymentImages(id: string): Promise<WorkloadUpdateResult> {
+  const { data } = await api.post<WorkloadUpdateResult>(`/deployments/${encodeURIComponent(id)}/update`);
+  return data;
+}
+
+/** The containers of a compose project Kowan does not manage that have a newer image. */
+export async function updateStack(hostId: string, project: string): Promise<WorkloadUpdateResult> {
+  const { data } = await api.post<WorkloadUpdateResult>(
+    `/hosts/${encodeURIComponent(hostId)}/stacks/${encodeURIComponent(project)}/update`,
+  );
+  return data;
+}
+
+/** A deployment service pinned to a version tag, with the newer versions in its registry. */
+export interface TagUpdateRow {
+  /** "" for a container deployment (its single image). */
+  service: string;
+  image: string;
+  current: string;
+  newer: string[];
+  latest?: string;
+  note?: string;
+  error?: string;
+}
+
+export interface TagUpdatePlan {
+  changes: { service: string; from: string; to: string }[];
+  diff: import("../types").GitOpsDiffLine[];
+}
+
+export async function getTagUpdates(id: string): Promise<TagUpdateRow[]> {
+  const { data } = await api.get<{ items: TagUpdateRow[] }>(`/deployments/${encodeURIComponent(id)}/tag-updates`);
+  return data.items;
+}
+
+export async function previewTagUpdates(id: string, tags: Record<string, string>): Promise<TagUpdatePlan> {
+  const { data } = await api.post<TagUpdatePlan>(`/deployments/${encodeURIComponent(id)}/tag-updates/preview`, { tags });
+  return data;
+}
+
+export async function applyTagUpdates(id: string, tags: Record<string, string>, deploy: boolean): Promise<TagUpdatePlan> {
+  const { data } = await api.post<TagUpdatePlan>(`/deployments/${encodeURIComponent(id)}/tag-updates`, { tags, deploy });
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // App templates (catalog)
 // ---------------------------------------------------------------------------

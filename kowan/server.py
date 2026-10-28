@@ -98,6 +98,7 @@ def _registrars() -> list:
     from .api import containerfiles as containerfiles_api
     from .api import exposure as exposure_api
     from .api import hostedregistry as hostedregistry_api
+    from .api import tagupdates as tagupdates_api
     from .api import netmap as netmap_api
     from .monitor import api as monitor_api
     from . import notifications
@@ -137,6 +138,7 @@ def _registrars() -> list:
         containerfiles_api.register,
         exposure_api.register,
         hostedregistry_api.register,
+        tagupdates_api.register,
         netmap_api.register,
         # deployments MUST come before workflows: it attaches svc.deployments,
         # which the workflow engine's default wiring reads.

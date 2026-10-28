@@ -123,11 +123,11 @@ describe("images page: validation and failures", () => {
     let d = await dialog(/pull image/i);
     await press(user, /^pull$/i, d);
     expect(await within(d).findByText(/image reference is required/i)).toBeInTheDocument();
-    await user.type(within(d).getByLabelText(/image reference/i), "nope:0");
-    await choose(user, /^registry/i, /ghcr/i, d);
+    await user.type(within(d).getByLabelText(/image reference/i), "ghcr.io/acme/nope:0");
+    expect(within(d).getByText(/pulled with the credentials of/i)).toHaveTextContent("ghcr");
     await press(user, /^pull$/i, d);
     await toast(/manifest unknown/i);
-    expect(requests("POST", "/hosts/local/images/pull")[0].body).toMatchObject({ ref: "nope:0", registryId: "r-ghcr" });
+    expect(requests("POST", "/hosts/local/images/pull")[0].body).toMatchObject({ ref: "ghcr.io/acme/nope:0" });
     await press(user, /^cancel$/i, d);
     await press(user, /build image/i, pageRoot());
     d = await dialog(/build image/i);

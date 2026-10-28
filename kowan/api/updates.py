@@ -519,6 +519,8 @@ def register(app: web.Application, svc: Any) -> None:
         "/hosts/{hostID}/containers/{id}/update",
         require_role("operator")(_update_container),
     )
+    api_route(app, "POST", "/deployments/{id}/update", require_role("operator")(_update_deployment))
+    api_route(app, "POST", "/hosts/{hostID}/stacks/{project}/update", require_role("operator")(_update_stack))
 
 
 async def _list_updates(request: web.Request) -> web.StreamResponse:
@@ -585,6 +587,9 @@ async def _update_container(request: web.Request) -> web.StreamResponse:
     health verification and automatic rollback. A blocked update answers 409
     and leaves the container untouched; a rolled-back one answers 502. Every
     outcome is recorded in the auto-update history (trigger ``manual``).
+
+    A container of a Kowan deployment is not recreated on its own (the next
+    deploy would undo it): its whole deployment is updated instead.
     """
     svc = _svc(request)
     host_id = request.match_info["hostID"]
@@ -604,6 +609,31 @@ async def _update_container(request: web.Request) -> web.StreamResponse:
     except Exception as err:  # noqa: BLE001
         return error_response(502, f"inspect container: {err}")
     insp = insp or {}
+    dep = _owning_deployment(svc, host_id, (insp.get("Config") or {}).get("Labels") or {})
+    if dep is not None:
+        return await _deployment_update_response(svc, dep)
+    payload, status = await update_container_now(svc, host_id, ops, cid, insp, str(body.get("scanBlock") or ""))
+    return json_response(payload, status=status)
+
+
+def _owning_deployment(svc: Any, host_id: str, labels: Dict[str, str]) -> Any:
+    """The Kowan deployment a container belongs to, or None."""
+    from kowan.workloads import compose_deployments, workload_of
+
+    _, _, dep_id = workload_of(labels, host_id, "", compose_deployments(svc.store))
+    if not dep_id:
+        return None
+    try:
+        return svc.store.get_deployment(dep_id)
+    except Exception:  # noqa: BLE001 - labels of a deleted deployment
+        return None
+
+
+async def update_container_now(svc: Any, host_id: str, ops: Any, cid: str, insp: Dict[str, Any],
+                               scan_block: str = "") -> Tuple[Dict[str, Any], int]:
+    """Update one container to the newest image of its tag; returns the
+    payload and the HTTP status (200 updated or up to date, 409 blocked, 502
+    rolled back or failed)."""
     cfg = insp.get("Config") or {}
     name = str(insp.get("Name") or cid).lstrip("/")
     labels = cfg.get("Labels") or {}
@@ -628,9 +658,9 @@ async def _update_container(request: web.Request) -> web.StreamResponse:
     defaults = au.defaults() if au is not None else {}
     eff = resolve_policy(labels, stored, defaults)
     gate = eff.scan_block
-    if body.get("scanBlock"):
+    if scan_block:
         try:
-            gate = parse_block_policy(str(body["scanBlock"]))
+            gate = parse_block_policy(scan_block)
         except ValueError as err:
             raise Validation(str(err)) from err
 
@@ -661,10 +691,90 @@ async def _update_container(request: web.Request) -> web.StreamResponse:
             )
         except Exception as err:  # noqa: BLE001 - history is best effort
             log.warning("record manual update of %s: %s", name, err)
-    payload = {"id": out.container_id or cid, "image": image, **out.to_dict()}
+    payload = {"id": out.container_id or cid, "name": name, "image": image, **out.to_dict()}
     if out.outcome == engine.OUTCOME_BLOCKED:
-        return json_response({**payload, "error": out.message}, status=409)
+        return {**payload, "error": out.message}, 409
     if out.outcome in (engine.OUTCOME_ROLLED_BACK, engine.OUTCOME_FAILED):
-        return json_response({**payload, "error": out.message}, status=502)
+        return {**payload, "error": out.message}, 502
     log.info("container %s updated to %s (new id %s): %s", cid[:12], image, (out.container_id or "")[:12], out.message)
+    return payload, 200
+
+
+async def _deployment_update_response(svc: Any, dep: Any) -> web.StreamResponse:
+    from kowan.auth import authorize as authz
+
+    authz.check_deployment(dep, authz.LEVEL_OPERATE)
+    au = getattr(svc, "autoupdater", None)
+    if au is None:
+        return error_response(503, "the updater is not running")
+    try:
+        res = await au.update_deployment_now(dep)
+    except ValueError as err:
+        raise Validation(str(err)) from err
+    result = str(res.get("result") or "")
+    payload = {"deploymentId": dep.id, "deployment": dep.name, "outcome": result,
+               "message": res.get("message") or _deployment_message(svc, dep.id, result)}
+    if result == "blocked":
+        return json_response({**payload, "error": payload["message"]}, status=409)
+    if result in ("rolled_back", "failed", "error"):
+        return json_response({**payload, "error": payload["message"]}, status=502)
+    if result == "busy":
+        return json_response({**payload, "error": "an update of this deployment is already running"}, status=409)
     return json_response(payload, status=200)
+
+
+def _deployment_message(svc: Any, dep_id: str, result: str) -> str:
+    try:
+        return str(svc.store.get_autoupdate_state("deployment", "", dep_id).get("lastMessage") or result)
+    except Exception:  # noqa: BLE001
+        return result
+
+
+async def _update_deployment(request: web.Request) -> web.StreamResponse:
+    """POST /deployments/{id}/update: every service of the deployment to the
+    newest image of its tag, as one redeploy, verified and rolled back on
+    failure."""
+    svc = _svc(request)
+    try:
+        dep = svc.store.get_deployment(request.match_info["id"])
+    except Exception:  # noqa: BLE001
+        return error_response(404, "deployment not found")
+    return await _deployment_update_response(svc, dep)
+
+
+async def _update_stack(request: web.Request) -> web.StreamResponse:
+    """POST /hosts/{hostID}/stacks/{project}/update: update the containers of
+    a compose project or swarm stack Kowan does not manage that have a newer
+    image, one by one. Kowan has no compose file for it, so each container is
+    recreated with its own configuration (like the per-container Update)."""
+    from kowan.workloads import stack_of
+
+    svc = _svc(request)
+    host_id = request.match_info["hostID"]
+    project = request.match_info["project"]
+    ops = _ops_for(svc, host_id)
+    try:
+        rows = await check_host(svc, ops, refresh=True)
+    except Exception as err:  # noqa: BLE001
+        return error_response(502, f"check updates: {err}")
+    containers = {c.id: c for c in await ops.list_containers(True)}
+    targets = []
+    for r in rows:
+        c = containers.get(r.get("containerId", ""))
+        if c is None or stack_of(c.labels or {}) != project:
+            continue
+        if _owning_deployment(svc, host_id, c.labels or {}) is not None:
+            return error_response(409, f"{project} is a Kowan deployment; update the deployment")
+        if r.get("updateAvailable"):
+            targets.append(c)
+    results, worst = [], 200
+    for c in targets:
+        try:
+            insp = await ops.inspect_container(c.id) or {}
+            payload, status = await update_container_now(svc, host_id, ops, c.id, insp)
+        except Exception as err:  # noqa: BLE001
+            payload, status = {"id": c.id, "error": str(err)}, 502
+        results.append({**payload, "status": status})
+        worst = max(worst, status)
+    return json_response({"project": project, "updated": sum(1 for r in results if r.get("outcome") == "updated"),
+                          "results": results}, status=200 if worst == 200 else 207)

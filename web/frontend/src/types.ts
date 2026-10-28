@@ -823,6 +823,12 @@ export interface ContainerUpdateStatus {
 export interface ContainerUpdateResult {
   id: string;
   image: string;
+  outcome?: string;
+  message?: string;
+  /** Set when the container belongs to a Kowan deployment: the whole
+   * deployment was updated (redeployed) instead of the container alone. */
+  deploymentId?: string;
+  deployment?: string;
 }
 
 // App-template catalog (GET /templates). A template is a container spec or a

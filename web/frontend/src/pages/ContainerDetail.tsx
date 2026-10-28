@@ -222,7 +222,9 @@ export default function ContainerDetail() {
   };
   const updateMutation = useUpdateContainer((res) => {
     setUpdateOpen(false);
-    followTo(res.id);
+    // A deployment's container is recreated by its redeploy: open the workload.
+    if (res.deploymentId) navigate(`/workloads/dep~${res.deploymentId}`);
+    else followTo(res.id);
   });
 
   const acting = actionMutation.isPending ? actionMutation.variables : undefined;
