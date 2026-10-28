@@ -30,6 +30,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import ConfirmModal from "../components/ConfirmModal";
 import ConnectionField from "../components/ConnectionField";
+import { DeployRegistryDialog } from "../components/registries/DeployRegistryDialog";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
@@ -165,6 +166,7 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
   const [form, setForm] = useState<RegistryFormState>(emptyForm());
   const [deleteTarget, setDeleteTarget] = useState<Registry | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [deployOpen, setDeployOpen] = useState(false);
 
   const registriesQuery = useQuery({
     queryKey: ["registries"],
@@ -590,10 +592,17 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
     );
   }
 
+  const deployButton = (
+    <Button variant="outline" color="neutral" iconLeft="rocket-launch-outline-rounded" onClick={() => setDeployOpen(true)}>
+      Deploy a registry
+    </Button>
+  );
+
   return (
     <Box direction="column" gap={6}>
       {embedded ? (
-        <Box direction="row" justify="end" style={{ marginBottom: 16 }}>
+        <Box direction="row" justify="end" gap={2} style={{ marginBottom: 16 }}>
+          {deployButton}
           <Button color="info" iconLeft="add-rounded" onClick={openCreate}>
             New registry
           </Button>
@@ -604,9 +613,12 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
           description="Credentials used to authenticate private image pulls."
           icon={<Icon name="database-outline" size="lg" />}
           actions={
-            <Button color="info" iconLeft="add-rounded" onClick={openCreate}>
-              New registry
-            </Button>
+            <>
+              {deployButton}
+              <Button color="info" iconLeft="add-rounded" onClick={openCreate}>
+                New registry
+              </Button>
+            </>
           }
         />
       )}
@@ -705,6 +717,8 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
           </form>
         </Popup.Content>
       </Popup>
+
+      {deployOpen && <DeployRegistryDialog open={deployOpen} onClose={() => setDeployOpen(false)} />}
 
       {/* Delete confirmation modal */}
       <ConfirmModal

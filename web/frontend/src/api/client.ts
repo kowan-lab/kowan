@@ -316,6 +316,35 @@ export async function updateRegistry(
   return toRegistry(data);
 }
 
+export interface DeployRegistryRequest {
+  name?: string;
+  /** Published by the host's Traefik with a Let's Encrypt certificate. */
+  domain: string;
+  auth: boolean;
+  username?: string;
+  /** Empty: Kowan generates one and returns it once. */
+  password?: string;
+}
+
+export interface DeployRegistryResult {
+  deploymentId: string;
+  registryId: string;
+  name: string;
+  url: string;
+  /** How Docker names it in image references (the domain). */
+  address: string;
+  auth: boolean;
+  proxy: string;
+  username?: string;
+  password?: string;
+}
+
+/** Deploy a registry on a host and add it to the registry list (admin). */
+export async function deployRegistry(hostId: string, body: DeployRegistryRequest): Promise<DeployRegistryResult> {
+  const { data } = await api.post<DeployRegistryResult>(`/hosts/${encodeURIComponent(hostId)}/registry`, body);
+  return data;
+}
+
 export async function deleteRegistry(id: string): Promise<void> {
   await api.delete(`/credentials/${id}`);
 }
