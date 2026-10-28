@@ -1,5 +1,9 @@
 # Kowan — Changelog
 
+## 0.1.10 — 2026-10-28
+
+- **The MCP server covers the whole of Kowan.** 22 new tools, 51 in all. An assistant now sees workloads the way the console does (deployments, compose stacks and lone containers, problems first) and can start, stop or restart a whole stack. It can search the retained logs, read a workload's CPU and memory history and find the ones whose memory keeps growing. It can read a deployment's revisions and their diffs, roll back, plan and run a promotion, and list branch previews. It also sees uptime checks, schedules, volume backups and the audit log (admin), and gets a disk cleanup plan with a confirmed cleanup run. See `docs/mcp.md`.
+
 ## 0.1.9 — 2026-10-28
 
 - **The search palette (⌘K) finds workloads.** Compose stacks and deployments show up next to containers, hosts, pages and actions. Results are ranked by how well they match, with a top result first and each kind in its own group; filter chips (Tab cycles them) narrow the list to one kind. With nothing typed, the palette opens on the workloads that need attention.
