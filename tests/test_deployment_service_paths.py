@@ -102,6 +102,56 @@ class ServiceCase(unittest.IsolatedAsyncioTestCase):
         return await self.s._target_error(dep_id, host)
 
 
+COMPOSE = """services:
+  api:
+    image: 123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/api:2.0
+  cache:
+    image: redis:7
+    pull_policy: never
+  worker:
+    image: shop/worker:dev
+    build: ./worker
+  db:
+    image: postgres:16
+"""
+
+
+class TestComposePull(ServiceCase):
+    async def test_deploy_pulls_images_with_registry_credentials_first(self):
+        self.save(dep(type="compose", spec=None, compose=COMPOSE))
+        seen = []
+
+        async def auth_for(store, image):
+            seen.append(image)
+            return "auth-for-" + image.split("/")[0]
+
+        pulled = []
+        orig = self.host.pull_image
+
+        async def pull(image, auth):
+            pulled.append((image, auth))
+            return await orig(image, auth)
+
+        self.host.pull_image = pull
+        with mock.patch.object(svcmod.registry, "docker_auth_for", auth_for):
+            await self.s.deploy("d1")
+        self.assertEqual(self.status(), "deployed")
+        # Built and never-pull services are left to compose.
+        self.assertEqual(sorted(pulled), [
+            ("123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop/api:2.0", "auth-for-123456789012.dkr.ecr.eu-west-1.amazonaws.com"),
+            ("postgres:16", "auth-for-postgres:16"),
+        ])
+        names = [c[0] for c in self.host.calls]
+        self.assertLess(max(i for i, n in enumerate(names) if n == "pull_image"), names.index("compose_up"))
+
+    async def test_a_failed_pull_leaves_the_error_to_compose(self):
+        self.save(dep(type="compose", spec=None, compose=COMPOSE))
+        self.host.fail = {"pull_image"}
+        await self.s.deploy("d1")
+        self.assertEqual(self.status(), "deployed")
+        self.assertIn(("compose_up", "app"), self.host.calls)
+
+
 class TestDeployFailures(ServiceCase):
     async def test_container_pull_failure_still_creates(self):
         self.save(dep())
@@ -342,7 +392,8 @@ class TestComposeStatus(ServiceCase):
         self.s._ops_for_host = ops_for  # type: ignore[assignment]
         with mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()) as dispatch:
             await self.s.reconcile_once()
-        self.assertIn(mock.call("d3", redeploy=True), dispatch.call_args_list)
+        # h2 cannot be reached: its deployment is left alone, not redeployed.
+        self.assertNotIn(mock.call("d3", redeploy=True), dispatch.call_args_list)
         self.assertEqual([c for c in self.host.calls if c[0] == "list_containers"], [("list_containers",)])
         self.assertEqual(sorted(hosts), ["h1", "h1", "h2"])
 
@@ -353,6 +404,16 @@ class TestComposeStatus(ServiceCase):
         async def gone(_all):
             raise ConnectionError("agent not connected")
         self.host.list_containers = gone  # type: ignore[method-assign]
+        with mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()) as dispatch:
+            self.assertEqual(await self.s.reconcile_once(), 0)
+        dispatch.assert_not_called()
+        self.assertEqual(self.store.get_deployment("d1").status, "deployed")
+
+        # An agent that is disconnected altogether (restarting during an
+        # update) has no Ops at all: left alone the same way.
+        def no_ops(host_id):
+            raise ConnectionError("host h1 is not connected")
+        self.s._ops_for_host = no_ops  # type: ignore[assignment]
         with mock.patch.object(self.s, "dispatch_deploy", mock.AsyncMock()) as dispatch:
             self.assertEqual(await self.s.reconcile_once(), 0)
         dispatch.assert_not_called()

@@ -562,12 +562,45 @@ class DeploymentService:
                 compose = await asyncio.to_thread(self.store.resolve_secrets, compose_with_variables(dep))
             except Exception as err:
                 raise Validation(f"resolve secrets for {dep.name!r}: {err}") from err
+            await self._pull_compose_images(ops, dep, host_id, compose)
             try:
                 await ops.compose_up(dep.resource_name(), compose)
             except Exception as err:
                 raise Validation(f"compose up on host {host_id!r}: {err}") from err
         else:
             raise Validation(f"deploy {dep.name!r}: unknown type {dep.type!r}")
+
+    async def _pull_compose_images(self, ops: Any, dep: Deployment, host_id: str, compose: str) -> None:
+        """Pull a compose file's images with the stored registry credentials
+        before ``compose up``, like a container deployment does: the docker CLI
+        on the host only knows its own logins, which a cloud registry's
+        short-lived token (ECR: 12 hours) outlives, so a new tag would not be
+        found and a moved one not refreshed. Services that are built, or set
+        ``pull_policy`` to never or build, are left to compose. Best effort:
+        compose up reports what is still missing."""
+        try:
+            doc = yaml.safe_load(compose) or {}
+        except yaml.YAMLError:
+            return  # compose up reports it
+        services = doc.get("services") if isinstance(doc, dict) else None
+        images: List[str] = []
+        for s in (services or {}).values() if isinstance(services, dict) else []:
+            if not isinstance(s, dict) or not s.get("image") or s.get("build"):
+                continue
+            if str(s.get("pull_policy") or "").lower() in ("never", "build"):
+                continue
+            if str(s["image"]) not in images:
+                images.append(str(s["image"]))
+
+        async def pull(image: str) -> None:
+            try:
+                auth = await registry.docker_auth_for(self.store, image)
+                await _drain(await ops.pull_image(image, auth))
+            except Exception as perr:  # noqa: BLE001
+                log.warning("deploy pull image failed deployment=%s host=%s image=%s err=%s",
+                            dep.id, host_id, image, perr)
+
+        await asyncio.gather(*(pull(i) for i in images))
 
     async def _deploy_swarm(self, dep: Deployment) -> None:
         """Deploy a stack on the (single) manager host, recording its error."""
@@ -946,8 +979,12 @@ class DeploymentService:
             ops, host = self._ops_for_host(host_id)
             t.host_name = host.name
         except Exception as err:  # noqa: BLE001
+            # No connection to the host at all (an agent restarting during an
+            # update): recorded like a failed listing, so reconcile leaves it be.
             t.state = STATE_NOT_DEPLOYED
             t.message = str(err)
+            if listings is not None:
+                listings[host_id] = err
             return [t]
 
         containers: Any = None if listings is None else listings.get(host_id)
