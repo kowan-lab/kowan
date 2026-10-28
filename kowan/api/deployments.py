@@ -42,7 +42,7 @@ from kowan.deployment.service import (
 )
 from kowan.errors import Conflict, NotFound, Validation
 from kowan.deployment.gitsource import ref_matches as gitsource_ref_matches, validate_repo_url
-from kowan.api.compose_validate import deployment_gate
+from kowan.api.compose_validate import deployment_gate, gate_problem
 from kowan.models import (
     ContainerSpec,
     Deployment,
@@ -871,23 +871,28 @@ async def _revision_diff(request: web.Request) -> web.Response:
     })
 
 
-async def _rollback(request: web.Request) -> web.Response:
-    """POST /deployments/{id}/revisions/{n}/rollback {deploy?: bool=true}
+class GateRefused(Validation):
+    """The compose validation gate refused a rollback or a promotion;
+    ``report`` is what the REST API returns."""
 
-    Restores what revision n ran as a new revision (history is never
-    rewritten) and redeploys it unless ``deploy`` is false. A git revision is
-    pinned to the commit it ran, with auto-deploy off, so the next push does not
-    undo the rollback.
-    """
-    svc = _svc(request)
-    dep = _load(svc, request.match_info["id"])
-    n = _revision_number(request)
+    def __init__(self, report: dict) -> None:
+        super().__init__(report["error"])
+        self.report = report
+
+
+async def _gate(svc, dep: Deployment) -> None:
+    report = await gate_problem(svc, type_=dep.type, compose=dep.compose, has_git=dep.git is not None,
+                                targets=dep.targets, deployment_id=dep.id, project=dep.resource_name())
+    if report is not None:
+        raise GateRefused(report)
+
+
+async def rollback_deployment(svc, dep: Deployment, n: int, *, author: str, deploy: bool = True) -> Deployment:
+    """Restore what revision n ran as a new revision (history is never
+    rewritten) and redeploy it unless ``deploy`` is false. A git revision is
+    pinned to the commit it ran, with auto-deploy off, so the next push does
+    not undo the rollback. Shared by the REST API and the MCP tools."""
     r = _get_revision(svc, dep.id, n)
-    body: Any = await read_json(request) if request.content_length else {}
-    if not isinstance(body, dict):
-        raise Validation("invalid request body")
-    deploy = body.get("deploy", True) is not False
-
     old_name = dep.name
     had_git = dep.git is not None
     pinned = revs.apply(dep, r["config"])
@@ -906,21 +911,35 @@ async def _rollback(request: web.Request) -> web.Response:
     unknown = [t for t in dep.targets if not _host_exists(svc, t)]
     if unknown:
         raise Validation(f"revision {n} targets a host that no longer exists: {', '.join(unknown)}")
-    gate = await deployment_gate(svc, type_=dep.type, compose=dep.compose, has_git=dep.git is not None,
-                                 targets=dep.targets, deployment_id=dep.id, project=dep.resource_name())
-    if gate is not None:
-        return gate
+    await _gate(svc, dep)
     authz.check_deployment(dep, authz.LEVEL_MANAGE)
     dep.updated_at = _now_rfc3339()
     note = f"rollback to #{n}" + (" (pinned to its commit)" if pinned else "")
-    svc.store.update_deployment(dep, author=_author(request), source="rollback", note=note)
+    svc.store.update_deployment(dep, author=author, source="rollback", note=note)
     if had_git and dep.git is None:
-        _dep_svc(request).remove_git_checkout(dep.id)
+        svc.deployments.remove_git_checkout(dep.id)
     if deploy and dep.enabled:
         try:
-            dep = await _dep_svc(request).dispatch_deploy(dep.id, redeploy=True)
+            dep = await svc.deployments.dispatch_deploy(dep.id, redeploy=True)
         except Conflict:
             pass  # a deploy is already running; it picks up the restored config next
+    return dep
+
+
+async def _rollback(request: web.Request) -> web.Response:
+    """POST /deployments/{id}/revisions/{n}/rollback {deploy?: bool=true}
+    (see :func:`rollback_deployment`)."""
+    svc = _svc(request)
+    dep = _load(svc, request.match_info["id"])
+    n = _revision_number(request)
+    _get_revision(svc, dep.id, n)  # 404 before reading the body
+    body: Any = await read_json(request) if request.content_length else {}
+    if not isinstance(body, dict):
+        raise Validation("invalid request body")
+    try:
+        dep = await rollback_deployment(svc, dep, n, author=_author(request), deploy=body.get("deploy", True) is not False)
+    except GateRefused as err:
+        return json_response(err.report, status=400)
     return json_response(_for_reader(request, dep))
 
 
@@ -986,6 +1005,28 @@ async def _promote_plan(request: web.Request) -> web.Response:
     })
 
 
+async def promote_deployment(svc, source: Deployment, target: Deployment, *, author: str,
+                             deploy: bool = True) -> Deployment:
+    """Apply the promotion plan from ``source`` to ``target`` as a new
+    revision and redeploy it unless ``deploy`` is false. Shared by the REST
+    API and the MCP tools."""
+    authz.check_deployment(target, authz.LEVEL_MANAGE)
+    p = promotion.plan(source, target)
+    if not p.changes:
+        raise Conflict(f"{target.name} already runs what {source.name} runs")
+    dep = p.target
+    await _gate(svc, dep)
+    dep.updated_at = _now_rfc3339()
+    what = ", ".join(f"{c.what} {c.after[:12] if c.what == 'commit' else c.after}" for c in p.changes)
+    svc.store.update_deployment(dep, author=author, source="promote", note=f"from {source.name}: {what}")
+    if deploy and dep.enabled:
+        try:
+            dep = await svc.deployments.dispatch_deploy(dep.id, redeploy=True)
+        except Conflict:
+            pass  # a deploy is already running; it picks up the promoted config next
+    return dep
+
+
 async def _promote(request: web.Request) -> web.Response:
     """POST /deployments/{id}/promote {to?, deploy?: bool=true} — apply the
     plan to the target as a new revision and redeploy it."""
@@ -996,21 +1037,9 @@ async def _promote(request: web.Request) -> web.Response:
         raise Validation("invalid request body")
     reject_unknown_fields(body, {"to", "deploy"})
     target = _promotion_target(request, svc, source, str(body.get("to") or "").strip())
-    authz.check_deployment(target, authz.LEVEL_MANAGE)
-    p = promotion.plan(source, target)
-    if not p.changes:
-        raise Conflict(f"{target.name} already runs what {source.name} runs")
-    dep = p.target
-    gate = await deployment_gate(svc, type_=dep.type, compose=dep.compose, has_git=dep.git is not None,
-                                 targets=dep.targets, deployment_id=dep.id, project=dep.resource_name())
-    if gate is not None:
-        return gate
-    dep.updated_at = _now_rfc3339()
-    what = ", ".join(f"{c.what} {c.after[:12] if c.what == 'commit' else c.after}" for c in p.changes)
-    svc.store.update_deployment(dep, author=_author(request), source="promote", note=f"from {source.name}: {what}")
-    if body.get("deploy", True) is not False and dep.enabled:
-        try:
-            dep = await _dep_svc(request).dispatch_deploy(dep.id, redeploy=True)
-        except Conflict:
-            pass  # a deploy is already running; it picks up the promoted config next
+    try:
+        dep = await promote_deployment(svc, source, target, author=_author(request),
+                                       deploy=body.get("deploy", True) is not False)
+    except GateRefused as err:
+        return json_response(err.report, status=400)
     return json_response(_for_reader(request, dep))

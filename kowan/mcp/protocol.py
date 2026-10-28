@@ -55,8 +55,10 @@ SERVER_TITLE = "Kowan Docker manager"
 
 INSTRUCTIONS = (
     "Kowan manages Docker hosts (a local daemon plus remote agents). Start with "
-    "fleet_summary or list_hosts, then drill into a host with list_containers, "
-    "inspect_container and container_logs. The `host` argument accepts a host id "
+    "fleet_summary or list_workloads (deployments, compose stacks and lone "
+    "containers, problems first), then drill in with get_workload, "
+    "inspect_container and container_logs; search_logs searches the retained "
+    "logs and workload_resources the CPU and memory history. The `host` argument accepts a host id "
     "or name and defaults to \"local\". Mutating tools are only listed when your "
     "role allows them; destructive tools additionally require `confirm: true`. "
     "Outputs are bounded: use `limit`/`offset` and `tail` to page."

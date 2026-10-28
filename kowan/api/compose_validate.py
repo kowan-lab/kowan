@@ -79,6 +79,24 @@ async def deployment_gate(
 ) -> Optional[web.Response]:
     """``None`` when the deployment may proceed, else a 400 response. ``env``:
     the stack variables, known to be set when the compose is deployed."""
+    problem = await gate_problem(svc, type_=type_, compose=compose, has_git=has_git, targets=targets,
+                                 deployment_id=deployment_id, project=project, env=env)
+    return None if problem is None else json_response(problem, status=400)
+
+
+async def gate_problem(
+    svc: Any,
+    *,
+    type_: str,
+    compose: str,
+    has_git: bool,
+    targets: Any,
+    deployment_id: str = "",
+    project: str = "",
+    env: Optional[Dict[str, str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """The validation report (with its ``error`` line) when the compose may
+    not be deployed, else ``None``."""
     if not gate_enabled() or type_ != "compose" or has_git or not (compose or "").strip():
         return None
     host_id = targets[0] if targets else ""
@@ -97,4 +115,4 @@ async def deployment_gate(
     more = f"; {len(errors) - 1} more error(s)" if len(errors) > 1 else ""
     payload = res.to_dict()
     payload["error"] = f"compose validation failed: {first.message}{where}{more}"
-    return json_response(payload, status=400)
+    return payload

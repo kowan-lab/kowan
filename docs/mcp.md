@@ -101,11 +101,30 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `list_templates` | viewer | read-only | App catalog with its inputs |
 | `list_alerts` | viewer | read-only | `status` open (default) / resolved / all |
 | `list_workflows` | viewer | read-only | Workflows to use with `run_workflow` |
+| `list_workloads` | viewer | read-only | Workloads as the UI groups them: deployments, compose projects/swarm stacks and lone containers, with a state (needs attention first); filter by `host`, `kind`, `state`, `name` |
+| `get_workload` | viewer | read-only | One workload by id (`dep~…`, `stack~…`, `ctr~…`) or name: its containers, deployment, log retention and memory trend |
+| `workload_resources` | viewer | read-only | CPU and memory history of a workload (`hours` 1–720): summary, up to 96 points, memory trend |
+| `memory_growth` | viewer | read-only | Workloads whose memory keeps climbing (likely leaks), steepest first, with hours to the limit |
+| `search_logs` | viewer | read-only | Full-text search of the retained log archive (`query`, `workload`, `host`, `since`, `until`); pages back with `before` |
+| `list_revisions` / `get_revision` | viewer | read-only | A deployment's revisions (who, when, what changed, which is live) and one revision as YAML with its diff |
+| `list_previews` | viewer | read-only | The branch / pull request previews of a git deployment |
+| `promotion_plan` | viewer | read-only | What promoting a deployment to another would change (images, commit, diff) |
+| `uptime_status` | viewer | read-only | Uptime checks with status, uptime 24 h / 7 d / 30 d, latency, certificate expiry, recent down periods |
+| `cleanup_plan` | viewer | read-only | What can be removed from a host, by category, with sizes and the suggested picks |
+| `list_schedules` | viewer | read-only | Scheduled start/stop (set in Kowan or by labels) and recent runs |
+| `list_backups` | viewer | read-only | Volume backup jobs (next run, last result) and recent runs |
 | `container_action` | operator | idempotent: no | start / stop / restart / pause / unpause / kill |
 | `deployment_action` | operator | open-world | deploy / redeploy (queued) / start / stop / sync (git) |
 | `pull_image` | operator | idempotent, open-world | Pull with the stored registry credentials |
 | `update_container` | operator | idempotent, open-world | Pull and recreate the container if a newer image exists (`force` to always) |
 | `run_workflow` | operator | open-world | Manual workflow run |
+| `workload_action` | operator | idempotent: no | start / stop / restart every container of a workload; a deployment starts and stops through Kowan |
+| `rollback_deployment` | operator | idempotent: no | Restore a revision as a new one and redeploy (`deploy=false` to only restore) |
+| `promote_deployment` | operator | idempotent: no | Apply the promotion plan to the target and redeploy it |
+| `set_log_retention` | operator | idempotent | Keep a workload's logs for `days` (1–365), or `days=0` to stop and delete them |
+| `run_uptime_check` | operator | idempotent, open-world | Probe a check now |
+| `run_schedule` | operator | idempotent: no | Run a schedule's start/stop now |
+| `run_backup` | operator | open-world | Start a backup job now |
 | `remove_container` | admin | **destructive** | Needs `confirm: true` |
 | `remove_image` | admin | **destructive** | Needs `confirm: true` |
 | `remove_volume` | admin | **destructive** | Needs `confirm: true` (the data is lost) |
@@ -113,6 +132,8 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `destroy_deployment` | admin | **destructive** | Removes the running resources; `delete_record=true` also deletes the record; needs `confirm: true` |
 | `create_deployment` | admin | | From compose YAML or a container spec, on one host; `deploy=true` deploys it immediately |
 | `deploy_template` | admin | | Template id plus `inputs`; empty secret inputs get random values; deploys by default |
+| `run_cleanup` | admin | **destructive** | `picks=suggested` removes what `cleanup_plan` suggests, `picks=listed` the given ids; needs `confirm: true` |
+| `audit_log` | admin | read-only | Who did what: filter by `user`, `path`, `since` |
 
 Every tool sets the MCP annotations `title`, `readOnlyHint`, `destructiveHint`,
 `idempotentHint` and `openWorldHint`. `fleet_summary`, `list_containers` and `container_stats`
@@ -191,6 +212,5 @@ curl -s "${H[@]}" -H "Mcp-Session-Id: $SID" -H 'MCP-Protocol-Version: 2025-06-18
 - No OAuth authorization flow: clients must be able to send a static bearer header, or use the
   stdio bridge.
 - Sessions live in memory, per server process.
-- `container_action kill` works on the local host; remote agents do not expose a kill op yet
-  (use `stop`).
-- `container_logs` with `since` or `grep` searches only the last 2000 lines.
+- `container_logs` with `since` or `grep` searches only the last 2000 lines of a live
+  container; `search_logs` goes further back, but only for workloads that keep their logs.

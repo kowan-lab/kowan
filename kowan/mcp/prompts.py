@@ -54,8 +54,9 @@ class PromptCatalog:
                 "1. Call inspect_container to read its state, exit code, OOM flag, health check output and restart count.\n"
                 "2. Call container_logs with tail=300 (and grep for error/exception/fatal if the log is noisy).\n"
                 "3. Call recent_events with type=container for the last 6h to see die/oom/health_status history.\n"
-                "4. If it is running, call container_stats to check CPU and memory pressure.\n"
-                "5. If it belongs to a deployment, call list_deployments / get_deployment to compare with the declared config.\n\n"
+                "4. If it is running, call container_stats to check CPU and memory pressure, and workload_resources for the trend.\n"
+                "5. If its workload keeps its logs, call search_logs for errors from before its last restart.\n"
+                "6. If it belongs to a deployment, call get_deployment and list_revisions: did a recent change break it?\n\n"
                 "Then explain the most likely root cause with the evidence, and propose the smallest fix. "
                 "Do not run any mutating tool (restart, update, remove) without asking me first."
             )
@@ -64,7 +65,8 @@ class PromptCatalog:
                 "Produce a health report of my Kowan fleet.\n\n"
                 "Start with fleet_summary. For each crashed or unhealthy container, pull the last 50 log lines with "
                 "container_logs to give a one-line probable cause. Include open alerts (list_alerts) and reclaimable disk "
-                "per host. Finish with a short prioritized action list. Read-only: do not change anything."
+                "per host, uptime checks that are down (uptime_status) and workloads whose memory keeps growing "
+                "(memory_growth). Finish with a short prioritized action list. Read-only: do not change anything."
             )
         else:
             body = (
