@@ -1,5 +1,10 @@
 # Kowan — Changelog
 
+## 0.1.9 — 2026-10-28
+
+- **The search palette (⌘K) finds workloads.** Compose stacks and deployments show up next to containers, hosts, pages and actions. Results are ranked by how well they match, with a top result first and each kind in its own group; filter chips (Tab cycles them) narrow the list to one kind. With nothing typed, the palette opens on the workloads that need attention.
+- **Update checks work for images on AWS ECR.** The check asks the registry for the tag's digest, and ECR answers with a different kind of login request than Docker Hub or GHCR, so the check failed while a pull worked. It now answers with the credentials of the ECR registry configured in Kowan for that host.
+
 ## 0.1.8 — 2026-10-28
 
 - **Agents update at the same time.** Updating every agent from Hosts no longer goes one host after another and stops at the first failure: all of them update together, each with its own health check and automatic rollback, so one that fails rolls back alone while the others carry on.
