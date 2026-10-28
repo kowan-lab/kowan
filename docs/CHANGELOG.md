@@ -1,5 +1,14 @@
 # Kowan — Changelog
 
+## 0.1.11 — 2026-10-28
+
+- **Update a whole workload.** "Update · N" in a workload's header updates every service with a newer image at once. A deployment is pulled with the stored registry credentials, redeployed once, verified, and rolled back service by service if one does not come up; a compose stack Kowan does not manage has each such container recreated. The Update button of a single container that belongs to a deployment now updates its deployment, instead of a container the next deploy would undo.
+- **Newer version tags.** For a deployment pinned to versions (`api:2.0`, `nginx:1.27-alpine`), "New versions · N" lists the newer tags of the same shape in the registry. Before anything changes, it shows what will change: each service's current and new tag, and the diff of the deployment. It is saved as a new revision, so History can roll it back.
+- **Pull image asks for the registry first.** Pick a stored registry and browse its repositories and tags, or type an image and see which registry's credentials the pull will use.
+- **Deploy a registry from Kowan.** Registries → Deploy a registry runs one on a host, published through the host's Traefik with a Let's Encrypt certificate, with an optional login, and adds it to the registry list.
+- **Compose deploys pull with the stored credentials.** A compose deploy or redeploy now pulls its images with the registry credentials stored in Kowan, as container deployments do, so a new tag on AWS ECR no longer needs a manual pull first.
+- **Updating the agents no longer marks deployments as failed.** While an agent restarted, Kowan had no connection to its host and redeployed there, which failed. It now waits for the host to come back.
+
 ## 0.1.10 — 2026-10-28
 
 - **The MCP server covers the whole of Kowan.** 22 new tools, 51 in all. An assistant now sees workloads the way the console does (deployments, compose stacks and lone containers, problems first) and can start, stop or restart a whole stack. It can search the retained logs, read a workload's CPU and memory history and find the ones whose memory keeps growing. It can read a deployment's revisions and their diffs, roll back, plan and run a promotion, and list branch previews. It also sees uptime checks, schedules, volume backups and the audit log (admin), and gets a disk cleanup plan with a confirmed cleanup run. See `docs/mcp.md`.
