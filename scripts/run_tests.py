@@ -10,6 +10,7 @@ at the end. A failing module's output is printed in full.
 
     python scripts/run_tests.py                  # every tests/test_*.py
     python scripts/run_tests.py -j 4 --coverage
+    python scripts/run_tests.py --timeout 60     # stop a hung module, print its stacks
     python scripts/run_tests.py tests.test_imports tests.test_features
 """
 
@@ -19,6 +20,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -45,13 +47,26 @@ def modules() -> list[str]:
         files, key=lambda p: (known.get(f"tests.{p.stem}", 0.0), p.stat().st_size), reverse=True)]
 
 
-def run(module: str, coverage: bool) -> tuple[str, int, int, str, float]:
-    """``(module, exit code, tests ran, output, seconds)``."""
-    cmd = [sys.executable, "-m"]
+def run(module: str, coverage: bool, timeout: float) -> tuple[str, int, int, str, float]:
+    """``(module, exit code, tests ran, output, seconds)``.
+
+    A module still running after ``timeout`` seconds gets SIGABRT: with
+    ``-X faulthandler`` it prints every thread's stack first, so the output
+    says where it hung."""
+    cmd = [sys.executable, "-X", "faulthandler", "-m"]
     cmd += ["coverage", "run", "--parallel-mode", "-m", "unittest", module] if coverage else ["unittest", module]
     started = time.monotonic()
-    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
-    out = proc.stdout + proc.stderr
+    proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.send_signal(signal.SIGABRT)
+        try:
+            out, _ = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, _ = proc.communicate()
+        out = f"{out}\nTIMED OUT after {timeout:.0f}s (stacks above)"
     m = _RAN.findall(out)
     return module, proc.returncode, int(m[-1]) if m else 0, out, time.monotonic() - started
 
@@ -61,6 +76,7 @@ def main() -> int:
     ap.add_argument("modules", nargs="*", help="test modules (default: every tests/test_*.py)")
     ap.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 2, help="parallel processes")
     ap.add_argument("--coverage", action="store_true", help="record coverage and combine it at the end")
+    ap.add_argument("--timeout", type=float, default=600, help="seconds a module may run before it is stopped")
     args = ap.parse_args()
 
     todo = args.modules or modules()
@@ -73,7 +89,7 @@ def main() -> int:
     total = 0
     took_by_module = _timings()
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = [pool.submit(run, m, args.coverage) for m in todo]
+        futures = [pool.submit(run, m, args.coverage, args.timeout) for m in todo]
         for fut in as_completed(futures):
             module, code, ran, out, secs = fut.result()
             total += ran

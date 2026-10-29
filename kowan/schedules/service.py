@@ -213,6 +213,7 @@ class ScheduleService:
         self._labels: Dict[str, List[Dict[str, Any]]] = {}
         self.runner = CronRunner("schedules", self._load_entries, self._fire, self._on_skip, clock=clock)
         self._scan_task: Optional[asyncio.Task] = None
+        self._stopping = False
 
     # -- lifecycle --------------------------------------------------------
     async def start(self) -> None:
@@ -220,6 +221,10 @@ class ScheduleService:
         self._scan_task = asyncio.ensure_future(self._scan_loop())
 
     async def stop(self) -> None:
+        # The flag as well as the cancel: on Python 3.10 asyncio.wait_for can
+        # swallow a cancel that lands as its inner call finishes (CPython
+        # gh-86296), and the loop would then sleep on while stop() waits.
+        self._stopping = True
         if self._scan_task is not None:
             self._scan_task.cancel()
             try:
@@ -230,7 +235,7 @@ class ScheduleService:
         await self.runner.stop()
 
     async def _scan_loop(self) -> None:
-        while True:
+        while not self._stopping:
             try:
                 await self.scan_labels()
             except Exception as err:  # noqa: BLE001
@@ -240,6 +245,8 @@ class ScheduleService:
                 self.store.prune_schedule_runs(before)
             except Exception:  # noqa: BLE001
                 pass
+            if self._stopping:
+                return
             await asyncio.sleep(LABEL_SCAN_INTERVAL)
 
     # -- label discovery --------------------------------------------------
