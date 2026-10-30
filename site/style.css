@@ -1,5 +1,5 @@
-/* Kowan site. One file, no build step. Every colour and the background
-   pattern are tokens on :root, so a restyle is a token swap. */
+/* Kowan site. One file, no build step. Every colour is a token on :root,
+   so a restyle is a token swap. */
 
 @font-face {
   font-family: "Space Grotesk";
@@ -18,10 +18,10 @@
 :root {
   color-scheme: light dark;
 
-  --bg: #f4f1ea;              /* page, under the paper grain */
+  --bg: #fbfaf6;              /* page: the same colour as the content */
   --surface: #fbfaf6;         /* column, bars, bands */
   --raised: #ffffff;          /* frames, code, label */
-  --sunken: #ece8de;          /* media cells (solid, no pattern) */
+  --sunken: #ece8de;          /* media cells */
   --hover: #e7e2d7;
   --border: #ddd7ca;          /* hairlines */
   --line-strong: #c9c2b2;     /* structural rules */
@@ -35,10 +35,6 @@
   --green: #2f7d4f;
   --amber: #8f5a12;
   --red: #c8102e;
-
-  /* Background: 32px tile with a 7px registration cross. */
-  --pattern: url("grain-light.png");
-  --pattern-size: 124px 124px;
 
   --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -57,7 +53,7 @@
   :root {
     --seal: #fa3600;
     --on-signal: #121110;
-    --bg: #121110;
+    --bg: #1a1917;
     --surface: #1a1917;
     --raised: #22201d;
     --sunken: #0d0c0b;
@@ -72,7 +68,6 @@
     --green: #5bb07e;
     --amber: #e0a24a;
     --red: #ff4d5e;
-    --pattern: url("grain-dark.png");
   }
 }
 
@@ -88,7 +83,7 @@ html {
 }
 body {
   margin: 0;
-  background: var(--bg) var(--pattern) 0 0 / var(--pattern-size);
+  background: var(--bg);
   color: var(--text);
   font: 400 17px/1.6 var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -134,10 +129,9 @@ p code, li code, dd code {
 
 .sq { display: inline-block; width: 8px; height: 8px; background: var(--signal); flex: none; }
 
-/* ── Sheet: a solid column between rules; full-bleed band rules meet the
-      column rules at small registration crosses. ─────────────────────── */
+/* ── Sheet: a solid column; each band's rule stays inside it. ─────────── */
 
-.band { border-top: 1px solid var(--line-strong); }
+.band > .col { border-top: 1px solid var(--line-strong); }
 .col {
   position: relative;
   max-width: calc(var(--col) + 2px);
@@ -146,6 +140,7 @@ p code, li code, dd code {
   border-inline: 1px solid var(--line-strong);
 }
 @media (min-width: 1394px) { .col { margin-inline: auto; } }
+/* A registration cross where each band's rule meets the column's sides. */
 .band > .col::before,
 .band > .col::after {
   content: "";
@@ -184,9 +179,8 @@ p code, li code, dd code {
 .top {
   position: sticky; top: 0; z-index: 10;
   background: var(--surface);
-  border-bottom: 1px solid var(--line-strong);
 }
-.top-row { display: flex; align-items: stretch; height: var(--bar-h); }
+.top-row { display: flex; align-items: stretch; height: var(--bar-h); border-bottom: 1px solid var(--line-strong); }
 .cell {
   position: relative;
   display: inline-flex; align-items: center; gap: 10px;
@@ -551,6 +545,19 @@ html.viewer-open { overflow: hidden; }
 .more dt::before { content: ""; width: 8px; height: 8px; background: var(--signal); flex: none; }
 .more dd { margin-top: 8px; color: var(--text-muted); font-size: 16px; line-height: 1.55; }
 
+/* ── Questions ─────────────────────────────────────────────────────────── */
+
+.faq {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line-strong);
+}
+.faq > div { padding: 30px var(--pad) 32px; border-bottom: 1px solid var(--border); }
+.faq > div:nth-child(2n) { border-left: 1px solid var(--border); }
+.faq > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.faq h3 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.faq p { max-width: 62ch; margin: 10px 0 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
+
 /* ── Quick start ───────────────────────────────────────────────────────── */
 
 .qs {
@@ -609,7 +616,6 @@ html.viewer-open { overflow: hidden; }
 }
 .close .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
-.foot .col { border-bottom: 1px solid var(--line-strong); }
 .foot-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)); }
 .foot-grid > * { padding: 40px var(--pad); }
 .foot-grid > * + * { border-left: 1px solid var(--border); }
@@ -628,7 +634,6 @@ html.viewer-open { overflow: hidden; }
   text-transform: none; letter-spacing: 0.01em;
 }
 .foot-base a { color: var(--text); }
-.foot-tail { height: 48px; }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 
@@ -650,6 +655,10 @@ html.viewer-open { overflow: hidden; }
   .foot-grid > :nth-child(2) { border-left: 0; }
 }
 @media (max-width: 640px) {
+  .faq { grid-template-columns: minmax(0, 1fr); }
+  .faq > div:nth-child(2n) { border-left: 0; }
+  .faq > div:nth-last-child(-n + 2) { border-bottom: 1px solid var(--border); }
+  .faq > div:last-child { border-bottom: 0; }
   :root { --pad: 18px; --gutter: 10px; }
   body { font-size: 16.5px; }
   .pair { grid-template-columns: minmax(0, 1fr); }
