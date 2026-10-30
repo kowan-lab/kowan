@@ -93,6 +93,24 @@ class CLICase(unittest.TestCase):
         return out.getvalue(), err.getvalue()
 
 
+class TestConfigPrecedence(unittest.TestCase):
+    def test_flag_then_env_then_file(self):
+        from kowan.cli.config import Config, resolve_config, save_config
+
+        home = tempfile.mkdtemp()
+        env = {"HOME": home, "KOWAN_SERVER": "", "KOWAN_TOKEN": "", "KOWAN_API_KEY": ""}
+        with mock.patch.dict(os.environ, env):
+            save_config(Config(server="https://file", token="file-token", api_key="file-key"))
+            r = resolve_config()
+            self.assertEqual((r.server, r.token, r.api_key), ("https://file", "file-token", "file-key"))
+            with mock.patch.dict(os.environ, {"KOWAN_SERVER": "https://env", "KOWAN_TOKEN": "env-token",
+                                              "KOWAN_API_KEY": "env-key"}):
+                r = resolve_config()
+                self.assertEqual((r.server, r.token, r.api_key), ("https://env", "env-token", "env-key"))
+                r = resolve_config("https://flag", "flag-token", "flag-key")
+                self.assertEqual((r.server, r.token, r.api_key), ("https://flag", "flag-token", "flag-key"))
+
+
 class TestHostCommands(CLICase):
     def test_rename_by_id_or_name(self):
         out, _ = self.run_cli("hosts", "rename", "local", "nas")

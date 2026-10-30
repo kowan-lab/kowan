@@ -55,7 +55,7 @@ The bridge resolves its configuration in this order (first non-empty value wins)
 
 | | |
 |---|---|
-| server | `--url`, `$KOWAN_URL`, `kowanctl --server`, `~/.kowan/config.yaml`, `$KOWAN_SERVER` |
+| server | `--url`, `$KOWAN_URL`, `kowanctl --server`, `$KOWAN_SERVER`, `~/.kowan/config.yaml` |
 | credential | `--api-key`, `$KOWAN_API_KEY`, `kowanctl --api-key` / config file, then the `kowanctl login` token |
 
 The bridge keeps the session id, sends the negotiated `MCP-Protocol-Version`, and
