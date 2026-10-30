@@ -224,9 +224,9 @@ async def _create_host(request: web.Request) -> web.Response:
     - ``edge`` (agent->server): the agent dials ``/edge/connect`` and presents
       the token; no address is needed.
     - ``agent`` (server->agent): the agent LISTENS and the server dials
-      ``address``; the token is verified by the agent. NOTE: the server-side
-      dialer for this mode is not wired yet, so an agent host is created but
-      stays offline until that transport lands.
+      ``address`` (:class:`kowan.dialer.StoaDialer`, started with the server,
+      picks the new host up on its next poll); the token is verified by the
+      agent.
     """
     svc = _svc(request)
     body = await read_json(request)
