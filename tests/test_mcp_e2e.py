@@ -115,13 +115,14 @@ class TestActionTools(MCPCase):
         self.assertEqual(out["template"], "builtin:whoami")
         await self.tool("deploy_template", ok=False, template="builtin:nope")
 
-        # Destructive tools need confirm=true.
+        # Destructive tools need confirm=true; operators may use them, as in REST.
         await self.tool("remove_container", ok=False, container=cid)
         self.engine.containers[cid]["State"].update(Running=False, Status="exited")
-        await self.tool("remove_container", container=cid, confirm=True, force=True)
+        await self.tool("remove_container", "viewer", ok=False, container=cid, confirm=True, force=True)
+        await self.tool("remove_container", "operator", container=cid, confirm=True, force=True)
         self.assertIsNone(self.engine.container("web"))
         self.engine.add_volume("junk")
-        await self.tool("remove_volume", volume="junk", confirm=True)
+        await self.tool("remove_volume", "operator", volume="junk", confirm=True)
         await self.tool("remove_image", image="redis:7", confirm=True, force=True)
         out, _ = await self.tool("prune", kind="images", confirm=True)
         await self.tool("prune", ok=False, kind="images")

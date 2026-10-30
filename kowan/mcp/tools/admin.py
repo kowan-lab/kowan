@@ -1,5 +1,9 @@
-"""Admin tools: destructive removals/prune (confirm-guarded) and creating
-deployments (from a spec, a compose file or an app template)."""
+"""Destructive removals/prune (confirm-guarded) and creating deployments (from
+a spec, a compose file or an app template).
+
+Operator, like the REST routes they mirror: an admin-only rule here would push
+people to hand an assistant an admin key, which bypasses team grants, where a
+team-scoped operator key would do."""
 
 from __future__ import annotations
 
@@ -7,7 +11,7 @@ import secrets as _secrets
 import uuid
 from typing import Any, Dict
 
-from ..registry import ROLE_ADMIN, ToolError, ToolRegistry
+from ..registry import ROLE_OPERATOR, ToolError, ToolRegistry
 from ._common import CONTAINER_PROP, DEPLOYMENT_PROP, HOST_PROP, human_bytes, resolve_host, resolve_ops, with_timeout
 from .fleet import _host_names, resolve_deployment, sanitize_deployment
 
@@ -63,7 +67,7 @@ async def _maybe_deploy(svc: Any, dep: Any, deploy: bool) -> Dict[str, Any]:
 
 
 def register(reg: ToolRegistry) -> None:
-    destructive = dict(role=ROLE_ADMIN, read_only=False, destructive=True, idempotent=True, requires_confirm=True)
+    destructive = dict(role=ROLE_OPERATOR, read_only=False, destructive=True, idempotent=True, requires_confirm=True)
 
     @reg.tool(
         "remove_container",
@@ -188,7 +192,7 @@ def register(reg: ToolRegistry) -> None:
             },
             "required": ["name", "type"],
         },
-        role=ROLE_ADMIN, read_only=False, destructive=False, idempotent=False,
+        role=ROLE_OPERATOR, read_only=False, destructive=False, idempotent=False,
     )
     async def create_deployment(ctx, args):
         host = resolve_host(ctx.svc, args.get("host"))
@@ -218,7 +222,7 @@ def register(reg: ToolRegistry) -> None:
             },
             "required": ["template"],
         },
-        role=ROLE_ADMIN, read_only=False, destructive=False, idempotent=False,
+        role=ROLE_OPERATOR, read_only=False, destructive=False, idempotent=False,
     )
     async def deploy_template(ctx, args):
         from ...templates import TemplateError, find_builtin, render

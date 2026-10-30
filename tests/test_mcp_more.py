@@ -156,9 +156,9 @@ class TestOperationsTools(MCPCase):
         self.assertEqual([i["name"] for i in cats["containers"]["items"]], ["old"])
         vols = {i["name"]: i["suggested"] for i in cats["volumes"]["items"]}
         self.assertFalse(vols["precious"])
-        await self.tool("run_cleanup", "operator", ok=False, picks="suggested", confirm=True)
-        await self.tool("run_cleanup", ok=False, picks="suggested")  # needs confirm
-        out, _ = await self.tool("run_cleanup", picks="suggested", confirm=True)
+        await self.tool("run_cleanup", "viewer", ok=False, picks="suggested", confirm=True)
+        await self.tool("run_cleanup", "operator", ok=False, picks="suggested")  # needs confirm
+        out, _ = await self.tool("run_cleanup", "operator", picks="suggested", confirm=True)
         self.assertEqual(out["removed"]["containers"], 1)
         self.assertIsNone(self.engine.container("old"))
         self.assertIn("precious", self.engine.volumes)

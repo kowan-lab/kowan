@@ -136,7 +136,7 @@ def register(reg: ToolRegistry) -> None:
             "volumes": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 500},
             "build_cache": {"type": "boolean"},
         }, "required": ["picks"]},
-        role=ROLE_ADMIN, read_only=False, destructive=True, idempotent=False, requires_confirm=True,
+        role=ROLE_OPERATOR, read_only=False, destructive=True, idempotent=False, requires_confirm=True,
     )
     async def run_cleanup(ctx, args):
         from ... import cleanup
