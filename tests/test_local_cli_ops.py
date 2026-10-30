@@ -32,7 +32,7 @@ class TestBuild(CLICase):
         self.cli.succeed("sha256:feed\n")
         res = await self.client.build_image(BuildOptions(
             tag="app:1", dockerfile="FROM alpine\n", no_cache=True, build_args={"V": "1"}, push=True,
-            registry_host="reg.example", registry_user="bob", registry_pass="pw"))
+            registry_host="reg.example", registry_user="bob", registry_pass="s3cret-Pw!"))
         self.assertTrue(res.success, res.output)
         self.assertEqual(res.image_id, "sha256:feed")
         argv = self.argvs()
@@ -45,7 +45,9 @@ class TestBuild(CLICase):
         self.assertEqual(self.cli.calls()[0]["files"][df], "FROM alpine\n")
         self.assertIn(["login", "reg.example", "-u", "bob", "--password-stdin"], argv)
         self.assertIn(["push", "app:1"], argv)
-        self.assertNotIn("pw", " ".join(" ".join(a) for a in argv))
+        # The password goes on stdin only (a distinctive one: the random temp
+        # dir name could contain a short one by chance).
+        self.assertNotIn("s3cret-Pw!", " ".join(" ".join(a) for a in argv))
 
     async def test_failures(self):
         self.cli.fail_with(1, "step 2 failed", only="build")
