@@ -1,5 +1,11 @@
 # Kowan — Changelog
 
+## 0.1.12 — 2026-10-30
+
+- **CPU is a share of the whole host.** CPU percentages were `docker stats` figures, 100 per core, so a busy 4-core host read 400% while the charts stopped at 100. Containers, hosts and workloads now share one scale, where 100 means every core is busy. A workload on several hosts shows the hosts' average and the busiest host's peak. The CPU figures already stored keep the old scale until newer samples replace them, and remote hosts switch once their agent is updated.
+- **A stopped container is not a crash.** An app started through `npm start` exits with code 1 when it is stopped, so a container stopped on purpose, by `docker stop` or by an orchestrator, showed as degraded, counted as crashed and raised the "container exited" alert. Docker restarts a crashed container with an `always` or `unless-stopped` restart policy, so one that stays exited was stopped: Kowan now shows it as Stopped. A start error, the policy `no` and an `on-failure` policy that ran out of retries are still crashes.
+- **Tests no longer hang on Python 3.10.** `asyncio.wait_for` on Python 3.10 could lose a cancellation, and the schedules service then never stopped. The test runner now stops a module that runs too long and prints where it hung.
+
 ## 0.1.11 — 2026-10-28
 
 - **Update a whole workload.** "Update · N" in a workload's header updates every service with a newer image at once. A deployment is pulled with the stored registry credentials, redeployed once, verified, and rolled back service by service if one does not come up; a compose stack Kowan does not manage has each such container recreated. The Update button of a single container that belongs to a deployment now updates its deployment, instead of a container the next deploy would undo.
