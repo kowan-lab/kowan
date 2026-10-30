@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://kowan-lab.github.io/kowan">Website</a> ·
+  <a href="https://kowan.io">Website</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="docs/">Docs</a> ·
   <a href="https://github.com/kowan-lab/kowan/discussions">Discussions</a>

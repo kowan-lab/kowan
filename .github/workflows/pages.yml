@@ -1,6 +1,6 @@
 name: Website
 
-# Publishes site/ to GitHub Pages: https://kowan-lab.github.io/kowan
+# Publishes site/ to GitHub Pages: https://kowan.io
 on:
   push:
     branches: [main]
