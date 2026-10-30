@@ -24,6 +24,7 @@ import logging
 from aiohttp import web
 
 from kowan import errors
+from kowan.auth import authorize as authz
 from kowan.schedules.service import ScheduleService, validate_schedule
 from kowan.store import NotFoundError
 from kowan.web import api_route, bind_svc, json_response, read_json, require_role
@@ -35,6 +36,19 @@ def _service(svc) -> ScheduleService:
     return svc.schedules
 
 
+def _targets(s):
+    """A schedule's (or a run's) target, for team/grant scoping."""
+    return [(s.get("targetType", ""), s.get("hostId", ""), s.get("targetId", ""))]
+
+
+async def _find(svc, sid: str) -> dict:
+    """The schedule, or 404 when the caller's grants do not cover its target."""
+    s = _service(svc).find(sid)
+    if not await authz.TargetAccess(svc.store, svc.docker).allowed(_targets(s)[0]):
+        raise errors.NotFound("schedule not found")
+    return s
+
+
 async def _list(svc, request: web.Request) -> web.Response:
     q = request.query
     items = _service(svc).all_schedules()
@@ -42,17 +56,20 @@ async def _list(svc, request: web.Request) -> web.Response:
         v = q.get(key, "")
         if v:
             items = [s for s in items if s.get(key) == v]
-    return json_response(items)
+    return json_response(await authz.TargetAccess(svc.store, svc.docker).filter(items, _targets))
 
 
 async def _get(svc, request: web.Request) -> web.Response:
-    return json_response(_service(svc).find(request.match_info["id"]))
+    return json_response(await _find(svc, request.match_info["id"]))
 
 
 async def _create(svc, request: web.Request) -> web.Response:
     body = await read_json(request)
     s = validate_schedule(body)
     s.pop("id", None)
+    # A schedule starts and stops its target from the background runner, with
+    # no principal: it may only point at what the caller can operate.
+    await authz.TargetAccess(svc.store, svc.docker).check(_targets(s), authz.LEVEL_OPERATE)
     saved = svc.store.save_schedule(s)
     _service(svc).reload()
     return json_response(_service(svc).find(saved["id"]), status=201)
@@ -66,9 +83,13 @@ async def _update(svc, request: web.Request) -> web.Response:
         existing = svc.store.get_schedule(sid)
     except NotFoundError:
         raise errors.NotFound("schedule not found")
+    access = authz.TargetAccess(svc.store, svc.docker)
+    if not await access.allowed(_targets(existing)[0]):
+        raise errors.NotFound("schedule not found")
     body = await read_json(request)
     s = validate_schedule(body, existing)
     s["id"] = sid
+    await access.check(_targets(existing) + _targets(s), authz.LEVEL_OPERATE)
     if (s["cron"], s["timezone"]) != (existing["cron"], existing["timezone"]) or (s["enabled"] and not existing["enabled"]):
         # A new schedule shape starts fresh: no "missed" report for old slots.
         s["lastRunAt"] = ""
@@ -82,6 +103,14 @@ async def _delete(svc, request: web.Request) -> web.Response:
     if sid.startswith("label:"):
         raise errors.Validation("label schedules are read-only")
     try:
+        existing = svc.store.get_schedule(sid)
+    except NotFoundError:
+        raise errors.NotFound("schedule not found")
+    access = authz.TargetAccess(svc.store, svc.docker)
+    if not await access.allowed(_targets(existing)[0]):
+        raise errors.NotFound("schedule not found")
+    await access.check(_targets(existing), authz.LEVEL_OPERATE)
+    try:
         svc.store.delete_schedule(sid)
     except NotFoundError:
         raise errors.NotFound("schedule not found")
@@ -90,7 +119,8 @@ async def _delete(svc, request: web.Request) -> web.Response:
 
 
 async def _run_now(svc, request: web.Request) -> web.Response:
-    s = _service(svc).find(request.match_info["id"])
+    s = await _find(svc, request.match_info["id"])
+    await authz.TargetAccess(svc.store, svc.docker).check(_targets(s), authz.LEVEL_OPERATE)
     run = await _service(svc).execute(s, trigger="manual")
     return json_response(run)
 
@@ -100,7 +130,8 @@ async def _runs(svc, request: web.Request) -> web.Response:
         limit = int(request.query.get("limit", "100"))
     except ValueError:
         raise errors.Validation("limit must be an integer")
-    return json_response(svc.store.list_schedule_runs(request.query.get("scheduleId", ""), limit))
+    runs = svc.store.list_schedule_runs(request.query.get("scheduleId", ""), limit)
+    return json_response(await authz.TargetAccess(svc.store, svc.docker).filter(runs, _targets))
 
 
 async def _preview(svc, request: web.Request) -> web.Response:
@@ -116,7 +147,13 @@ async def _preview(svc, request: web.Request) -> web.Response:
 
 
 async def _rescan(svc, request: web.Request) -> web.Response:
-    await _service(svc).scan_labels()
+    # The scan replaces each host's label schedules: it must see every
+    # container, not only the caller's (lists are filtered per caller).
+    token = authz.bind(None)
+    try:
+        await _service(svc).scan_labels()
+    finally:
+        authz.unbind(token)
     return json_response({"status": "ok", "labelSchedules": len(_service(svc).label_schedules())})
 
 

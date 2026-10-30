@@ -39,6 +39,7 @@ from kowan.autoupdate.policy import (
     validate_policy_body,
 )
 from kowan.autoupdate.runner import DEFAULT_SETTINGS, MIN_INTERVAL, SETTINGS_KEY, AutoUpdater, load_settings, rfc3339, now_utc
+from kowan.auth import authorize as authz
 from kowan.scan.gate import parse_block_policy
 from kowan.web import SERVICES_KEY, api_route, error_response, json_response, ops_error_response, read_json, require_role
 
@@ -76,6 +77,13 @@ def register(app: web.Application, svc: Any) -> None:
 
 def _svc(request: web.Request) -> Any:
     return request.app[SERVICES_KEY]
+
+
+def _targets(o: Dict[str, Any]) -> List[tuple]:
+    """A policy / state / history row's target, for team/grant scoping."""
+    if o.get("kind") == "deployment":
+        return [(authz.KIND_DEPLOYMENT, "", o.get("target", ""))]
+    return [(authz.KIND_CONTAINER, o.get("hostId", ""), o.get("target", ""))]
 
 
 def _user(request: web.Request) -> str:
@@ -194,6 +202,7 @@ async def _overview(request: web.Request) -> web.StreamResponse:
             "pending": bool(state.get("pending")), "image": state.get("image", ""),
             "nextCheckAt": au.next_check_at(hid) if hid else None, "last": last,
         })
+    out = await authz.TargetAccess(store, svc.docker).filter(out, _targets)
     out.sort(key=lambda o: (o["hostName"] or "", o["kind"], o["name"]))
     cfg = load_settings(store)
     return json_response({"settings": cfg, "lastTickAt": au.last_tick_at, "objects": out})
@@ -207,11 +216,22 @@ async def _history(request: web.Request) -> web.StreamResponse:
         offset = int(q.get("offset", "0"))
     except ValueError:
         return error_response(400, "limit/offset must be integers")
-    res = svc.store.list_autoupdate_history(
-        kind=q.get("kind", ""), host_id=q.get("hostId", ""), target=q.get("target", ""),
-        outcome=q.get("outcome", ""), limit=limit, offset=offset,
-    )
-    return json_response(res)
+    where = dict(kind=q.get("kind", ""), host_id=q.get("hostId", ""), target=q.get("target", ""),
+                 outcome=q.get("outcome", ""))
+    access = authz.TargetAccess(svc.store, svc.docker)
+    if access.unrestricted:
+        return json_response(svc.store.list_autoupdate_history(**where, limit=limit, offset=offset))
+    # Scoped: filter the whole (pruned, so bounded) history, then page it.
+    rows: List[Dict[str, Any]] = []
+    page_offset = 0
+    while True:
+        page = svc.store.list_autoupdate_history(**where, limit=500, offset=page_offset)["items"]
+        rows += await access.filter(page, _targets)
+        if len(page) < 500:
+            break
+        page_offset += 500
+    limit, offset = max(1, min(limit, 500)), max(0, offset)
+    return json_response({"items": rows[offset:offset + limit], "total": len(rows)})
 
 
 _CHECKS: set = set()
@@ -229,7 +249,13 @@ async def _check(request: web.Request) -> web.StreamResponse:
     host_id = str(body.get("hostId") or "")
     target = str(body.get("target") or "")
     au: AutoUpdater = svc.autoupdater
-    hosts = svc.store.list_hosts()
+    hosts = authz.filter_hosts(svc.store.list_hosts())
+    if kind and target:
+        # An update replaces containers: operate on a deployment (a redeploy),
+        # manage on a lone container (remove + create).
+        level = authz.LEVEL_OPERATE if kind == "deployment" else authz.LEVEL_MANAGE
+        await authz.TargetAccess(svc.store, svc.docker).check(
+            _targets({"kind": kind, "hostId": host_id, "target": target}), level)
     if kind == "deployment" and target and not host_id:
         try:
             d = svc.store.get_deployment(target)
@@ -297,6 +323,9 @@ async def _put_container(request: web.Request) -> web.StreamResponse:
         return ops_error_response(err)
     if not name:
         return error_response(404, "container not found")
+    # Auto-update recreates the container from the background, unrestricted.
+    await authz.TargetAccess(svc.store, svc.docker).check(
+        [(authz.KIND_CONTAINER, host_id, name)], authz.LEVEL_MANAGE)
     try:
         p = validate_policy_body(await _body(request))
     except ValueError as err:
@@ -316,6 +345,8 @@ async def _delete_container(request: web.Request) -> web.StreamResponse:
         _, _, name, _ = await _container_ctx(svc, host_id, request.match_info["id"])
     except Exception as err:  # noqa: BLE001
         return ops_error_response(err)
+    await authz.TargetAccess(svc.store, svc.docker).check(
+        [(authz.KIND_CONTAINER, host_id, name)], authz.LEVEL_MANAGE)
     svc.store.delete_autoupdate_policy("container", host_id, name)
     return await _get_container(request)
 
@@ -329,6 +360,7 @@ async def _get_deployment(request: web.Request) -> web.StreamResponse:
         dep = svc.store.get_deployment(dep_id)
     except Exception:  # noqa: BLE001
         return error_response(404, "deployment not found")
+    authz.check_deployment(dep, authz.LEVEL_READ)
     stored = svc.store.get_autoupdate_policy("deployment", "", dep_id)
     eff = resolve_policy({}, stored, svc.autoupdater.defaults())
     hist = svc.store.list_autoupdate_history(kind="deployment", target=dep_id, limit=20)
@@ -344,9 +376,10 @@ async def _put_deployment(request: web.Request) -> web.StreamResponse:
     svc = _svc(request)
     dep_id = request.match_info["id"]
     try:
-        svc.store.get_deployment(dep_id)
+        dep = svc.store.get_deployment(dep_id)
     except Exception:  # noqa: BLE001
         return error_response(404, "deployment not found")
+    authz.check_deployment(dep, authz.LEVEL_OPERATE)  # an update is a redeploy
     try:
         p = validate_policy_body(await _body(request))
     except ValueError as err:
@@ -362,5 +395,10 @@ async def _put_deployment(request: web.Request) -> web.StreamResponse:
 async def _delete_deployment(request: web.Request) -> web.StreamResponse:
     svc = _svc(request)
     dep_id = request.match_info["id"]
+    try:
+        dep = svc.store.get_deployment(dep_id)
+    except Exception:  # noqa: BLE001
+        return error_response(404, "deployment not found")
+    authz.check_deployment(dep, authz.LEVEL_OPERATE)
     svc.store.delete_autoupdate_policy("deployment", "", dep_id)
     return await _get_deployment(request)

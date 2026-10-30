@@ -770,3 +770,110 @@ def check_host_item(host_id: str, level: Optional[str] = None) -> None:
     res = Resource(KIND_HOST, host_id=host_id) if host_id else Resource(KIND_GLOBAL)
     if not ctx.allowed(lvl, res):
         raise _forbidden("insufficient permissions for this host")
+
+
+# ---------------------------------------------------------------------------
+# records that name their target (schedules, volume backups, auto-update)
+# ---------------------------------------------------------------------------
+
+# A target is (kind, host id, ref): a deployment id; a compose project on a
+# host; a container or volume name on a host; a ``key=value`` selector on a
+# host (KIND_SELECTOR).
+Target = Tuple[str, str, str]
+KIND_SELECTOR = "selector"
+
+
+class TargetAccess:
+    """Access to store records that point at a workload by name instead of
+    holding it: schedules, volume backup jobs and runs, auto-update policies.
+
+    Deployments, stacks and selectors are decided from the record alone.
+    Containers and volumes are decided by their labels, read once per host for
+    the request through the caller's own (scoped) Docker view; a host-wide grant
+    skips that. A record with no host needs all-hosts access, and a target that
+    cannot be resolved (gone, host offline) is denied: fail closed.
+
+    Used for lists (:meth:`filter`) and for writes (:meth:`check`), so a scoped
+    user can neither see nor create automation that the background runners
+    would then carry out, unrestricted, outside their grants.
+    """
+
+    def __init__(self, store: Any, docker: Any) -> None:
+        self._store = store
+        self._docker = docker
+        self._ctx = current()
+        # (kind, host id) -> {name: labels} of what the caller may read there.
+        self._objects: Dict[Tuple[str, str], Dict[str, Dict[str, str]]] = {}
+
+    @property
+    def unrestricted(self) -> bool:
+        return self._ctx is None or self._ctx.unrestricted
+
+    async def _named(self, kind: str, host_id: str) -> Dict[str, Dict[str, str]]:
+        key = (kind, host_id)
+        if key not in self._objects:
+            named: Dict[str, Dict[str, str]] = {}
+            try:
+                ops = self._docker.ops(self._store.get_host(host_id))
+                if kind == KIND_CONTAINER:
+                    for c in await ops.list_containers(True) or []:
+                        for n in getattr(c, "names", None) or []:
+                            named[str(n).lstrip("/")] = _labels_of(c)
+                else:
+                    for v in await ops.list_volumes() or []:
+                        named[getattr(v, "name", "") or ""] = _labels_of(v)
+            except Exception as err:  # noqa: BLE001 - fail closed
+                log.debug("authz: list %ss on %s: %s", kind, host_id, err)
+            self._objects[key] = named
+        return self._objects[key]
+
+    async def allowed(self, target: Target, level: str = LEVEL_READ) -> bool:
+        ctx = self._ctx
+        if ctx is None or ctx.unrestricted:
+            return True
+        kind, host_id, ref = target
+        if kind == KIND_DEPLOYMENT:
+            try:
+                dep = self._store.get_deployment(ref)
+            except Exception:  # noqa: BLE001 - gone: only fleet-wide access sees it
+                return ctx.allowed(level, Resource(KIND_GLOBAL))
+            return ctx.allowed(level, deployment_resource(dep))
+        if not host_id:
+            return ctx.allowed(level, Resource(KIND_GLOBAL))
+        if ctx.host_rank(host_id) >= level_rank(level):
+            return True
+        if not ctx.touches(host_id):
+            return False
+        if kind == KIND_STACK:
+            return ctx.allowed(level, Resource(KIND_STACK, host_id=host_id, stack=ref))
+        if kind == KIND_SELECTOR:
+            try:
+                key, value = parse_selector(ref)
+            except ValueError:
+                return False
+            return ctx.allowed(level, Resource(KIND_VOLUME, host_id=host_id, labels={key: value}))
+        if kind in (KIND_CONTAINER, KIND_VOLUME):
+            labels = (await self._named(kind, host_id)).get(ref)
+            return labels is not None and ctx.allowed(level, Resource(kind, host_id=host_id, labels=labels))
+        return False
+
+    async def allowed_all(self, targets: Iterable[Target], level: str = LEVEL_READ) -> bool:
+        for t in targets:
+            if not await self.allowed(t, level):
+                return False
+        return True
+
+    async def filter(self, items: Iterable[Any], targets: Any, level: str = LEVEL_READ) -> List[Any]:
+        """The items whose every target (``targets(item)``) is allowed."""
+        items = list(items)
+        if self.unrestricted:
+            return items
+        return [it for it in items if await self.allowed_all(targets(it), level)]
+
+    async def check(self, targets: Iterable[Target], level: Optional[str] = None,
+                    message: str = "insufficient permissions for this target") -> None:
+        ctx = self._ctx
+        if ctx is None:
+            return
+        if not await self.allowed_all(targets, level or ctx.default_level):
+            raise _forbidden(message)
