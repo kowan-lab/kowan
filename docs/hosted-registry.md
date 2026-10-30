@@ -1,6 +1,6 @@
 # Deploying a registry
 
-**Registries → Deploy a registry** runs an image registry (`registry:3`) on one
+**Settings → Registries → Deploy a registry** runs an image registry (`registry:3`) on one
 of your hosts, publishes it on a domain with a Let's Encrypt certificate and
 adds it to the registry list. Deployments, update checks and the registry
 explorer can use it right away.
