@@ -2,13 +2,17 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.14 — 2026-10-31
+
+- **Agents fix their own restart policy.** An agent installed without a restart policy, as the join command did up to 0.1.12, sets `unless-stopped` on its own container when it starts, so it comes back after a reboot. Update your agents from **Settings → Server updates** and there is nothing to run by hand; a policy you chose is left as it is.
+
 ## 0.1.13 — 2026-10-31
 
 - **What's new in the console.** **Settings → What's new** shows what changed in each release, with the version this server runs marked.
 - **Documentation on kowan.io.** Installation, a guide for every feature and the reference for configuration, container labels, the CLI, the REST API and MCP, searchable, at [kowan.io/docs](https://kowan.io/docs/).
 - **Hosts by their name.** A renamed host shows its name on the workload pages, in search and in the host menu, instead of its id (such as `local`).
 - **Every user can change their password.** **Settings → General → Profile** now works for operators and viewers too, and asks for the current password.
-- **Agents come back after a reboot.** The join command starts the agent with `--restart unless-stopped`. For an agent you already installed, run `docker update --restart unless-stopped kowan-agent` on its host.
+- **Agents come back after a reboot.** The join command starts the agent with `--restart unless-stopped`.
 - **Team permissions cover schedules, volume backups and auto-update.** A team member sees and changes only those for the hosts, deployments and stacks they can access.
 - **Safer teams and workflows.** A team with API keys bound to it can no longer be deleted (its keys used to keep working with their full role). A workflow with a **Backup** step is admin-only and writes only inside the backups folder. A disabled workflow refuses its webhooks.
 - **AI assistants follow the API roles.** Through MCP, removing containers, images and volumes, pruning, disk cleanup and creating or destroying deployments need the operator role, as through the REST API, and destructive tools still ask for confirmation. An assistant no longer needs an admin key, which ignores team permissions.
