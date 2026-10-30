@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 import signal
 import ssl
 import sys
@@ -483,10 +484,45 @@ async def _run_agent(cfg: AgentConfig, ops, stop: asyncio.Event) -> None:
 # --------------------------------------------------------------------------- #
 
 
+async def _keep_running_after_reboot(ops) -> None:
+    """Give this agent's own container the ``unless-stopped`` restart policy
+    when it has none, so the agent comes back after the host reboots.
+
+    Agents installed before the join command carried ``--restart`` fix
+    themselves on their next start; a policy someone chose (``always``,
+    ``on-failure``, ``unless-stopped``) is left alone. The container is the
+    one named by ``HOSTNAME`` (Docker's default hostname is the container
+    id), confirmed by this agent's token in its environment, so a previous
+    agent container kept for rollback (same token) is never touched. Best
+    effort: outside a container, or when it cannot be identified, nothing
+    happens.
+    """
+    ref = os.environ.get("HOSTNAME", "").strip()
+    token = os.environ.get("KOWAN_AGENT_TOKEN", "")
+    if not ref or not token:
+        return
+    try:
+        insp = await asyncio.wait_for(ops.inspect_container(ref), timeout=15)
+    except Exception:  # noqa: BLE001 - not a container, or a custom hostname
+        return
+    if f"KOWAN_AGENT_TOKEN={token}" not in ((insp.get("Config") or {}).get("Env") or []):
+        return
+    policy = ((insp.get("HostConfig") or {}).get("RestartPolicy") or {}).get("Name") or "no"
+    if policy != "no":
+        return
+    try:
+        await asyncio.wait_for(
+            ops.update_container_config(insp["Id"], {"RestartPolicy": {"Name": "unless-stopped"}}), timeout=15)
+        log.info("agent: restart policy set to unless-stopped, so the agent comes back after a reboot")
+    except Exception as err:  # noqa: BLE001 - never block the agent on this
+        log.warning("agent: could not set the restart policy: %s", err)
+
+
 async def _run(cfg: AgentConfig) -> None:
     """Construct the local Docker client and run the configured mode."""
     ops = LocalClient(cfg.docker_socket) if cfg.docker_socket else LocalClient()
     stop = asyncio.Event()
+    await _keep_running_after_reboot(ops)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):

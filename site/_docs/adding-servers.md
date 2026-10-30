@@ -66,7 +66,7 @@ To see the command again, click the join command button on the host's row in **S
 !!! warning "The token is a password"
     The token in the join command gives control of that server's Docker, which is root access to it. Do not paste it into tickets or chats, and do not reuse it on another server.
 
-The `--restart unless-stopped` policy brings the agent back after the server reboots.
+The `--restart unless-stopped` policy brings the agent back after the server reboots. An agent started without a restart policy, for example from an older join command or a Compose file without `restart:`, sets `unless-stopped` on its own container when it starts; a policy you chose is left as it is.
 
 ### Run the agent with Docker Compose
 
