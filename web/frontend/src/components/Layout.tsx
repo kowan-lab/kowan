@@ -241,7 +241,7 @@ const ROUTE_PAGE: Record<string, string> = {
   "/channels": "Notifications", "/users": "Users", "/api-keys": "ApiKeys", "/settings": "Settings", "/ai": "AiAssistants",
   "/networks/map": "NetworkMap", "/exposure": "Exposure",
   "/auto-update": "AutoUpdate",
-  "/teams": "Teams", "/sso": "SsoProviders",
+  "/teams": "Teams", "/sso": "SsoProviders", "/changelog": "Changelog",
 };
 const warmed = new Set<string>();
 function preloadRoute(to: string) {

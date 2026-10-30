@@ -35,12 +35,35 @@ function precompress(): Plugin {
   };
 }
 
+/**
+ * ``virtual:changelog``: the repository's docs/CHANGELOG.md as a string, for
+ * the "What's new" page. Read here rather than imported, as it lives outside
+ * this root (the Docker build copies it to the same relative place).
+ */
+function changelog(): Plugin {
+  const file = path.resolve(import.meta.dirname, "../../docs/CHANGELOG.md");
+  const id = "\0virtual:changelog";
+  return {
+    name: "kowan-changelog",
+    resolveId: (source) => (source === "virtual:changelog" ? id : undefined),
+    load(loaded) {
+      if (loaded !== id) return undefined;
+      this.addWatchFile(file);
+      return `export default ${JSON.stringify(readFileSync(file, "utf8"))};`;
+    },
+  };
+}
+
 const API_TARGET = process.env.VITE_API_TARGET || "http://localhost:5081";
+// The version this SPA ships with: the server serves the build it came with,
+// so it is the running version (the "What's new" page marks it).
+const APP_VERSION: string = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "package.json"), "utf8")).version;
 
 // https://vite.dev/config/
 export default defineConfig({
   base: "/",
-  plugins: [react(), tailwindcss(), precompress()],
+  plugins: [react(), tailwindcss(), precompress(), changelog()],
+  define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },

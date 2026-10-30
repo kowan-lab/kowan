@@ -30,6 +30,8 @@ tests/
 examples/
 docs/
 *.md
+# ...except the changelog, bundled into the SPA's "What's new" page.
+!docs/CHANGELOG.md
 LICENSE
 Makefile
 pyproject.toml

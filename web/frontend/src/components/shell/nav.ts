@@ -80,6 +80,7 @@ export const NAV: NavSection[] = [
       { label: "AI assistants", to: "/ai", icon: "hub-outline-rounded", sub: "Access", keywords: "mcp claude cursor llm agent" },
       { label: "Hosts & agents", to: "/hosts", icon: "dns-outline", sub: "Server", keywords: "environments agents servers nodes join" },
       { label: "Network access", to: "/settings/network", icon: "lan-outline-rounded", adminOnly: true, sub: "Server", keywords: "cidr allowlist ip firewall proxy security" },
+      { label: "What's new", to: "/changelog", icon: "new-releases-outline-rounded", sub: "Server", keywords: "changelog release notes version updates history" },
     ],
   },
 ];

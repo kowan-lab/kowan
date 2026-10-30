@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Link } from "react-router";
 import { Box, Button, Callout, Divider, Icon, InputToggle, Text, TextInput, UploadArea } from "@/ui/kit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { changeOwnPassword, downloadBackup, restoreBackup, updateFeatures } from "../api/client";
@@ -277,7 +278,11 @@ export default function Settings() {
         </div>
       </SectionCard>
       {isAdmin && (
-        <SectionCard title="Server updates" description="Update or roll back this control plane. Failed updates are rolled back automatically.">
+        <SectionCard
+          title="Server updates"
+          description="Update or roll back this control plane. Failed updates are rolled back automatically."
+          actions={<Link to="/changelog" className="text-[13px] font-medium text-signal underline-offset-2 hover:underline">What's new</Link>}
+        >
           <UpdatePanel component="server" isAdmin={isAdmin} />
         </SectionCard>
       )}

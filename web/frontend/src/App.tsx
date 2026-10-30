@@ -47,6 +47,7 @@ const Users = lazy(() => import("./pages/Users"));
 const ApiKeys = lazy(() => import("./pages/ApiKeys"));
 const Audit = lazy(() => import("./pages/Audit"));
 const Settings = lazy(() => import("./pages/Settings"));
+const Changelog = lazy(() => import("./pages/Changelog"));
 const AiAssistants = lazy(() => import("./pages/AiAssistants"));
 const NetworkAccess = lazy(() => import("./pages/NetworkAccess"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -123,6 +124,7 @@ export default function App() {
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/audit" element={<Audit />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/changelog" element={<Changelog />} />
           <Route path="/ai" element={<AiAssistants />} />
           <Route path="/settings/network" element={<NetworkAccess />} />
           <Route path="/auto-update" element={<AutoUpdate />} />

@@ -42,6 +42,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 # vite (web/frontend/vite.config.ts) emits to ../dist (= /app/web/dist), with
 # precompressed .gz/.br siblings that the server serves directly.
 COPY web/frontend/ ./
+# The "What's new" page bundles the changelog (vite.config.ts reads ../../docs).
+COPY docs/CHANGELOG.md /app/docs/CHANGELOG.md
 RUN npm run build
 
 # --- tools: docker CLI + compose plugin ------------------------------------------

@@ -1,116 +1,139 @@
 # Kowan — Changelog
 
+Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
+
 ## 0.1.12 — 2026-10-30
 
-- **CPU is a share of the whole host.** CPU percentages were `docker stats` figures, 100 per core, so a busy 4-core host read 400% while the charts stopped at 100. Containers, hosts and workloads now share one scale, where 100 means every core is busy. A workload on several hosts shows the hosts' average and the busiest host's peak. The CPU figures already stored keep the old scale until newer samples replace them, and remote hosts switch once their agent is updated.
-- **A stopped container is not a crash.** An app started through `npm start` exits with code 1 when it is stopped, so a container stopped on purpose, by `docker stop` or by an orchestrator, showed as degraded, counted as crashed and raised the "container exited" alert. Docker restarts a crashed container with an `always` or `unless-stopped` restart policy, so one that stays exited was stopped: Kowan now shows it as Stopped. A start error, the policy `no` and an `on-failure` policy that ran out of retries are still crashes.
-- **Tests no longer hang on Python 3.10.** `asyncio.wait_for` on Python 3.10 could lose a cancellation, and the schedules service then never stopped. The test runner now stops a module that runs too long and prints where it hung.
+- **CPU is a share of the whole host.** 100% now means every core is busy, for containers, hosts and workloads alike; it used to be 100% per core, so a 4-core host could read 400%. Remote hosts switch once their agent is updated.
+- **A stopped container is no longer a crash.** A container stopped on purpose that exits with an error code (as `npm start` does) shows as Stopped, without the degraded state or the "container exited" alert.
+
+### Other changes
+
+- **CPU of a workload on several hosts.** The hosts' average, and the busiest host's peak.
+- **Tests no longer hang on Python 3.10.** The test runner also stops a module that runs too long and shows where it hung.
 
 ## 0.1.11 — 2026-10-28
 
-- **Update a whole workload.** "Update · N" in a workload's header updates every service with a newer image at once. A deployment is pulled with the stored registry credentials, redeployed once, verified, and rolled back service by service if one does not come up; a compose stack Kowan does not manage has each such container recreated. The Update button of a single container that belongs to a deployment now updates its deployment, instead of a container the next deploy would undo.
-- **Newer version tags.** For a deployment pinned to versions (`api:2.0`, `nginx:1.27-alpine`), "New versions · N" lists the newer tags of the same shape in the registry. Before anything changes, it shows what will change: each service's current and new tag, and the diff of the deployment. It is saved as a new revision, so History can roll it back.
-- **Pull image asks for the registry first.** Pick a stored registry and browse its repositories and tags, or type an image and see which registry's credentials the pull will use.
-- **Deploy a registry from Kowan.** Registries → Deploy a registry runs one on a host, published through the host's Traefik with a Let's Encrypt certificate, with an optional login, and adds it to the registry list.
-- **Compose deploys pull with the stored credentials.** A compose deploy or redeploy now pulls its images with the registry credentials stored in Kowan, as container deployments do, so a new tag on AWS ECR no longer needs a manual pull first.
-- **Updating the agents no longer marks deployments as failed.** While an agent restarted, Kowan had no connection to its host and redeployed there, which failed. It now waits for the host to come back.
+- **Update a whole workload.** "Update · N" in a workload's header updates every service with a newer image at once, verified, and rolled back service by service if one fails.
+- **Newer version tags.** "New versions · N" offers the newer tags of a pinned image (`api:2.0` → `api:2.1`) and shows what will change before applying it as a new revision.
+- **Deploy a registry from Kowan.** Registries → Deploy a registry runs one on a host behind Traefik with a Let's Encrypt certificate, with an optional login.
+- **Pull image asks for the registry first.** Browse a stored registry's repositories and tags, or type an image and see which credentials the pull uses.
+
+### Other changes
+
+- **Compose deploys pull with the stored credentials.** A new tag on AWS ECR no longer needs a manual pull first.
+- **Updating the agents no longer marks deployments as failed.** Kowan waits for the host to come back instead of redeploying.
+- **Updating a container of a deployment updates the deployment.** The next deploy no longer undoes it.
 
 ## 0.1.10 — 2026-10-28
 
-- **The MCP server covers the whole of Kowan.** 22 new tools, 51 in all. An assistant now sees workloads the way the console does (deployments, compose stacks and lone containers, problems first) and can start, stop or restart a whole stack. It can search the retained logs, read a workload's CPU and memory history and find the ones whose memory keeps growing. It can read a deployment's revisions and their diffs, roll back, plan and run a promotion, and list branch previews. It also sees uptime checks, schedules, volume backups and the audit log (admin), and gets a disk cleanup plan with a confirmed cleanup run. See `docs/mcp.md`.
+- **The MCP server covers the whole of Kowan.** 51 tools: an assistant sees workloads as the console does, searches logs, reads resource history, revisions and audit, rolls back, promotes and plans a disk cleanup. See `docs/mcp.md`.
 
 ## 0.1.9 — 2026-10-28
 
-- **The search palette (⌘K) finds workloads.** Compose stacks and deployments show up next to containers, hosts, pages and actions. Results are ranked by how well they match, with a top result first and each kind in its own group; filter chips (Tab cycles them) narrow the list to one kind. With nothing typed, the palette opens on the workloads that need attention.
-- **Update checks work for images on AWS ECR.** The check asks the registry for the tag's digest, and ECR answers with a different kind of login request than Docker Hub or GHCR, so the check failed while a pull worked. It now answers with the credentials of the ECR registry configured in Kowan for that host.
+- **Search (⌘K) finds workloads.** Stacks and deployments show next to containers, hosts and pages, ranked by match and filtered by kind; empty, it opens on what needs attention.
+
+### Other changes
+
+- **Update checks work for images on AWS ECR.** They use the ECR credentials configured for the host.
 
 ## 0.1.8 — 2026-10-28
 
-- **Agents update at the same time.** Updating every agent from Hosts no longer goes one host after another and stops at the first failure: all of them update together, each with its own health check and automatic rollback, so one that fails rolls back alone while the others carry on.
-- **The update dialog keeps every host and shows progress.** An agent restarting goes offline for a few seconds and its row used to disappear; the list now stays as it was when the update started. Each host has a progress bar with its current step (pulling the image, testing it, restarting, checking health), and an overall bar counts the hosts done.
+- **Agents update together.** Every agent updates at the same time with its own health check, and one that fails rolls back alone.
+- **The update dialog shows progress.** Every host stays listed while it restarts, with a bar for its current step and one for the whole update.
 
 ## 0.1.7 — 2026-10-27
 
-- **A new look, the same on every page.** Each page opens with a header card: the breadcrumb trail with a button that goes up one level, the title, its facts on one line and the actions beside them. Below it, sections are framed cards and page sections are tabs in a toolbar card.
-- **Workloads.** Tabs split All, Managed and Not managed, with the filters on the same toolbar; the table's Kind column says whether Kowan manages each workload.
-- **A workload's page.** Its facts sit in the header; Resources shows CPU, memory and network side by side with their charts, and the automation settings (updates, backups, schedule, domains) are switched inline.
-- **A container's page.** One card on the left holds how it runs and how it is wired: runtime, ports, mounts, networks, environment and labels. Live resources, the other containers of its stack and its schedules sit beside it.
-- **Overview.** A single host shows its CPU, memory and disk in one Resources card, the first five workloads (problems first), and what needs attention beside what happened recently.
+- **A new look, the same on every page.** A header card with breadcrumb, title, facts and actions; sections in cards, tabs in a toolbar.
+- **Workloads in tabs.** All, Managed and Not managed.
+- **A clearer workload page.** CPU, memory and network side by side; updates, backups, schedule and domains switched inline.
+- **A clearer container page.** How it runs and how it is wired in one card, with live resources and its stack beside it.
+- **A host's overview.** Its resources, the first workloads and what needs attention.
 
 ## 0.1.6 — 2026-10-27
 
-- **Updating an agent or restarting the server no longer marks deployments as failed.** While a host could not be reached, the reconcile pass took its containers as missing, redeployed, failed and left the deployment showing "The last operation failed" with no detail. It now leaves an unreachable host alone and picks it up again once it is back. A deployment already marked as failed this way needs one Redeploy.
+### Other changes
+
+- **Updating an agent or restarting the server no longer marks deployments as failed.** An unreachable host is left alone until it is back. A deployment already marked this way needs one Redeploy.
 
 ## 0.1.5 — 2026-10-27
 
-- **Update to the new release in one click.** A server or agent running an image pinned to a release (`kowan:0.1.3`) used to pull that same version again when updated without an image, so moving to a new release meant typing its image by hand. It now moves to the newest release's tag (`kowan:0.1.4`); `latest`, `0.1` and custom tags still update in place. The panel's button reads "Update to 0.1.4" and the dialog shows the image it will pull; another image can still be given.
+- **Update to the new release in one click.** A server or agent pinned to a release (`kowan:0.1.3`) now moves to the newest one; the button says which ("Update to 0.1.4").
 
 ## 0.1.4 — 2026-10-27
 
-- **Volume browsing no longer loads the volume into memory.** Browse, read, download, zip download and upload stream through the server and the agent: on a 64 MiB volume the peak went from 135–283 MB to under 5 MB, so a volume of tens of GB no longer risks running them out of memory. A huge folder lists its first 5000 entries (or 1 GiB of archive) and the explorer says the list is cut.
-- **Bounded memory everywhere a peer or a remote service sends data**: an agent that ignores the tunnel's flow control has its stream reset, and the control plane refuses streams opened by an agent; exec output stops at 4 MiB; the agent protocol caps its header line; every outbound HTTP call (registries, cloud auth, secret backends, SSO, triggers, uptime, notifications, workflow steps, Portainer import) stops reading a response at a per-call limit.
-- **Host metrics over long ranges** come back as at most 720 averaged points instead of every sample (about 40k rows for a day).
-- **Less work and less state over time**: the reconcile loop lists each host's containers once per pass instead of once per deployment; the log archive caps a line without a newline; hosts, rules, checks and images that are gone, and idle locks, are dropped from memory.
-- **Lighter agent and image**: httpx is no longer a dependency (outbound HTTP uses aiohttp, the CLI the standard library), and the agent no longer imports the server-only modules at start.
-- **The UI**: log streams close while the tab is hidden and reconnect when it is shown, log search results leave memory a minute after the view closes, the hosts list is polled once, and the CSS is 30 KiB smaller (unused components removed).
-- Removed: `GET /scans/summary` and the `kowan.hidden` label, which nothing used. The volume browse API answers `{entries, truncated}`.
+- **Browsing large volumes no longer uses memory.** Browse, download and upload stream through server and agent; a huge folder shows its first 5000 entries.
+
+### Other changes
+
+- **Bounded memory for incoming data.** Tunnel streams, exec output, the agent protocol and every outbound HTTP call have a limit.
+- **Lighter host metrics.** Long ranges come back as at most 720 points.
+- **Less background work.** One container list per host per reconcile pass, and stale state dropped from memory.
+- **Lighter agent and image.** httpx is gone and the agent skips server-only modules.
+- **Lighter interface.** Log streams pause in hidden tabs and the CSS is 30 KiB smaller.
+- **Removed unused API.** `GET /scans/summary` and the `kowan.hidden` label; volume browse answers `{entries, truncated}`.
 
 ## 0.1.3 — 2026-10-26
 
-- **Settings at the bottom of the sidebar**, instead of in the account menu; it opens the same Settings area.
-- **Kowan's own containers hidden** from Workloads, the dashboard, Logs and search: the server, the agents and their helpers (updates, scans, volume browsing, backups). Settings → Features shows them again (`systemContainers`, off by default).
-- **Old Swarm tasks are no longer crashes.** Swarm stops the previous task on every update (exit 143, or 137 past the grace period) and keeps it as history; when a newer task runs in the same slot it now shows as "Replaced" instead of a critical card in Needs you or a degraded workload.
-- **Auto-heal sees a compose service that is gone.** A compose target was judged by its first container, so with nginx up and backend and frontend removed it read "running" and nothing redeployed. Every declared service now counts (a one-shot that exited 0 is done): the target turns `degraded`, naming what is missing or stopped, and the reconcile loop redeploys it. The loop now runs every 5 s (`KOWAN_RECONCILE_INTERVAL`); the 120 s cooldown per deployment stays.
-- **A missing service shows.** The workload turns red ("backend, frontend are missing") and Needs you gets a card for it.
-- **Up out of requested.** A workload's "x/y" is replicas up out of those requested: each service's replicas from the compose file, or one per Swarm slot, instead of every container ever kept. A Swarm service outside any stack is now one workload with its tasks, labelled Swarm.
-- **Switching host opens its overview**, from the host menu and from search.
-- **Workload services fold.** A workload's page groups its containers by service, each row with its state and count ("1 + 4 replaced"), and remembers which are open; the Workloads table shows the same list. Old Swarm tasks fade under the live one.
-- **Scale a service in place.** Each service of a deployment has a Replicas control: Apply writes `deploy.replicas` into the compose file (comments kept) as a new revision and redeploys. A service with `container_name` or a fixed host port stays at one; a git compose file is changed in its repository.
-- **Ports in a fixed order.** Docker lists a container's ports in a different order on every call; they are now sorted (container port, protocol, host port, IPv4 before IPv6). The container page also sorts its mounts, networks and aliases.
-- **Images: updates and bulk remove.** An Update column says which images have a newer digest; each image can be checked against its registry on the spot (`GET /hosts/{id}/images/{image}/update`, also for images no container runs) and the newer one pulled. Filters (in use, unused, untagged, update available) and multi-select remove many images at once.
-- **No leftover auto-update policies.** Saving a policy equal to the defaults (mode off, nothing else set) deletes it instead of storing it, so cycling the Updates knob back to off leaves nothing behind; an old row like that no longer shows in Auto-update.
+- **Settings in the sidebar.** At the bottom, instead of in the account menu.
+- **Kowan's own containers are hidden.** Out of Workloads, the dashboard, Logs and search; Settings → Features shows them again.
+- **A missing compose service shows and heals.** The workload turns red naming what is missing, Needs you gets a card, and the deployment is redeployed.
+- **Workload services fold.** Each with its state and replicas ("1 + 4 replaced").
+- **Scale a service in place.** A Replicas control writes `deploy.replicas` into the compose as a new revision and redeploys.
+- **Images: updates and bulk remove.** An Update column, an on-the-spot check and pull, filters and multi-select.
+- **Switching host opens its overview.**
+
+### Other changes
+
+- **Old Swarm tasks are no longer crashes.** A task replaced in its slot shows as "Replaced".
+- **Replica counts.** "x/y" is replicas up out of those requested, per service or Swarm slot.
+- **Faster self-healing.** The reconcile loop runs every 5 s (`KOWAN_RECONCILE_INTERVAL`); the 120 s cooldown per deployment stays.
+- **Ports, mounts and networks in a fixed order.**
+- **No leftover auto-update policies.** A policy set back to the defaults is removed.
 
 ## 0.1.2 — 2026-10-26
 
-- **New release notices**: every 6 hours the server checks the published versions and, when one is newer than its own, posts "Kowan X.Y.Z is available" to the bell, once per version. `KOWAN_RELEASE_REPOSITORY` sets where it looks (empty turns it off).
-- **Settings → Updates** shows the running version and the latest release (it showed a registry digest next to the version), also for a server run from source, where self-update is not available. **Check** now asks the registry again: it used to repeat the answer cached for 5 minutes. Agents show the same.
-- **Auto theme**: next to Light and Dark, Auto follows the system and switches with it; it is the default for anyone who never chose.
-- **Environment variables up front** when creating or editing a container deployment: their own section under the ports, instead of the third tab of the advanced settings, where they were easy to miss.
-- **Faster backend tests**: `make test` and CI run one test module per CPU (`scripts/run_tests.py`, standard library only): about 26 s instead of 2.5 min here, coverage unchanged. `make test-serial` keeps the single-process run.
-- Fixed: right after the host booted, the reconcile loop did not restart deployments whose containers were down (for as long as its cooldown, 2 minutes by default): a deployment never reconciled counted as reconciled at boot time.
-- Fixed: an auto-update's **stability window of 0 seconds** (Settings) was read as unset and waited 10 seconds after every update.
-- **Features on/off** in Settings (admins): Templates, Network map and GitOps can be turned off for everyone. They leave the navigation, the command palette and the links to them; their API, GitOps webhooks included, answers 404 "turned off in Settings", and GitOps stops syncing. Nothing is deleted; `GET/PUT /api/v1/features`.
-- **Stack variables** for compose deployments, like a Portainer stack's environment: name/value pairs that fill the compose's `${VAR}`s when it deploys (for a git source, over the repository's `.env`). They are part of the revision history, masked for viewers, copied to preview environments and not to promotion targets (which take the artifact, never the environment); GitOps leaves them in Kowan. The live compose check counts them as set.
-- **Config or secret, per environment row**, for stack variables and a container deployment's environment alike: a Secret row's value goes to an encrypted secret the deployment owns (`<deployment>-env`) and the row keeps a reference, so the value is never stored in the deployment or sent back; operators can set it, admins can reveal it. The secret is deleted with the deployment, shows its workload on the Secrets page and cannot be renamed. Shared secrets from the Secrets page are referenced as before, `[[name.field]]`.
-- **Import, reworked**: a Portainer stack's environment and a folder's `.env` become stack variables, each proposed as config or secret, and the compose stays as written. "Write into the compose" (0.1.1) is gone: a variable that should be plain is simply not a secret.
-- **Portainer import through Credentials**: a new Portainer connection type keeps the address and the access token (or username and password) encrypted; the import page picks one, or creates it on the spot, instead of asking every time.
-- **Container actions everywhere**: Kill (SIGKILL, or another signal through `POST …/containers/{id}/kill?signal=`), on the container page, the agent and MCP; and a "⋯" menu on every container of a workload, in its page and in the Workloads table, with start, stop, restart, pause, unpause, kill and remove.
+- **New release notices.** The bell says when a newer Kowan is out (checked every 6 hours; `KOWAN_RELEASE_REPOSITORY`).
+- **Running and latest version in Settings.** Also when running from source; Check asks the registry again.
+- **Auto theme.** Follows the system, and is the default.
+- **Stack variables.** Values for a compose deployment's `${VAR}`s, like a Portainer stack's environment, with revisions and masking.
+- **Config or secret, per variable.** A secret value goes to an encrypted secret the deployment owns and is never shown back.
+- **Features on/off.** Templates, Network map and GitOps can be turned off for everyone in Settings.
+- **Portainer import, reworked.** Environments become stack variables, and connections are kept in Credentials.
+- **Container actions everywhere.** Kill, and a "⋯" menu on every container of a workload.
+- **Environment variables up front.** Their own section when creating or editing a container deployment.
+
+### Other changes
+
+- **Deployments restart right after the host boots.** The reconcile loop no longer waits for its cooldown.
+- **A stability window of 0 seconds is honoured.** It used to wait 10 seconds after every auto-update.
+- **Faster backend tests.** One module per CPU: about 26 s instead of 2.5 min.
 
 ## 0.1.1 — 2026-10-26
 
-- **Rename hosts**, the local one included: from the host's page, the Hosts list (admins) or `kowanctl hosts rename <id-or-name> <new-name>`; API `PATCH /api/v1/hosts/{id}`. Only the displayed name changes: the id, deployments, permissions and history stay the same. A name may not repeat another host's name or id (GitOps files use either), and the same check now applies when a host is created.
-- **Copy buttons over HTTP**: opening Kowan as `http://<address>` (neither HTTPS nor localhost), the browser offers no Clipboard API, and copy buttons did nothing (a host's join command, API keys, secrets, URLs). They now fall back to the classic copy and, if that fails too, say so.
-- **Portainer import, variables as encrypted env**: all of a stack's variables go to an encrypted Kowan secret `<stack>-env` (one field per variable) and the compose references them as `[[<stack>-env.VAR]]`. In the import preview you pick, variable by variable, which ones to write into the compose instead; those used in an `image:` line are flagged. After the import, a deployment's Config tab (admins) lists the compose's `[[secret.FIELD]]` references and writes the chosen ones into the compose ("Write into the compose"), as a new revision and without a redeploy.
-- **Two-level stacks** in Workloads: unmanaged containers group into a stack when they come from a swarm stack (`com.docker.stack.namespace`) too, not only from a compose project; opening a stack lists its services, and each service shows its containers (its replicas, for swarm) with a summary state. Retained logs, resource history and disk cleanup use the same rule.
-- CI: `coverage` 7.16.2 on Python 3.10 (7.17 needs 3.11), and the end-to-end test with Docker matches the Overview tab.
-- Documentation, the changelog and the Makefile are in English.
-- The frontend builds with **Node 26** (LTS from October 28; 24 moved to maintenance): the image's build stage, CI (`actions/setup-node` v7) and `@types/node` 26. Dependabot leaves `@types/node` majors alone: they follow the build's Node.
+- **Rename hosts.** The local one included, from its page, the Hosts list or `kowanctl hosts rename`.
+- **Copy buttons work over plain HTTP.**
+- **Two-level stacks.** In Workloads a stack lists its services, each with its containers.
+- **Portainer import keeps variables encrypted.** A stack's variables go to an encrypted secret.
+
+### Other changes
+
+- **The frontend builds with Node 26.**
+- **CI fixes.** `coverage` 7.16.2 on Python 3.10, and the end-to-end test matches the Overview tab.
+- **Documentation, the changelog and the Makefile are in English.**
 
 ## 0.1.0 — 2026-10-26
 
-First public release. Images `ghcr.io/kowan-lab/kowan` and `ghcr.io/kowan-lab/kowan-agent` (amd64 and arm64), the CLI with `pip install git+https://github.com/kowan-lab/kowan`. MIT license.
+First public release: images `ghcr.io/kowan-lab/kowan` and `ghcr.io/kowan-lab/kowan-agent` (amd64 and arm64), the CLI with `pip install git+https://github.com/kowan-lab/kowan`. MIT license.
 
-**What it contains**
-- **Server, agent and CLI**: a Python control plane with SQLite and no external database; agents connected by an authenticated tunnel, in edge mode (the agent calls the server, behind NAT too) or direct mode (the server calls the agent); `kowanctl` for the terminal.
-- **Docker resources** on every host: containers, images, volumes, networks and stacks, with live logs, a web console and a file browser.
-- **Deployments** from an editor, a template or a git repository, with compose validation, revisions with diff and rollback, previews for branches and pull requests, promotion from staging to production, and import from Portainer or compose folders.
-- **Safe updates**: vulnerability scans with Trivy, auto-update with maintenance windows and automatic rollback when the health check fails; server and agent updates with rollback.
-- **Exposure and HTTPS** through Traefik, a network map, volume backups with restic (local disk, S3, SFTP), scheduled start/stop, GitOps, workflows and webhooks.
-- **Observability**: uptime with an optional public status page, retained and searchable logs, resource history with a memory-growth warning, alerts by email and chat, a daily or weekly digest, guided disk cleanup.
-- **Access**: admin/operator/viewer roles, teams with per-resource permissions, OpenID Connect SSO, API keys, an audit log, network allowlists, an MCP server for AI assistants.
-- **A React interface** with six light and dark themes, usable on a phone and installable as an app.
-
-The sections below tell the development that led to 0.1.0.
+- **Server, agent and CLI.** A Python control plane with SQLite; agents over an authenticated tunnel, behind NAT too; `kowanctl` for the terminal.
+- **Docker resources.** Every host's containers, images, volumes and networks, with live logs, a web console and a file browser.
+- **Deployments.** From an editor, a template or git, with revisions, rollback, branch previews, promotion and import.
+- **Safe updates.** Trivy scans, auto-update with maintenance windows and rollback, self-updates for server and agents.
+- **Exposure, backups and automation.** HTTPS through Traefik, network map, volume backups with restic, schedules, GitOps, workflows and webhooks.
+- **Observability.** Uptime and status page, searchable logs, resource history, alerts, digest, disk cleanup.
+- **Access.** Roles, teams, SSO, API keys, audit log, network allowlists and an MCP server.
+- **A React interface.** Six themes, usable on a phone and installable as an app.
 
 ## 2026-10-26 — Ten new features, phones and an installable app
 
