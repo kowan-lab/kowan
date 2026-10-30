@@ -1174,15 +1174,16 @@ function StepConfig({
       return (
         <Box direction="column" gap={3}>
           <TextInput
-            label="Path"
-            description="Server-side directory; defaults to <data>/backups. A timestamped kowan-backup-*.tar.gz archive is written here."
-            placeholder="<data>/backups"
+            label="Folder"
+            description="Optional sub-folder of <data>/backups on the server; leave empty for <data>/backups itself. A timestamped kowan-backup-*.tar.gz archive is written there."
+            placeholder="nightly"
             value={cfg("path")}
             onChange={(e) => setCfg("path", e.target.value)}
           />
           <Callout color="blue" variant="light">
             Pair this step with a Cron trigger to get automated, scheduled
-            backups.
+            backups. The archive holds the whole database, so only admins can
+            add, run or expose a workflow with this step.
           </Callout>
         </Box>
       );

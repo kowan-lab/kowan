@@ -130,7 +130,9 @@ class TestActionTools(MCPCase):
 
         _, wf = await self.call("POST", "/workflows", "admin", json={
             "name": "mcp-wf", "enabled": True, "steps": [{"name": "b", "type": "backup", "config": {}}]}, expect=201)
-        out, _ = await self.tool("run_workflow", "operator", workflow="mcp-wf")
+        # A backup step is admin-only, through MCP as through REST.
+        await self.tool("run_workflow", "operator", ok=False, workflow="mcp-wf")
+        out, _ = await self.tool("run_workflow", "admin", workflow="mcp-wf")
         self.assertTrue(out)
 
     async def test_update_container_tool(self):

@@ -42,6 +42,7 @@ from kowan import httpcap
 _HTTP_STEP_MAX_BODY = 64 << 10
 
 from kowan import backup
+from kowan.workflow import policy
 from kowan.models import (
     ContainerActionRestart,
     ContainerActionStart,
@@ -843,8 +844,9 @@ class Engine:
 
     async def _run_backup(self, step: WorkflowStep) -> str:
         """Write a gzip+tar backup of the control-plane state (the SQLite
-        database plus the stacks data subtree) to a timestamped file under the
-        engine's data directory and report the written path and size.
+        database plus the stacks data subtree) to a timestamped file under
+        ``{data_dir}/backups`` (see :mod:`kowan.workflow.policy`) and report the
+        written path and size.
 
         The SQLite snapshot is taken via ``store.snapshot`` into a temp file, then a
         manifest, ``kowan.db`` and the ``stacks/`` subtree are streamed into the
@@ -855,15 +857,8 @@ class Engine:
         if self._deps.data_dir == "":
             raise ValueError("backup step: data directory not configured")
 
-        # Resolve the destination directory: default {data_dir}/backups,
-        # overridable via the "path" config (relative paths under data_dir).
-        dest_dir = os.path.join(self._deps.data_dir, "backups")
-        override = step.config.get("path", "")
-        if override:
-            if os.path.isabs(override):
-                dest_dir = override
-            else:
-                dest_dir = os.path.join(self._deps.data_dir, override)
+        # Always under {data_dir}/backups; "path" only names a sub-folder there.
+        dest_dir = policy.backup_dir(self._deps.data_dir, step.config.get("path", ""))
         os.makedirs(dest_dir, exist_ok=True)
 
         filename = "kowan-backup-" + datetime.now(timezone.utc).strftime(

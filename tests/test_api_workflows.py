@@ -111,7 +111,6 @@ class TestStepErrors(WorkflowCase):
                                                                      "command": "echo 'unterminated"}},
             {"name": "no-channel", "type": "notify", "config": {}},
             {"name": "bad-channel", "type": "notify", "config": {"channel": "missing"}},
-            {"name": "backup-abs", "type": "backup", "config": {"path": "/proc/forbidden"}},
         ]
         wf = await self.create([{**st, "continueOnError": True} for st in steps])
         run = await self.run_and_wait(wf["id"])
@@ -121,6 +120,32 @@ class TestStepErrors(WorkflowCase):
             self.assertEqual(by[name]["status"], "failed", (name, by[name]))
         self.assertIn("oops", by["failing-script"]["error"])
         self.assertIn("ghost", by["no-deployment"]["error"])
+
+    async def test_backup_step_is_admin_only_and_stays_in_backups(self):
+        steps = [{"name": "bk", "type": "backup", "config": {}}]
+        for path in ("/etc/cron.d", "../outside", "nightly/../../x"):
+            _, body = await self.call("POST", "/workflows", json={
+                "name": "bad", "steps": [{"name": "bk", "type": "backup", "config": {"path": path}}]}, expect=400)
+            self.assertIn("<data>/backups", body["error"])
+        # Operators can neither create, change, run nor expose one.
+        _, body = await self.call("POST", "/workflows", "operator", json={"name": "op", "steps": steps}, expect=403)
+        self.assertIn("backup", body["error"])
+        wf = await self.create(steps)
+        await self.call("POST", f"/workflows/{wf['id']}/run", "operator", expect=403)
+        await self.call("POST", f"/workflows/{wf['id']}/webhook", "operator", expect=403)
+        await self.call("PUT", f"/workflows/{wf['id']}", "operator", json={"name": "wf", "steps": []}, expect=403)
+        # A symlink inside backups/ cannot lead the archive out of it.
+        outside = os.path.join(self.data_dir, "elsewhere")
+        os.makedirs(os.path.join(self.data_dir, "backups"))
+        os.makedirs(outside)
+        os.symlink(outside, os.path.join(self.data_dir, "backups", "link"))
+        await self.call("PUT", f"/workflows/{wf['id']}", json={
+            "name": "wf", "enabled": True, "steps": [{"name": "bk", "type": "backup", "config": {"path": "link"}}]},
+            expect=200)
+        run = await self.run_and_wait(wf["id"])
+        self.assertEqual(run["status"], "failed")
+        self.assertIn("inside <data>/backups", run["steps"][0]["error"])
+        self.assertEqual(os.listdir(outside), [])
 
     async def test_container_actions_and_relative_backup_path(self):
         cid = self.engine.add_container("svc")
@@ -136,7 +161,7 @@ class TestStepErrors(WorkflowCase):
                                    headers={"X-Trace": "abc"})
         run = await self.wait_run(wf["id"], (await r.json())["runId"])
         self.assertEqual(run["status"], "success", run["steps"])
-        self.assertTrue(os.listdir(os.path.join(self.data_dir, "nightly")))
+        self.assertTrue(os.listdir(os.path.join(self.data_dir, "backups", "nightly")))
         sent = [x for x in self.receiver.received if x["path"] == "/q"]
         self.assertTrue(sent)
 

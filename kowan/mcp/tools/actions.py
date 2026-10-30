@@ -168,13 +168,13 @@ def register(reg: ToolRegistry) -> None:
     )
     async def run_workflow(ctx, args):
         from ...models import WorkflowTriggerManual
-        from ...workflow.policy import script_rights_problem
+        from ...workflow.policy import step_rights_problem
 
         engine = getattr(ctx.svc, "workflow_engine", None)
         if engine is None:
             raise ToolError("workflow engine unavailable")
         wf = find_workflow(ctx.svc, args["workflow"])
-        problem = script_rights_problem(getattr(ctx.user, "role", ""), wf.steps)
+        problem = step_rights_problem(getattr(ctx.user, "role", ""), wf.steps)
         if problem:
             raise ToolError(problem)
         run_id = await engine.run(wf.id, WorkflowTriggerManual, None)
