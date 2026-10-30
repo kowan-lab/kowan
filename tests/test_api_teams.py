@@ -47,6 +47,29 @@ class TestTeamsApi(ServerCase):
         _, listing = await self.call("GET", "/teams", expect=200)
         self.assertEqual([x["id"] for x in listing], [other["id"]])
 
+    async def test_team_with_bound_keys_cannot_be_deleted(self):
+        # Unbinding would leave the key acting with its full role: fail closed.
+        _, t = await self.call("POST", "/teams", json={"name": "ci"}, expect=201)
+        _, key = await self.call("POST", "/apikeys", json={"name": "deployer", "role": "operator",
+                                                           "teamId": t["id"]}, expect=201)
+        _, body = await self.call("DELETE", f"/teams/{t['id']}", expect=409)
+        self.assertIn("deployer", body["error"])
+        r = await self.client.get("/api/v1/me/permissions", headers={"X-API-Key": key["secret"]})
+        self.assertEqual((await r.json())["mode"], "scoped")
+
+        await self.call("DELETE", f"/apikeys/{key['apiKey']['id']}", expect=200)
+        await self.call("DELETE", f"/teams/{t['id']}", expect=200)
+
+    async def test_store_team_delete_keeps_keys_bound(self):
+        # Even below the API, a key bound to a deleted team stays scoped (no grants).
+        _, t = await self.call("POST", "/teams", json={"name": "gone"}, expect=201)
+        _, key = await self.call("POST", "/apikeys", json={"name": "k", "role": "operator",
+                                                           "teamId": t["id"]}, expect=201)
+        self.svc.store.delete_team(t["id"])
+        r = await self.client.get("/api/v1/me/permissions", headers={"X-API-Key": key["secret"]})
+        me = await r.json()
+        self.assertEqual((me["mode"], me["grants"]), ("scoped", []))
+
     async def test_grant_validation_per_scope(self):
         _, t = await self.call("POST", "/teams", json={"name": "g"}, expect=201)
         base = {"subjectType": "team", "subjectId": t["id"], "level": "read"}

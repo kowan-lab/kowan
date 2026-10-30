@@ -157,6 +157,13 @@ async def _delete_team(request: web.Request) -> web.Response:
         t = svc.store.get_team(tid)
     except Exception:  # noqa: BLE001
         return error_response(404, "team not found")
+    # Fail closed: unbinding a key would leave it acting with its full role, so
+    # its team cannot go while it is bound (keys cannot be rebound: revoke them).
+    bound = sorted(k.name for k in svc.store.list_api_keys() if k.team_id == tid)
+    if bound:
+        return error_response(
+            409, "API keys are bound to this team: " + ", ".join(bound) + "; revoke them first"
+        )
     svc.store.delete_team(tid)
     audit(svc, request, "team.delete", {"team": tid, "name": t.name})
     return json_response({"status": "deleted"})

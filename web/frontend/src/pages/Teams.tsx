@@ -319,7 +319,7 @@ export default function Teams() {
         message={
           <>
             Delete <Text as="span" weight="semibold">{deleting?.name}</Text> and its grants? Members who belong to no other team go back to
-            their global role on every host. API keys bound to the team lose the binding.
+            their global role on every host. A team with API keys bound to it cannot be deleted: revoke those keys first.
           </>
         }
       />

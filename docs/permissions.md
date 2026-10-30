@@ -66,7 +66,9 @@ asked:
 `POST /api/v1/apikeys` accepts `teamId` (the key acts with the team's grants)
 and/or `scopes` (a list of `{scope, hostId, target, level}`, stored as grants
 with subject `apikey`). A team-bound or scoped key cannot have the `admin`
-role. Deleting the key deletes its scopes; deleting a team unbinds its keys.
+role. Deleting the key deletes its scopes. A team with bound keys cannot be
+deleted (409, naming the keys) until they are revoked: an unbound key would act
+with its full role, and keys cannot be rebound.
 
 ## REST
 
