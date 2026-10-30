@@ -15,7 +15,7 @@ detail, `DeploymentBackupSection` on deployment detail).
 |---|---|---|
 | `local` | `path` (absolute, on `hostId`'s disk) | `password` |
 | `s3` | `endpoint` (empty = AWS; `http://` for plain MinIO), `bucket`, `prefix`, `region` | `password`, `accessKeyId`, `secretAccessKey` |
-| `sftp` | `host`, Kowan, `user`, `path` | `password`, `sshKey` |
+| `sftp` | `host`, `port`, `user`, `path` | `password`, `sshKey` |
 | `rest` | `url`, `username` | `password`, `restPassword` |
 
 All types accept `network`: a Docker network the restic container joins (for
