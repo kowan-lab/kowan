@@ -391,10 +391,13 @@ def _docker_run(svc, request: web.Request, host: Host) -> str:
       inbound port is needed.
     - agent: the agent LISTENS on 9001 and the control plane dials it, so the
       port is published and no server URL is needed.
+
+    Both restart the agent with Docker (``unless-stopped``), so it comes back
+    after a crash or a host reboot.
     """
     image = _agent_image()
     base = (
-        "docker run -d --name kowan-agent "
+        "docker run -d --name kowan-agent --restart unless-stopped "
         "-v /var/run/docker.sock:/var/run/docker.sock "
     )
     if host.mode == HostModeEdge:
