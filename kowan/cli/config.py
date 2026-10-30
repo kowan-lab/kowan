@@ -4,7 +4,10 @@ Config lives at ``~/.kowan/config.yaml`` and carries the server URL, a bearer
 token, and an optional admin-managed API key ("pk_..."). Configuration sources
 are merged with this precedence:
 
-    command-line flag > ~/.kowan/config.yaml > environment variable
+    command-line flag > environment variable > ~/.kowan/config.yaml
+
+so ``KOWAN_SERVER=... kowanctl ...`` reaches another server without editing
+the file that ``kowanctl login`` wrote.
 """
 
 from __future__ import annotations
@@ -107,16 +110,16 @@ def resolve_config(
     flag_token: str = "",
     flag_api_key: str = "",
 ) -> Resolved:
-    """Merge flags, config file, and environment by precedence.
+    """Merge flags, environment, and config file by precedence.
 
-    Precedence per field: flag > config file > environment variable
-    (KOWAN_SERVER / KOWAN_TOKEN / KOWAN_API_KEY).
+    Precedence per field: flag > environment variable (KOWAN_SERVER /
+    KOWAN_TOKEN / KOWAN_API_KEY) > config file.
     """
     cfg = load_config()
     return Resolved(
-        server=first_non_empty(flag_server, cfg.server, os.getenv("KOWAN_SERVER", "")),
-        token=first_non_empty(flag_token, cfg.token, os.getenv("KOWAN_TOKEN", "")),
+        server=first_non_empty(flag_server, os.getenv("KOWAN_SERVER", ""), cfg.server),
+        token=first_non_empty(flag_token, os.getenv("KOWAN_TOKEN", ""), cfg.token),
         api_key=first_non_empty(
-            flag_api_key, cfg.api_key, os.getenv("KOWAN_API_KEY", "")
+            flag_api_key, os.getenv("KOWAN_API_KEY", ""), cfg.api_key
         ),
     )

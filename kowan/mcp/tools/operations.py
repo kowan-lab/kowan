@@ -36,10 +36,6 @@ def _find_check(store: Any, ref: str) -> Dict[str, Any]:
     raise ToolError(f"uptime check {ref!r} not found; call uptime_status")
 
 
-def _visible_host(host_id: str) -> bool:
-    return not host_id or authz.host_item_visible(host_id)
-
-
 def register(reg: ToolRegistry) -> None:
     # -- uptime ----------------------------------------------------------------
 
@@ -140,7 +136,7 @@ def register(reg: ToolRegistry) -> None:
             "volumes": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 500},
             "build_cache": {"type": "boolean"},
         }, "required": ["picks"]},
-        role=ROLE_ADMIN, read_only=False, destructive=True, idempotent=False, requires_confirm=True,
+        role=ROLE_OPERATOR, read_only=False, destructive=True, idempotent=False, requires_confirm=True,
     )
     async def run_cleanup(ctx, args):
         from ... import cleanup
@@ -181,9 +177,11 @@ def register(reg: ToolRegistry) -> None:
         svc = getattr(ctx.svc, "schedules", None)
         if svc is None:
             raise ToolError("schedules are not available on this server")
+        from ...api.schedules import _targets
+
         host_id = resolve_host(ctx.svc, args["host"]).id if args.get("host") else ""
-        items = [s for s in svc.all_schedules() if _visible_host(s.get("hostId", ""))
-                 and (not host_id or s.get("hostId") == host_id)]
+        items = await authz.TargetAccess(ctx.svc.store, ctx.svc.docker).filter(
+            [s for s in svc.all_schedules() if not host_id or s.get("hostId") == host_id], _targets)
         ids = {s["id"] for s in items}
         runs = [r for r in ctx.svc.store.list_schedule_runs("", 200) if r.get("scheduleId") in ids]
         names = _host_names(ctx.svc)
@@ -210,9 +208,12 @@ def register(reg: ToolRegistry) -> None:
             s = svc.find(args["schedule"])
         except Exception as err:  # noqa: BLE001
             raise ToolError(f"schedule {args['schedule']!r} not found; call list_schedules") from err
-        if not _visible_host(s.get("hostId", "")):
+        from ...api.schedules import _targets
+
+        access = authz.TargetAccess(ctx.svc.store, ctx.svc.docker)
+        if not await access.allowed(_targets(s)[0]):
             raise ToolError(f"schedule {args['schedule']!r} not found; call list_schedules")
-        authz.check_host_item(s.get("hostId", ""), authz.LEVEL_OPERATE)
+        await access.check(_targets(s), authz.LEVEL_OPERATE)
         return await with_timeout(svc.execute(s, trigger="manual"), "schedule", 300)
 
     # -- volume backups ------------------------------------------------------------
@@ -233,12 +234,15 @@ def register(reg: ToolRegistry) -> None:
         svc = getattr(ctx.svc, "volbackups", None)
         if svc is None:
             raise ToolError("volume backups are not available on this server")
+        from ...api.volbackups import job_targets, run_targets
+
         host_id = resolve_host(ctx.svc, args["host"]).id if args.get("host") else ""
-        jobs = [j for j in ctx.svc.store.list_backup_jobs()
-                if _visible_host(j.get("hostId", "")) and (not host_id or j.get("hostId") == host_id)]
-        runs = [r for r in ctx.svc.store.list_backup_runs(job_id=args.get("job") or "", volume=args.get("volume") or "",
-                                                         host_id=host_id, limit=int(args.get("runs") or 20))
-                if _visible_host(r.get("hostId", ""))]
+        access = authz.TargetAccess(ctx.svc.store, ctx.svc.docker)
+        jobs = await access.filter([j for j in ctx.svc.store.list_backup_jobs()
+                                    if not host_id or j.get("hostId") == host_id], job_targets)
+        runs = await access.filter(ctx.svc.store.list_backup_runs(
+            job_id=args.get("job") or "", volume=args.get("volume") or "", host_id=host_id,
+            limit=int(args.get("runs") or 20)), run_targets)
         for r in runs:
             for k in ("log", "error", "message"):
                 if k in r:
@@ -264,9 +268,12 @@ def register(reg: ToolRegistry) -> None:
             if len(named) > 1:
                 raise ToolError(f"backup job name {args['job']!r} is ambiguous; use the id")
             job = named[0] if named else None
-        if job is None or not _visible_host(job.get("hostId", "")):
+        from ...api.volbackups import job_targets
+
+        access = authz.TargetAccess(ctx.svc.store, ctx.svc.docker)
+        if job is None or not await access.allowed_all(job_targets(job)):
             raise ToolError(f"backup job {args['job']!r} not found; call list_backups")
-        authz.check_host_item(job.get("hostId", ""), authz.LEVEL_OPERATE)
+        await access.check(job_targets(job), authz.LEVEL_OPERATE)
         run = svc.start_backup(job, trigger="manual")
         return {"job": job.get("name") or job["id"], "run": run, "note": "runs in the background"}
 

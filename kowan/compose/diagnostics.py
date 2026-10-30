@@ -2,7 +2,7 @@
 
 One stable JSON shape for the API and the UI::
 
-    {"severity": "error"|"warning"|"info", "code": "kowan-in-use",
+    {"severity": "error"|"warning"|"info", "code": "port-in-use",
      "message": "...", "path": "services.web.ports[0]", "line": 7, "column": 7,
      "fix": {"description": "...", "patch": [{"op": "set", "path": [...], "value": ...}]}}
 

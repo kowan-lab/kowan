@@ -49,8 +49,9 @@ services:
 
 Verification: the new container must be running, its healthcheck (if it
 defines one) must report `healthy`, and its restart count must not increase,
-for the "stable" period (default 10 s) within the deadline (default 120 s;
-both in the Auto-update settings). On failure the container is recreated from
+for the "stable" period (default 10 s) within the deadline (default 120 s).
+The deadline is in the Auto-update settings; the stable period is set only
+through the API (`PUT /api/v1/autoupdate/settings` with `stableSeconds`). On failure the container is recreated from
 the previous image, pinned by its repo digest (`nginx@sha256:...`), because the
 tag already points at the new image. Kowan remembers the original tag and the
 failed digest: it keeps following the tag and does not retry that digest;

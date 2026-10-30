@@ -11,7 +11,7 @@ forgets the session (restart -> 404), and ends the session on EOF.
 Configuration (first non-empty wins):
 
   server:  --url, $KOWAN_URL, then kowanctl's usual chain
-           (kowanctl --server, ~/.kowan/config.yaml, $KOWAN_SERVER)
+           (kowanctl --server, $KOWAN_SERVER, ~/.kowan/config.yaml)
   api key: --api-key, $KOWAN_API_KEY, then kowanctl --api-key / config file
   (a login token from ``kowanctl login`` is used when no API key is set)
 
@@ -180,7 +180,7 @@ class Bridge:
 
 def resolve_bridge_config(flag_url: str = "", flag_api_key: str = "") -> tuple[str, str, str]:
     """(server, api_key, token): --url/--api-key, then $KOWAN_URL/$KOWAN_API_KEY,
-    then the usual kowanctl resolution (--server/--api-key, config file, env)."""
+    then the usual kowanctl resolution (--server/--api-key, env, config file)."""
     from .main import resolved
 
     r = resolved()

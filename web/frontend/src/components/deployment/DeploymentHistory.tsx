@@ -23,6 +23,11 @@ const SOURCE: Record<string, string> = {
   exposure: "Exposure",
   mcp: "AI assistant",
   update: "Updated",
+  preview: "Branch preview",
+  promote: "Promotion",
+  import: "Imported",
+  tags: "New image tag",
+  registry: "Hosted registry",
 };
 
 const FIELD: Record<string, string> = {

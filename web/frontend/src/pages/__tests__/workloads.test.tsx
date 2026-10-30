@@ -59,6 +59,23 @@ describe("workload: deployment", () => {
     await waitFor(() => expect(screen.queryByText(/validating/i)).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(requests("PUT", "/deployments/d-shop")[0].body).toMatchObject({ strategy: "swarm" }));
+    // The reply shows no redeploy under way: the change waits for a deploy.
+    await toast(/redeploy shop to apply/i);
+  });
+
+  it("says when the server redeploys a saved change itself", async () => {
+    // Auto-heal on and deployed: the server answers with a redeploy under way.
+    const { user } = await open(SHOP + "?tab=config", "shop", {
+      "PUT /deployments/:id": (r: { body: unknown }) => ({ ...deployments[0], ...(r.body as object), status: "deploying" }),
+    });
+    expect(await screen.findByText(/auto-heal is on: a change to what runs redeploys it/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/swarm cluster/i));
+    await waitFor(() => expect(requests("POST", "/compose/validate").length).toBeGreaterThan(0), { timeout: 5000 });
+    await waitFor(() => expect(screen.queryByText(/validating/i)).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /save and redeploy/i }));
+    await toast(/shop is redeploying to apply it/i);
+    // No second deploy on top of the one the server started.
+    expect(requests("POST", "/deployments/d-shop/deploy")).toHaveLength(0);
   });
 
   it("edits stack variables, config and secret", async () => {

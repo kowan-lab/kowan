@@ -17,6 +17,11 @@ class TestHostsApi(ServerCase):
         hid = created["host"]["id"]
         _, cmd = await self.call("GET", f"/hosts/{hid}/edge-command", "admin", expect=200)
         self.assertIn("KOWAN_SERVER_URL=http://", cmd["dockerRun"])
+        # The agent comes back after a host reboot, edge and direct alike.
+        _, direct = await self.call("POST", "/hosts", "admin", json={
+            "name": "direct1", "mode": "agent", "address": "10.0.0.5:9001"}, expect=201)
+        for run in (created["dockerRun"], cmd["dockerRun"], direct["dockerRun"]):
+            self.assertIn(" --restart unless-stopped ", run)
         r = await self.client.get(f"/api/v1/hosts/{hid}/edge-command", headers={
             **self.h["admin"], "X-Forwarded-Proto": "https"})
         self.assertIn("KOWAN_SERVER_URL=https://", (await r.json())["dockerRun"])

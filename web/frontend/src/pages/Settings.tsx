@@ -19,6 +19,7 @@ import { errorMessage } from "../utils";
 // ---------------------------------------------------------------------------
 
 interface PasswordFormValues {
+  current: string;
   password: string;
   confirm: string;
 }
@@ -27,18 +28,22 @@ function ProfileCard() {
   const { user, adoptSession } = useAuth();
 
   const [values, setValues] = useState<PasswordFormValues>({
+    current: "",
     password: "",
     confirm: "",
   });
-  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
+  const [errors, setErrors] = useState<{ current?: string; password?: string; confirm?: string }>({});
 
   const resetForm = () => {
-    setValues({ password: "", confirm: "" });
+    setValues({ current: "", password: "", confirm: "" });
     setErrors({});
   };
 
   const validate = (): boolean => {
-    const next: { password?: string; confirm?: string } = {};
+    const next: { current?: string; password?: string; confirm?: string } = {};
+    if (!values.current) {
+      next.current = "Enter your current password";
+    }
     if (values.password.length < 8) {
       next.password = "Password must be at least 8 characters";
     }
@@ -50,9 +55,9 @@ function ProfileCard() {
   };
 
   const mutation = useMutation({
-    mutationFn: (password: string) => {
+    mutationFn: (v: PasswordFormValues) => {
       if (!user) throw new Error("Not signed in");
-      return changeOwnPassword(user.id, password);
+      return changeOwnPassword(v.current, v.password);
     },
     onSuccess: ({ user: updated, token }) => {
       // Other sessions end with the old password; this tab carries on.
@@ -76,7 +81,7 @@ function ProfileCard() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    mutation.mutate(values.password);
+    mutation.mutate(values);
   };
 
   return (
@@ -94,6 +99,18 @@ function ProfileCard() {
       </Text>
       <form onSubmit={handleSubmit}>
         <Box direction="column" gap={4}>
+          <TextInput
+            type="password"
+            label="Current password"
+            placeholder="Current password"
+            autoComplete="current-password"
+            disabled={!user || mutation.isPending}
+            value={values.current}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, current: e.target.value }))
+            }
+            errorText={errors.current}
+          />
           <TextInput
             type="password"
             label="New password"
@@ -188,11 +205,15 @@ function BackupCard() {
         iconLeft={<Icon name="info-outline-rounded" size="sm" />}
         title="What is included"
       >
-        The backup contains the database and the stacks data directory. Secrets
-        are encrypted with <Text as="span" weight="semibold">KOWAN_SECRET_KEY</Text>, which is{" "}
-        <Text as="span" weight="semibold">not</Text> included — restoring on another server
-        requires the same key to decrypt them. A restore is staged and applied
-        the next time the server starts.
+        The backup contains the database, the stacks data directory and the
+        server's keys (<Text as="span" mono>secret.key</Text>, which encrypts stored
+        secrets, and <Text as="span" mono>jwt.key</Text>, which signs sessions), so a
+        restore brings everything back from the archive alone.{" "}
+        <Text as="span" weight="semibold">Anyone with the archive can decrypt every stored secret:</Text>{" "}
+        store it like a password. A key set through{" "}
+        <Text as="span" mono>KOWAN_SECRET_KEY</Text> or <Text as="span" mono>KOWAN_JWT_SECRET</Text>{" "}
+        is not in the archive: give the restored server the same value. A restore
+        is staged and applied the next time the server starts.
       </Callout>
 
       <Divider />

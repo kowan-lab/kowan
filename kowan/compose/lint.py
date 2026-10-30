@@ -20,6 +20,7 @@ docker-socket          warning   the Docker socket is mounted
 port-in-use            error     published port already used on the host
 port-duplicate         error     two services publish the same host port
 bind-path-missing      warn/err  absolute bind source missing on the host
+relative-path          warning   relative bind / env_file / file: resolves in a temp folder
 volume-undeclared      error     named volume not declared at the top level
 healthcheck-missing    info      a dependency has no healthcheck
 healthcheck-required   warning   ``condition: service_healthy`` w/o healthcheck
@@ -255,7 +256,7 @@ def rule_ports(ctx: LintContext) -> List[Diagnostic]:
             for port, proto in published_ports(e):
                 key = (port, proto)
                 if key in used_here and used_here[key] != name:
-                    out.append(_diag(ctx, SEVERITY_ERROR, "kowan-duplicate",
+                    out.append(_diag(ctx, SEVERITY_ERROR, "port-duplicate",
                                      f"host port {port}/{proto} is published by both {used_here[key]!r} and {name!r}",
                                      path))
                 used_here.setdefault(key, name)
@@ -272,7 +273,7 @@ def rule_ports(ctx: LintContext) -> List[Diagnostic]:
                                 fix = Fix(f"Publish on {free} instead", [{"op": "set", "path": path, "value": repl}])
                         if fix is not None:
                             taken.add(free)
-                    out.append(_diag(ctx, SEVERITY_ERROR, "kowan-in-use",
+                    out.append(_diag(ctx, SEVERITY_ERROR, "port-in-use",
                                      f"host port {port}/{proto} is already used on the target host by {host[key]!r}",
                                      path, fix))
     return out
@@ -321,6 +322,51 @@ def rule_volumes(ctx: LintContext) -> List[Diagnostic]:
                 out.append(_diag(ctx, SEVERITY_WARNING, "bind-path-missing",
                                  f"bind source {bsrc!r} does not exist on the target host; Docker will create it as an empty root-owned directory. Use a named volume or create the path first",
                                  path))
+    return out
+
+
+def _relative(path: str) -> bool:
+    """A local path that docker compose resolves against the project folder."""
+    return bool(path) and not path.startswith(("/", "~")) and "$" not in path and "://" not in path
+
+
+_TEMP_FOLDER = ("Kowan hands the Compose file to Docker from a temporary folder on the host, "
+                "so it resolves there, not next to your file")
+
+
+def rule_relative_paths(ctx: LintContext) -> List[Diagnostic]:
+    """Relative bind sources, env files and config/secret files. Every compose
+    deployment (inline or from git) reaches the host as text written to a temp
+    file, so docker compose resolves them in that temp folder."""
+    out = []
+    for name, svc in ctx.services.items():
+        vols = svc.get("volumes")
+        for i, v in enumerate(vols if isinstance(vols, list) else []):
+            typ, src = _volume_source(v)
+            if typ == "bind" and _relative(src):
+                out.append(_diag(ctx, SEVERITY_WARNING, "relative-path",
+                                 f"bind source {src!r} of service {name!r} is relative: {_TEMP_FOLDER} "
+                                 "(and may be emptied). Use an absolute path or a named volume",
+                                 ["services", name, "volumes", i]))
+        env_file = svc.get("env_file")
+        entries = env_file if isinstance(env_file, list) else [env_file] if env_file else []
+        for i, e in enumerate(entries):
+            f = str(e.get("path") or "") if isinstance(e, dict) else str(e)
+            if _relative(f):
+                path: List[PathSeg] = ["services", name, "env_file"] + ([i] if isinstance(env_file, list) else [])
+                out.append(_diag(ctx, SEVERITY_WARNING, "relative-path",
+                                 f"env_file {f!r} of service {name!r} is relative: {_TEMP_FOLDER}, where it does not "
+                                 "exist. Use an absolute path, or put the values in the deployment's variables",
+                                 path))
+    doc = ctx.parsed.doc if isinstance(ctx.parsed.doc, dict) else {}
+    for top in ("configs", "secrets"):
+        items = doc.get(top) if isinstance(doc.get(top), dict) else {}
+        for key, item in items.items():
+            f = str(item.get("file") or "") if isinstance(item, dict) else ""
+            if _relative(f):
+                out.append(_diag(ctx, SEVERITY_WARNING, "relative-path",
+                                 f"{top[:-1]} {key!r} reads the relative file {f!r}: {_TEMP_FOLDER}. "
+                                 "Use an absolute path", [top, str(key), "file"]))
     return out
 
 
@@ -510,6 +556,7 @@ RULES: List[Callable[[LintContext], List[Diagnostic]]] = [
     rule_security,
     rule_ports,
     rule_volumes,
+    rule_relative_paths,
     rule_depends,
     rule_container_names,
     rule_env,

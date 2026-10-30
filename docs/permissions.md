@@ -52,12 +52,22 @@ asked:
   labels) and list calls are filtered. Unknown Ops methods fail closed.
 * store-backed objects are checked/filtered with helpers: hosts
   (`filter_hosts`, `check_host`), deployments (`check_deployment`,
-  `filter_deployments`), alerts / rules / notifications by host, workflows
-  (fleet-wide: need an `all_hosts` grant).
+  `filter_deployments`), alerts / rules / notifications by host (the unread
+  counter counts only what the list shows), workflows (fleet-wide: need an
+  `all_hosts` grant).
+* records that name their target (schedules and their runs, volume backup jobs
+  and runs, auto-update policies and history) go through `TargetAccess`: a
+  deployment or stack target is decided from the record, a container or volume
+  by its labels (read once per host through the caller's scoped Docker view),
+  a record without a host needs `all_hosts`, and an unresolvable target is
+  hidden. Lists and gets are filtered (404 outside the grants); creating,
+  changing, deleting or running one needs `operate` on every target (`manage`
+  for a lone container's auto-update policy, which recreates it, and for a
+  restore), because the background runners carry these out with no principal.
 * MCP tools use the same principal; `list_hosts`, `list_containers`,
-  `list_deployments`, `list_alerts`, `list_workflows` and the fleet snapshot
-  return only what the caller may read, and object tools fail with the same
-  errors as REST.
+  `list_deployments`, `list_alerts`, `list_workflows`, `list_schedules`,
+  `list_backups` and the fleet snapshot return only what the caller may read,
+  and object tools fail with the same errors as REST.
 * Background workers (monitor, reconcile loop, scheduler, webhooks) have no
   bound principal and are not restricted.
 
@@ -66,7 +76,9 @@ asked:
 `POST /api/v1/apikeys` accepts `teamId` (the key acts with the team's grants)
 and/or `scopes` (a list of `{scope, hostId, target, level}`, stored as grants
 with subject `apikey`). A team-bound or scoped key cannot have the `admin`
-role. Deleting the key deletes its scopes; deleting a team unbinds its keys.
+role. Deleting the key deletes its scopes. A team with bound keys cannot be
+deleted (409, naming the keys) until they are revoked: an unbound key would act
+with its full role, and keys cannot be rebound.
 
 ## REST
 
@@ -96,9 +108,12 @@ created_by)`, `api_keys.team_id`.
 ## Known limits
 
 * Docker events streams need a host-wide grant (they are not filtered per object).
-* The notification unread counter is global; the notification list is filtered.
-* Store-backed objects of newer modules (backups, schedules, auto-update
-  policies, GitOps) are not filtered yet; their Docker actions are enforced
-  through `ScopedOps`.
-* JWTs are stateless: a role change applies at the next sign-in, grant and team
-  changes apply immediately.
+* Notifications have one shared read flag: marking one (or all) read marks it
+  for everyone.
+* GitOps is admin-only (admins bypass grants), so GitOps-managed schedules
+  and auto-update policies can point anywhere; they show to scoped users only
+  where their grants cover the target.
+* A role change ends the user's sessions at once (the session version in their
+  tokens no longer matches, open WebSockets included once they reconnect), so
+  they sign in again under the new role; grant and team changes apply
+  immediately, without a new sign-in.

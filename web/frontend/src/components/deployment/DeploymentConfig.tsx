@@ -1,6 +1,8 @@
 // Configuration tab: the shared DeploymentForm (mode="edit") under a sticky
-// save bar that says whether there are unsaved changes and that saving does not
-// touch the running containers until the next deploy.
+// save bar that says whether there are unsaved changes and when a save reaches
+// the running containers: right away when auto-heal is on and the deployment
+// runs (the server redeploys in the background when what runs changes),
+// otherwise on the next deploy.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -66,21 +68,27 @@ export default function DeploymentConfig({
       return;
     }
     setError(null);
+    let saved: Deployment;
     try {
       // The name is not edited here (the page header owns it); keep it.
       const input = deploymentFormToInput(form);
       // Preview settings are edited on the overview, not here: keep them.
       if (input.git) input.git = { ...input.git, previews: d.git?.previews ?? null };
-      await save.mutateAsync({ ...input, name: d.name } as DeploymentInput);
+      saved = await save.mutateAsync({ ...input, name: d.name } as DeploymentInput);
     } catch {
       return;
     }
-    if (redeploy) {
+    if (deployInFlight(saved)) {
+      // Auto-heal on a running deployment: the server is already applying it.
+      notify({ color: "green", title: "Configuration saved", message: `${d.name} is redeploying to apply it.` });
+    } else if (redeploy) {
       life.run("deploy");
     } else {
       notify({ color: "green", title: "Configuration saved", message: `Redeploy ${d.name} to apply it to the running containers.` });
     }
   };
+
+  const autoApplies = d.enabled && (d.status === "deployed" || deployInFlight(d));
 
   const reset = () => {
     setForm(deploymentFormFromDeployment(d));
@@ -92,7 +100,11 @@ export default function DeploymentConfig({
       {canOperate ? (
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 shadow-[inset_0_0_0_1px_var(--border)] bg-card px-[var(--page-px,16px)] py-3">
           <Text size="sm" color={dirty ? "warning" : "muted"} role="status">
-            {dirty ? "Unsaved changes" : "Saved. Changes apply to the containers on the next deploy."}
+            {dirty
+              ? "Unsaved changes"
+              : autoApplies
+                ? "Saved. Auto-heal is on: a change to what runs redeploys it right away."
+                : "Saved. Changes apply to the containers on the next deploy."}
           </Text>
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="clear" color="neutral" disabled={!dirty || save.isPending} onClick={reset}>

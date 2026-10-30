@@ -179,7 +179,6 @@ class _TeamMixin(_Base):
             self._execute(
                 "DELETE FROM grants WHERE subject_type = ? AND subject_id = ?", (SUBJECT_TEAM, team_id)
             )
-            self._execute("UPDATE api_keys SET team_id = '' WHERE team_id = ?", (team_id,))
             self._execute("DELETE FROM teams WHERE id = ?", (team_id,))
         self._authz_invalidate()
 

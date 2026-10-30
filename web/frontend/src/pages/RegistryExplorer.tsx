@@ -131,7 +131,7 @@ export default function RegistryExplorer() {
             <EmptyState
               icon={<Icon name="visibility-outline-rounded" size="xl" />}
               title="No registries configured"
-              description="Add a registry under Security → Registries to browse its repositories and tags."
+              description="Add a registry under Settings → Registries to browse its repositories and tags."
             />
           </Card.Body>
         </Card>

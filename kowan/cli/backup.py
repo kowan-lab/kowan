@@ -18,7 +18,10 @@ from . import main as _main
 def register(app: typer.Typer) -> None:
     app.command(
         "backup",
-        help="Download a backup of the control-plane state (database + stacks)",
+        help=(
+            "Download a backup of the control-plane state (database, stacks and "
+            "the server's keys: keep it as safe as the keys)"
+        ),
     )(backup)
     app.command(
         "restore",
@@ -34,7 +37,10 @@ def backup(
         "", "--out", "-o", help="output file (default ./kowan-backup-<date>.tar.gz)"
     ),
 ) -> None:
-    """Download a backup of the control-plane state (database + stacks)."""
+    """Download a backup of the control-plane state (database, stacks and keys).
+
+    The archive holds the server's encryption and signing keys, so the file is
+    created readable by its owner only (0600)."""
     _main.require_token()
 
     dest = out.strip()
@@ -43,7 +49,7 @@ def backup(
 
     with _main.new_client() as c:
         try:
-            f = open(dest, "wb")
+            f = os.fdopen(os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "wb")
         except OSError as e:
             raise RuntimeError(f"create backup file {dest}: {e}") from e
         try:

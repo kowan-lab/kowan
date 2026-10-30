@@ -135,8 +135,8 @@ closed 10 differences.
 
 **Still to harden**, mostly against real services: WebSocket streaming (logs,
 stats, exec) is implemented but has little end-to-end coverage; some external
-providers (live LDAP, cloud secret managers) are implemented but not tested
-against the real services.
+providers (cloud secret managers) are implemented but not tested against the
+real services.
 
 ## Environment variables: retention and performance
 
@@ -146,11 +146,29 @@ against the real services.
 | `KOWAN_ALERT_RETENTION` | `30d` | Delete **resolved** alerts older than this (active ones stay). |
 | `KOWAN_WORKFLOW_RUNS_KEEP` | `100` | Runs kept per workflow (the most recent; a run still `running` is never deleted). |
 | `KOWAN_UVLOOP` | (on) | `0` turns uvloop off and uses the standard asyncio loop. |
+| `KOWAN_RECONCILE_INTERVAL` | `5s` | How often the reconcile loop checks that enabled deployments are live. |
+| `KOWAN_RECONCILE_COOLDOWN` | `2m` | Minimum gap between two reconcile-driven redeploys of one deployment. |
 
 Durations accept Go's format (`720h`, `1h30m`), days (`90d`) or whole seconds;
-`0` turns that cleanup off. Pruning runs about once an hour in the monitor's
+`0` turns a retention cleanup off. Pruning runs about once an hour in the monitor's
 loop. `orjson` and `uvloop` are optional: without them the stdlib `json` and
 `asyncio` are used.
+
+## Control-plane backup
+
+`GET /api/v1/backup` (admin), `kowanctl backup` and the workflow **Backup**
+step (admin, under `<data>/backups`) write the same gzip tar
+(`kowan/backup.py`): `manifest.json`, a SQLite snapshot as `kowan.db`, the
+`stacks/` folder and the master keys kept as files, `secret.key` (encrypts
+stored secrets) and `jwt.key` (signs sessions). A restore is therefore complete
+from the archive alone: secrets stay decryptable and sessions stay valid.
+
+The archive is as sensitive as those keys: anyone holding it can decrypt every
+stored secret and sign sessions for that server. Store it like a password. The
+step and the CLI write it `0600`. A key supplied through `KOWAN_SECRET_KEY` or
+`KOWAN_JWT_SECRET` has no file and is not archived: configure the restored
+server with the same value. `tests/test_backup_keys.py` and
+`tests/test_api_backup.py` pin this.
 
 ## License
 

@@ -55,7 +55,7 @@ The bridge resolves its configuration in this order (first non-empty value wins)
 
 | | |
 |---|---|
-| server | `--url`, `$KOWAN_URL`, `kowanctl --server`, `~/.kowan/config.yaml`, `$KOWAN_SERVER` |
+| server | `--url`, `$KOWAN_URL`, `kowanctl --server`, `$KOWAN_SERVER`, `~/.kowan/config.yaml` |
 | credential | `--api-key`, `$KOWAN_API_KEY`, `kowanctl --api-key` / config file, then the `kowanctl login` token |
 
 The bridge keeps the session id, sends the negotiated `MCP-Protocol-Version`, and
@@ -125,14 +125,14 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `run_uptime_check` | operator | idempotent, open-world | Probe a check now |
 | `run_schedule` | operator | idempotent: no | Run a schedule's start/stop now |
 | `run_backup` | operator | open-world | Start a backup job now |
-| `remove_container` | admin | **destructive** | Needs `confirm: true` |
-| `remove_image` | admin | **destructive** | Needs `confirm: true` |
-| `remove_volume` | admin | **destructive** | Needs `confirm: true` (the data is lost) |
-| `prune` | admin | **destructive** | `kind`: containers / images (`all_images`) / volumes / networks; needs `confirm: true` |
-| `destroy_deployment` | admin | **destructive** | Removes the running resources; `delete_record=true` also deletes the record; needs `confirm: true` |
-| `create_deployment` | admin | | From compose YAML or a container spec, on one host; `deploy=true` deploys it immediately |
-| `deploy_template` | admin | | Template id plus `inputs`; empty secret inputs get random values; deploys by default |
-| `run_cleanup` | admin | **destructive** | `picks=suggested` removes what `cleanup_plan` suggests, `picks=listed` the given ids; needs `confirm: true` |
+| `remove_container` | operator | **destructive** | Needs `confirm: true` |
+| `remove_image` | operator | **destructive** | Needs `confirm: true` |
+| `remove_volume` | operator | **destructive** | Needs `confirm: true` (the data is lost) |
+| `prune` | operator | **destructive** | `kind`: containers / images (`all_images`) / volumes / networks; needs `confirm: true` |
+| `destroy_deployment` | operator | **destructive** | Removes the running resources; `delete_record=true` also deletes the record; needs `confirm: true` |
+| `create_deployment` | operator | | From compose YAML or a container spec, on one host; `deploy=true` deploys it immediately |
+| `deploy_template` | operator | | Template id plus `inputs`; empty secret inputs get random values; deploys by default |
+| `run_cleanup` | operator | **destructive** | `picks=suggested` removes what `cleanup_plan` suggests, `picks=listed` the given ids; needs `confirm: true` |
 | `audit_log` | admin | read-only | Who did what: filter by `user`, `path`, `since` |
 
 Every tool sets the MCP annotations `title`, `readOnlyHint`, `destructiveHint`,
@@ -150,8 +150,10 @@ block.
 
 - **Same credentials, same rules.** The endpoint uses Kowan's normal auth: an API key (`pk_...`)
   or a console login JWT, sent as a bearer token. The role works exactly as in the REST API:
-  viewers get read-only tools, operators also get lifecycle actions, admins also get
-  destructive and create tools.
+  viewers get read-only tools, operators also get lifecycle, create and destructive
+  tools (the destructive ones still need `confirm: true`), admins also get the audit
+  log. Give an assistant a team-bound operator key rather than an admin key: admins
+  bypass team grants.
 - **Audit.** Every mutating tool call is written to the audit log with action `MCP`, path
   `/mcp/tools/<tool>`, the key or user as actor, and `source=mcp tool=... args=...` in the detail.
   Calls refused for lack of role are logged with status 403. In the logged args, compose files,

@@ -36,8 +36,15 @@ class TestBackupApi(ServerCase):
         status, archive = await self.call("GET", "/backup", "admin", expect=200)
         with tarfile.open(fileobj=io.BytesIO(gzip.decompress(archive))) as t:
             names = t.getnames()
+            archived_key = t.extractfile(backup.SECRET_KEY_NAME).read()
         self.assertIn("manifest.json", names)
         self.assertIn("kowan.db", names)
+        # The archive carries the encryption key kept as a file, so it restores
+        # everything (and is as sensitive as the key); a JWT secret supplied by
+        # configuration has no file and stays out.
+        with open(os.path.join(self.data_dir, backup.SECRET_KEY_NAME), "rb") as f:
+            self.assertEqual(archived_key, f.read())
+        self.assertNotIn(backup.JWT_KEY_NAME, names)
 
         await self.roles("POST", "/restore", "admin", data=archive)
         _, res = await self.call("POST", "/restore", "admin", data=archive, expect=200)

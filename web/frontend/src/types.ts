@@ -8,7 +8,7 @@ export interface User {
   role: Role;
   /** Email matched against an external identity provider at login. */
   email: string;
-  /** Account origin: "local" or a provider type ("oidc"/"github"/"google"/"ldap"). */
+  /** Account origin: "local", or "sso:<provider name>" for an account created at single sign-on. */
   authSource: string;
   createdAt: string;
 }
@@ -632,7 +632,7 @@ export type WorkflowStepType =
  *                                                 (env is KEY=VALUE per line; command is shell-split; remove truthy auto-removes)
  *   - prune:         { host, target }             (target in containers|images|images-all|volumes|networks|all)
  *   - notify:        { channel, title, body, level }
- *   - backup:        { path }                     (server-side dir; defaults to <data>/backups)
+ *   - backup:        { path }                     (sub-folder of <data>/backups; admins only)
  */
 export interface WorkflowStep {
   name: string;

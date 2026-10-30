@@ -69,7 +69,7 @@ from kowan.web import (
     require_role,
 )
 from kowan.workflow.engine import Engine
-from kowan.workflow.policy import script_rights_problem
+from kowan.workflow import policy
 from kowan.redact import MASK
 from kowan.workflow.poller import TriggerPoller
 from kowan.workflow.scheduler import Scheduler
@@ -105,7 +105,8 @@ def register(app: web.Application, svc) -> None:
 
     Read routes (list/get/runs/trigger-types) are open to any authenticated
     principal; all mutations and run triggering require ``operator`` (admins are
-    always allowed).
+    always allowed), and ``admin`` for a workflow with a script or backup step
+    (kowan.workflow.policy).
     """
     # Build the engine from the DI container (deployments/notify default from
     # svc). Attach it and the scheduler/poller so siblings and startup hooks can
@@ -241,6 +242,10 @@ def _validate(req: _Request) -> str:
                 f"step {i + 1}: type must be script, http, deploy, container, "
                 "notify, backup, run-container or prune"
             )
+        if step.type == WorkflowStepBackup:
+            problem = policy.backup_path_problem(str(step.config.get("path", "") or ""))
+            if problem:
+                return f"step {i + 1}: {problem}"
     for i, t in enumerate(req.triggers):
         if not triggers.is_registered(t.type):
             return f"trigger {i + 1}: unknown type {t.type!r}"
@@ -322,10 +327,10 @@ async def _handle_get_run(request: web.Request) -> web.StreamResponse:
 # ---------------------------------------------------------------------------
 
 
-def _require_script_rights(request: web.Request, *step_lists) -> None:
-    """Script steps run bash on the control plane (kowan.workflow.policy)."""
+def _require_step_rights(request: web.Request, *step_lists) -> None:
+    """Script and backup steps act on the control plane (kowan.workflow.policy)."""
     user = user_from(request)
-    problem = script_rights_problem(user.role if user is not None else "", *step_lists)
+    problem = policy.step_rights_problem(user.role if user is not None else "", *step_lists)
     if problem:
         raise Forbidden(problem)
 
@@ -340,7 +345,7 @@ async def _handle_create(request: web.Request) -> web.StreamResponse:
     msg = _validate(req)
     if msg != "":
         raise Validation(msg)
-    _require_script_rights(request, req.steps)
+    _require_step_rights(request, req.steps)
 
     now = now_rfc3339()
     wf = Workflow(
@@ -371,7 +376,7 @@ async def _handle_update(request: web.Request) -> web.StreamResponse:
     msg = _validate(req)
     if msg != "":
         raise Validation(msg)
-    _require_script_rights(request, wf.steps, req.steps)
+    _require_step_rights(request, wf.steps, req.steps)
 
     wf.name = req.name
     wf.description = req.description
@@ -416,7 +421,7 @@ async def _handle_run(request: web.Request) -> web.StreamResponse:
     svc = _svc(request)
     workflow_id = request.match_info["id"]
     wf = _load(svc, workflow_id)  # 404 for an unknown workflow
-    _require_script_rights(request, wf.steps)
+    _require_step_rights(request, wf.steps)
 
     run_id = await svc.workflow_engine.run(workflow_id, WorkflowTriggerManual, None)
     return json_response({"runId": run_id}, status=202)
@@ -432,7 +437,7 @@ async def _handle_create_webhook(request: web.Request) -> web.StreamResponse:
     run token and return {token, url} where url is "/hooks/workflow/{token}"."""
     svc = _svc(request)
     wf = _load(svc, request.match_info["id"])
-    _require_script_rights(request, wf.steps)
+    _require_step_rights(request, wf.steps)
     token = _generate_run_token()
     wf.run_token = token
     wf.updated_at = now_rfc3339()
@@ -476,6 +481,10 @@ async def _handle_hook(request: web.Request) -> web.StreamResponse:
         wf = svc.store.get_workflow_by_run_token(token)
     except Exception as err:
         raise NotFound("workflow webhook not found") from err
+    # "Enabled" allows scheduled, webhook and polling runs: a disabled workflow
+    # still runs by hand, never from its public URL.
+    if not wf.enabled:
+        raise Conflict("workflow is disabled")
 
     # Gate on the matching webhook trigger's configured method. The path token
     # may match a specific webhook trigger's config token or the

@@ -109,28 +109,28 @@ class TestRules(unittest.TestCase):
     def test_port_in_use_with_fix(self):
         text = "services:\n  a:\n    image: x:1\n    restart: always\n    ports:\n      - 127.0.0.1:8080:80/udp\n      - 9000:90\n"
         res = run(text, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})
-        d = find(res, "kowan-in-use")
+        d = find(res, "port-in-use")
         self.assertEqual((d.severity, d.path, d.line, d.column), ("error", "services.a.ports[0]", 6, 9))
         self.assertIn("'other'", d.message)
         # 8081 is taken on the host too -> next free is 8082; ip and proto kept.
         self.assertEqual(d.fix.patch, [{"op": "set", "path": ["services", "a", "ports", 0], "value": "127.0.0.1:8082:80/udp"}])
         # tcp 8080 free: protocol matters.
-        self.assertNotIn("kowan-in-use", codes(run(text, host_ports={(8080, "tcp"): "o"})))
+        self.assertNotIn("port-in-use", codes(run(text, host_ports={(8080, "tcp"): "o"})))
         # Unknown host facts: the rule is skipped.
-        self.assertNotIn("kowan-in-use", codes(run(text)))
+        self.assertNotIn("port-in-use", codes(run(text)))
         fixed = apply_patch(text, d.fix.patch)
-        self.assertNotIn("kowan-in-use", codes(run(fixed, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})))
+        self.assertNotIn("port-in-use", codes(run(fixed, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})))
 
     def test_port_in_use_long_syntax(self):
         text = "services:\n  a:\n    image: x:1\n    restart: always\n    ports:\n      - target: 80\n        published: 8080\n"
-        d = find(run(text, host_ports={(8080, "tcp"): "o"}), "kowan-in-use")
+        d = find(run(text, host_ports={(8080, "tcp"): "o"}), "port-in-use")
         self.assertEqual(d.fix.patch[0]["path"], ["services", "a", "ports", 0, "published"])
         self.assertEqual(d.fix.patch[0]["value"], 8081)
 
     def test_port_duplicate(self):
         res = run("services:\n  a:\n    image: x:1\n    restart: always\n    ports: ['80:80']\n"
                   "  b:\n    image: x:1\n    restart: always\n    ports: ['80:8080']\n")
-        d = find(res, "kowan-duplicate")
+        d = find(res, "port-duplicate")
         self.assertEqual(d.path, "services.b.ports[0]")
 
     def test_volumes(self):
@@ -148,6 +148,25 @@ class TestRules(unittest.TestCase):
         self.assertNotIn("bind-path-missing", codes(run(text)))
         fixed = apply_patch(text, d.fix.patch)
         self.assertNotIn("volume-undeclared", codes(run(fixed)))
+
+    def test_relative_paths(self):
+        # Compose reaches the host as text in a temp file: relative paths resolve there.
+        text = ("services:\n  a:\n    image: x:1\n    restart: always\n    volumes:\n      - ./rel:/r\n"
+                "      - ../up:/u\n      - /abs:/a\n      - data:/d\n      - ${DIR}/x:/x\n"
+                "      - {type: bind, source: conf, target: /c}\n"
+                "    env_file:\n      - .env\n      - /etc/app.env\n      - {path: extra.env}\n"
+                "  b:\n    image: y:1\n    restart: always\n    env_file: b.env\n"
+                "configs:\n  site:\n    file: ./site.conf\n  abs:\n    file: /etc/site.conf\n"
+                "secrets:\n  key:\n    file: key.pem\nvolumes:\n  data: {}\n")
+        rel = [d for d in run(text).diagnostics if d.code == "relative-path"]
+        self.assertEqual([(d.severity, d.path) for d in rel], [
+            ("warning", "services.a.volumes[0]"), ("warning", "services.a.volumes[1]"),
+            ("warning", "services.a.volumes[5]"), ("warning", "services.a.env_file[0]"),
+            ("warning", "services.a.env_file[2]"), ("warning", "services.b.env_file"),
+            ("warning", "configs.site.file"), ("warning", "secrets.key.file"),
+        ])
+        self.assertIn("temporary folder", rel[0].message)
+        self.assertNotIn("relative-path", codes(run(GOOD)))
 
     def test_depends_and_healthchecks(self):
         text = ("services:\n  web:\n    image: x:1\n    restart: always\n    depends_on: [db, ghost]\n"
@@ -239,9 +258,12 @@ class TestStructural(unittest.TestCase):
         # Lint covers depends_on better than the CLI message: no duplicate.
         res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    depends_on: [b]\n"))
         self.assertEqual(codes(res), ["depends-on-unknown"])
-        # env_file lives on the target host: info, not an error.
+        # env_file lives on the target host: info, not an error (a relative one
+        # also warns that it resolves in the temp folder there).
         res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    env_file: .env.prod\n"))
         self.assertTrue(res.ok, [d.to_dict() for d in res.diagnostics])
+        self.assertEqual(sorted(codes(res)), ["env-file-unchecked", "relative-path"])
+        res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    env_file: /srv/app.env\n"))
         self.assertEqual(codes(res), ["env-file-unchecked"])
 
     def test_cli_output_parsing(self):

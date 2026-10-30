@@ -364,10 +364,12 @@ class TestRoles(MCPBase):
         self.assertIn("fleet_summary", viewer)
         self.assertNotIn("container_action", viewer)
         self.assertIn("container_action", operator)
-        self.assertNotIn("remove_container", operator)
+        self.assertNotIn("remove_container", viewer)
+        self.assertNotIn("audit_log", operator)
         self.assertTrue(set(viewer) < set(operator) < set(admin))
+        # Destructive tools follow the REST roles: operator, behind confirm.
         for name in ("remove_container", "remove_image", "remove_volume", "prune", "destroy_deployment"):
-            t = admin[name]
+            t = operator[name]
             self.assertTrue(t["annotations"]["destructiveHint"])
             self.assertIn("confirm", t["inputSchema"]["properties"])
         self.assertIn("outputSchema", admin["fleet_summary"])
@@ -376,7 +378,7 @@ class TestRoles(MCPBase):
         resp = await self.call("container_action", {"container": "web", "action": "stop"}, role="viewer")
         self.assertEqual(resp["error"]["code"], -32003)
         self.assertEqual(self.provider.fake.calls, [])
-        resp = await self.call("remove_container", {"container": "web", "confirm": True}, role="operator")
+        resp = await self.call("remove_container", {"container": "web", "confirm": True}, role="viewer")
         self.assertEqual(resp["error"]["code"], -32003)
         statuses = sorted(e.status for e in self.audit_entries())
         self.assertEqual(statuses, [403, 403])

@@ -54,6 +54,7 @@ describe("registry explorer", () => {
   it("explains an empty registry list", async () => {
     renderApp("/registry-explorer", { api: { "GET /credentials": [] } });
     expect(await screen.findByText(/no registries configured/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText(/settings → registries/i)).toBeInTheDocument();
   });
 
   it("shows a load error and denies viewers", async () => {

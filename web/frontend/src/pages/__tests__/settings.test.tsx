@@ -24,26 +24,31 @@ async function ready() {
 
 describe("settings page", () => {
   it("validates and changes the own password, adopting the new session", async () => {
+    // Not only admins: every user changes their own password.
     const { user } = renderApp("/settings", {
-      api: { "PUT /users/:id": reply(200, users.admin, { "x-session-token": "fresh-token" }), "GET /system/server/update": status() },
+      role: "viewer",
+      api: { "PUT /me/password": reply(200, users.viewer, { "x-session-token": "fresh-token" }) },
     });
     await ready();
     await user.type(screen.getByLabelText(/^new password/i), "short");
     await press(user, /update password/i);
     expect(await screen.findByText(/at least 8 characters/i)).toBeInTheDocument();
     expect(screen.getByText(/do not match/i)).toBeInTheDocument();
+    expect(screen.getByText(/enter your current password/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/current password/i), "old-password");
     await user.clear(screen.getByLabelText(/^new password/i));
     await user.type(screen.getByLabelText(/^new password/i), "long-enough-1");
     await user.type(screen.getByLabelText(/confirm new password/i), "long-enough-1");
     await press(user, /update password/i);
     await toast(/password updated/i);
-    expect(requests("PUT", "/users/u-admin")[0].body).toEqual({ password: "long-enough-1" });
+    expect(requests("PUT", "/me/password")[0].body).toEqual({ currentPassword: "old-password", newPassword: "long-enough-1" });
     await waitFor(() => expect(localStorage.getItem(TOKEN_KEY)).toBe("fresh-token"));
   });
 
   it("reports a password failure", async () => {
-    const { user } = renderApp("/settings", { api: { "PUT /users/:id": reply(400, { error: "password too common" }) } });
+    const { user } = renderApp("/settings", { api: { "PUT /me/password": reply(400, { error: "password too common" }) } });
     await ready();
+    await user.type(screen.getByLabelText(/current password/i), "old-password");
     await user.type(screen.getByLabelText(/^new password/i), "password1");
     await user.type(screen.getByLabelText(/confirm new password/i), "password1");
     await press(user, /update password/i);
@@ -58,6 +63,10 @@ describe("settings page", () => {
       },
     });
     await ready();
+    // The archive carries the keys: the page says so and says to guard it.
+    expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
+    expect(screen.getByText("jwt.key")).toBeInTheDocument();
+    expect(screen.getByText(/store it like a password/i)).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/backup downloaded/i);
     expect(screen.getByRole("button", { name: /restore backup/i })).toBeDisabled();
@@ -72,6 +81,10 @@ describe("settings page", () => {
   it("reports backup failures", async () => {
     const { user } = renderApp("/settings", { api: { "GET /backup": reply(500, { error: "disk full" }), "POST /restore": reply(400, { error: "not a kowan backup" }) } });
     await ready();
+    // The archive carries the keys: the page says so and says to guard it.
+    expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
+    expect(screen.getByText("jwt.key")).toBeInTheDocument();
+    expect(screen.getByText(/store it like a password/i)).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/disk full/i);
     await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, new File(["x"], "bad.tar.gz"));

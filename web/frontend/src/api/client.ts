@@ -142,8 +142,8 @@ export async function updateUser(
 
 /** Change your own password. The server ends your other sessions and hands
  *  back a token for this one, so the tab stays signed in. */
-export async function changeOwnPassword(id: string, password: string): Promise<{ user: User; token: string | null }> {
-  const res = await api.put<User>(`/users/${id}`, { password });
+export async function changeOwnPassword(currentPassword: string, newPassword: string): Promise<{ user: User; token: string | null }> {
+  const res = await api.put<User>("/me/password", { currentPassword, newPassword });
   return { user: res.data, token: res.headers["x-session-token"] ?? null };
 }
 

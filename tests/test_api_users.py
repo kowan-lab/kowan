@@ -57,6 +57,47 @@ class TestUsersApi(ServerCase):
         _, me = await self.call("GET", "/me", "admin", expect=200)
         await self.call("DELETE", f"/users/{me['id']}", "admin", expect=400)
 
+    async def test_every_user_changes_their_own_password(self):
+        # A viewer cannot touch /users/{id}, but changes their own password.
+        _, me = await self.call("GET", "/me", "viewer", expect=200)
+        await self.call("PUT", f"/users/{me['id']}", "viewer", json={"password": "new-password-1"}, expect=403)
+        for bad in ({"newPassword": "new-password-1"}, {"currentPassword": "viewer-password"},
+                    {"currentPassword": "viewer-password", "newPassword": "short"},
+                    {"currentPassword": "viewer-password", "newPassword": "new-password-1", "role": "admin"}):
+            await self.call("PUT", "/me/password", "viewer", json=bad, expect=400)
+        _, body = await self.call("PUT", "/me/password", "viewer", json={
+            "currentPassword": "wrong-password", "newPassword": "new-password-1"}, expect=400)
+        self.assertIn("current password", body["error"])
+
+        old_session = self.h["viewer"]
+        r = await self.client.put("/api/v1/me/password", headers=old_session, json={
+            "currentPassword": "viewer-password", "newPassword": "new-password-1"})
+        self.assertEqual(r.status, 200, await r.text())
+        fresh = r.headers["X-Session-Token"]
+        # Other sessions end; this one carries on with the fresh token.
+        r = await self.client.get("/api/v1/me", headers=old_session)
+        self.assertEqual(r.status, 401)
+        r = await self.client.get("/api/v1/me", headers={"Authorization": "Bearer " + fresh})
+        self.assertEqual(r.status, 200)
+        r = await self.client.post("/api/v1/auth/login", json={"username": "viewer", "password": "viewer-password"})
+        self.assertEqual(r.status, 401)
+        r = await self.client.post("/api/v1/auth/login", json={"username": "viewer", "password": "new-password-1"})
+        self.assertEqual(r.status, 200)
+
+        # An API key has no password.
+        _, key = await self.call("POST", "/apikeys", json={"name": "ci", "role": "viewer"}, expect=201)
+        r = await self.client.put("/api/v1/me/password", headers={"X-API-Key": key["secret"]}, json={
+            "currentPassword": "x", "newPassword": "new-password-1"})
+        self.assertEqual(r.status, 400)
+
+    async def test_wrong_current_password_is_rate_limited(self):
+        statuses = []
+        for _ in range(12):
+            status, _ = await self.call("PUT", "/me/password", "operator", json={
+                "currentPassword": "guess-password", "newPassword": "new-password-1"})
+            statuses.append(status)
+        self.assertIn(429, statuses)
+
     async def test_login_failures(self):
         r = await self.client.post("/api/v1/auth/login", json={"username": "viewer", "password": "nope"})
         self.assertEqual(r.status, 401)
