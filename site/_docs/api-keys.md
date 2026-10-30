@@ -28,8 +28,8 @@ A key is `pk_` followed by 64 hexadecimal characters. The list in **Settings →
 
 A key limited to a team or to scopes cannot have the Admin role, since admins bypass every permission check.
 
-!!! warning "Deleting a team widens its keys"
-    When you delete a team, the keys bound to it are unbound and act with their full role, unless they also have their own scopes. Delete or replace those keys before deleting the team.
+!!! note "Deleting a team"
+    A team that still has API keys bound to it cannot be deleted: Kowan names those keys so you can revoke them first. A key cannot be moved to another team.
 
 Give each client its own key with the lowest role that does the job. A key does not expire: it works until you delete it.
 

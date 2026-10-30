@@ -56,6 +56,7 @@ Kowan secret references such as `[[db.password]]` never break the YAML check, an
 | The Docker socket is mounted | Warning | |
 | A published host port is already used by a running container on the host | Error | Publishes on the next free port |
 | Two services publish the same host port | Error | |
+| A relative path (a `./` bind mount, an `env_file`, a config or secret `file:`), which resolves in a temporary folder on the host, not next to the original file | Warning | |
 | An absolute bind-mount source is missing on the host | Warning (short syntax, Docker creates an empty root-owned directory) or error (long syntax, the deploy fails) | |
 | A named volume is not declared under top-level `volumes:` | Error | Declares it |
 | A service that others depend on has no healthcheck | Info | |

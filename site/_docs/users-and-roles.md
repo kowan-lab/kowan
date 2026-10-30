@@ -39,7 +39,9 @@ To list users from a terminal, run `kowanctl user ls`.
 2. Change the **Role** or the **Email**, or type a new password in **Reset password**. Leave it blank to keep the current password.
 3. Click **Save**.
 
-A new role or password ends that user's open sessions, so they sign in again. As an admin, you can change your own password in **Settings → General**, under **Profile**; your current browser tab stays signed in and your other sessions end.
+A new role or password ends that user's open sessions, so they sign in again.
+
+Every user, whatever their role, can change their own password in **Settings → General**, under **Profile**, by entering the current password and the new one. The current browser tab stays signed in and their other sessions end.
 
 ## Delete a user
 
@@ -110,7 +112,7 @@ The `scope` is one of `all_hosts`, `host`, `deployment`, `stack` or `labels`; `t
 ### Limits
 
 - The image list, system information, disk usage, Docker events and prune need a grant on the whole host (**All hosts** or **One host**).
-- Grants do not yet filter the lists of schedules, volume backups and auto-update policies.
+- Schedules, volume backups and auto-update policies follow the grant on what they act on: a team member sees and changes only those for hosts, deployments and stacks they can access.
 - API keys can be limited the same way. See [API keys](api-keys.md).
 
 Every change to teams and grants is recorded in the [audit log](audit-log.md).

@@ -36,8 +36,8 @@ The key's role decides which tools the assistant sees:
 | Role | The assistant can |
 |---|---|
 | `viewer` | Look: hosts, containers, logs, deployments, alerts, uptime, schedules, backups, resource history. |
-| `operator` | Also act: start, stop and restart, deploy, roll back and promote, pull and update images, run workflows, schedules, backups and uptime checks. |
-| `admin` | Also remove containers, images and volumes, prune, run a disk cleanup, create and destroy deployments, and read the audit log. |
+| `operator` | Also act: start, stop and restart, deploy, create and destroy deployments, roll back and promote, pull and update images, remove containers, images and volumes, prune, run a disk cleanup, and run workflows, schedules, backups and uptime checks. Destructive tools still ask for confirmation. |
+| `admin` | Also read the audit log. |
 
 A key bound to a team or to specific scopes only sees and acts on what those grants cover. For an assistant that should only look, a `viewer` key is the safe choice.
 
@@ -143,7 +143,7 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | `container_stats` | viewer | Current CPU, memory, network and disk I/O. |
 | `container_action` | operator | Start, stop, restart, pause, unpause or kill a container. |
 | `update_container` | operator | Pull the image and recreate the container when a newer one exists. |
-| `remove_container` | admin | Remove a container. **Destructive.** |
+| `remove_container` | operator | Remove a container. **Destructive.** |
 
 ### Images, volumes and networks
 
@@ -154,9 +154,9 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | `list_networks` | viewer | Networks on a host. |
 | `check_updates` | viewer | Which containers have a newer image in their registry. |
 | `pull_image` | operator | Pull an image with the stored registry credentials. |
-| `remove_image` | admin | Remove an image. **Destructive.** |
-| `remove_volume` | admin | Remove a volume and all its data. **Destructive.** |
-| `prune` | admin | Remove unused containers, images, volumes or networks. **Destructive.** |
+| `remove_image` | operator | Remove an image. **Destructive.** |
+| `remove_volume` | operator | Remove a volume and all its data. **Destructive.** |
+| `prune` | operator | Remove unused containers, images, volumes or networks. **Destructive.** |
 
 ### Deployments
 
@@ -172,9 +172,9 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | `deployment_action` | operator | Deploy, redeploy, start, stop, or sync a Git deployment. |
 | `rollback_deployment` | operator | Restore an earlier revision as a new one and redeploy it. |
 | `promote_deployment` | operator | Apply the promotion plan to the target and redeploy it. |
-| `create_deployment` | admin | Create a deployment from a Compose file or a container spec, and optionally deploy it. |
-| `deploy_template` | admin | Create and deploy a deployment from an app template. |
-| `destroy_deployment` | admin | Remove a deployment's containers, and optionally the deployment. **Destructive.** |
+| `create_deployment` | operator | Create a deployment from a Compose file or a container spec, and optionally deploy it. |
+| `deploy_template` | operator | Create and deploy a deployment from an app template. |
+| `destroy_deployment` | operator | Remove a deployment's containers, and optionally the deployment. **Destructive.** |
 
 ### Logs and events
 
@@ -203,7 +203,7 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | Tool | Role | What it does |
 |---|---|---|
 | `cleanup_plan` | viewer | What can be removed from a host to free disk space, with sizes and suggestions. Removes nothing. |
-| `run_cleanup` | admin | Remove what the cleanup plan suggests, or the items you list. **Destructive.** |
+| `run_cleanup` | operator | Remove what the cleanup plan suggests, or the items you list. **Destructive.** |
 | `audit_log` | admin | Who did what, from the console, the API, the CLI or MCP. |
 
 ### Resources and prompts

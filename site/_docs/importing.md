@@ -12,7 +12,7 @@ Kowan recognizes a Compose deployment's containers by their Compose project name
 If you rename the stack during the import, the deployment gets a new project name: deploying it starts a second copy next to the old containers.
 
 !!! warning "Relative paths"
-    An inline Compose deployment has no folder of its own, so relative paths in the file, such as a `./data` bind mount or an `env_file`, no longer point to the stack's original folder. Before you deploy an imported stack, change them to absolute paths (such as `/opt/stacks/app/data`) or named volumes.
+    Kowan hands the Compose file to the host as text, so relative paths in it, such as a `./data` bind mount or an `env_file`, no longer point to the stack's original folder. [Compose validation](compose-validation.md) warns about them. Before you deploy an imported stack, change them to absolute paths (such as `/opt/stacks/app/data`), named volumes or stack variables.
 
 After the import, edit and deploy the stack from Kowan. A Kowan deploy applies Kowan's copy of the file, so it replaces changes made to the stack in Portainer or in the original folder.
 

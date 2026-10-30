@@ -40,15 +40,15 @@ A sign-in token is valid for 24 hours. When it expires, run `kowanctl login` aga
 
 ## Configuration
 
-`kowanctl` needs a server URL and a credential: a sign-in token, an API key, or both. It reads each one from a flag, the config file or an environment variable, and uses the first one it finds in this order:
+`kowanctl` needs a server URL and a credential: a sign-in token, an API key, or both. It reads each one from a flag, an environment variable or the config file, and uses the first one it finds in this order:
 
-| Setting | Flag | Config file key | Environment variable |
+| Setting | Flag | Environment variable | Config file key |
 |---|---|---|---|
-| Server URL | `--server` | `server` | `KOWAN_SERVER` |
-| Sign-in token | `--token` | `token` | `KOWAN_TOKEN` |
-| API key | `--api-key` | `apiKey` | `KOWAN_API_KEY` |
+| Server URL | `--server` | `KOWAN_SERVER` | `server` |
+| Sign-in token | `--token` | `KOWAN_TOKEN` | `token` |
+| API key | `--api-key` | `KOWAN_API_KEY` | `apiKey` |
 
-The config file comes before the environment: a variable takes effect only when the file does not set that value. When both a token and an API key are available, the server authenticates the API key.
+A flag beats an environment variable, which beats the config file, so a variable can override the saved settings for one shell. When both a token and an API key are available, the server authenticates the API key.
 
 The config file is YAML. `kowanctl` creates it readable only by you (mode `0600`), since it holds credentials:
 

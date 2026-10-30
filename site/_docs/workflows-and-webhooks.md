@@ -28,7 +28,7 @@ Click **Run now** to try it, then follow the run in the **Runs** tab.
 | **Run container** | Runs a one-off container from an **Image** on a host, with an optional **Command** and **Environment**, and captures its output. Fails when the container exits with a non-zero code. Stops after 5 minutes. **Auto-remove** deletes the container afterwards. |
 | **Prune** | Removes stopped containers, dangling images, all unused images, unused volumes, unused networks, or everything, on a host. |
 | **Send notification** | Sends a **Title** and **Body** at a **Level** through one of your [notification channels](alerts-and-notifications.md). |
-| **Backup** | Writes an archive of Kowan's database and Compose stacks to `<data>/backups`, or to the **Path** you set. Kowan's master secret key is not included. See [Backup and restore](backup-and-restore.md). |
+| **Backup** | Writes a backup archive of Kowan, keys included, to `<data>/backups`, or to the **Path** you set, a folder inside it. Admins only. See [Backup and restore](backup-and-restore.md). |
 
 When a step fails, the remaining steps are skipped and the run fails, unless the step has **Continue on error**. A whole run stops after one hour.
 
@@ -55,7 +55,7 @@ A script runs with a minimal environment: your variables plus a few basics such 
 | **Git commit** | The last commit of a branch changes. Pick a **Credential** for a private repository. |
 | **RSS feed** | A new entry appears in an RSS or Atom feed. |
 
-A workflow can have several triggers; any of them starts a run. Each trigger has its own on/off switch. Cron and polling triggers only fire while the workflow is enabled.
+A workflow can have several triggers; any of them starts a run. Each trigger has its own on/off switch. While the workflow is disabled, no trigger fires and its webhook URLs answer `409`; you can still run it by hand.
 
 Kowan checks the Docker image, Git commit and RSS triggers every minute. A new trigger first records what is there and does not fire for it: only later changes start runs. A trigger that cannot reach its source shows an **error** badge with the reason.
 
@@ -113,7 +113,7 @@ The **Runs** tab lists each run with its status, trigger and start time. Select 
 
 - Viewers see workflows, but not webhook tokens, variable values or run output.
 - Operators create, edit and run workflows, and read run history, which can contain script output and HTTP responses.
-- A workflow with a **Run script** step can only be created, changed, run or given a webhook by an admin, because the script runs on the Kowan server.
+- A workflow with a **Run script** or a **Backup** step can only be created, changed, run or given a webhook by an admin: a script runs on the Kowan server, and a backup holds the keys to every stored secret.
 - `KOWAN_SERVER_SCRIPTS=off` turns script steps off entirely.
 
 See [Users and roles](users-and-roles.md).

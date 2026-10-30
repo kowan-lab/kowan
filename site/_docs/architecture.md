@@ -96,7 +96,7 @@ The server does its routine work on its own, on a fixed rhythm:
 | Delete old audit log entries, resolved alerts and workflow runs | About once an hour | `KOWAN_AUDIT_RETENTION` (90 days), `KOWAN_ALERT_RETENTION` (30 days), `KOWAN_WORKFLOW_RUNS_KEEP` (100 runs per workflow) |
 | Look for a new Kowan release | Every 6 hours | `KOWAN_RELEASE_REPOSITORY` |
 
-`KOWAN_MONITOR_INTERVAL`, `KOWAN_METRICS_RETENTION`, `KOWAN_AUDIT_RETENTION` and `KOWAN_ALERT_RETENTION` accept durations such as `15s`, `720h`, `1h30m` or `90d`, or a whole number of seconds; `0` turns the audit log or alert cleanup off. `KOWAN_RECONCILE_INTERVAL` and `KOWAN_RECONCILE_COOLDOWN` take a number of seconds. See [Configuration](configuration.md).
+`KOWAN_MONITOR_INTERVAL`, `KOWAN_METRICS_RETENTION`, `KOWAN_AUDIT_RETENTION` and `KOWAN_ALERT_RETENTION` accept durations such as `15s`, `720h`, `1h30m` or `90d`, or a whole number of seconds; `0` turns the audit log or alert cleanup off. `KOWAN_RECONCILE_INTERVAL` and `KOWAN_RECONCILE_COOLDOWN` accept the same formats. See [Configuration](configuration.md).
 
 The server also follows the logs of every workload that keeps them, on every host, and listens to Docker events from all hosts. The web console updates from those events as they happen, with periodic refreshes only as a safety net.
 

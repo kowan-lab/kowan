@@ -42,7 +42,7 @@ Once the agent connects, the host shows as online in the host list and in the ho
 The join command starts the agent container with the host's token. For an edge host it looks like this:
 
 ```bash
-docker run -d --name kowan-agent \
+docker run -d --name kowan-agent --restart unless-stopped \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e KOWAN_AGENT_MODE=edge \
   -e KOWAN_SERVER_URL=https://kowan.example.com \
@@ -53,7 +53,7 @@ docker run -d --name kowan-agent \
 For a direct host, it publishes port 9001 instead of naming the server:
 
 ```bash
-docker run -d --name kowan-agent \
+docker run -d --name kowan-agent --restart unless-stopped \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 9001:9001 \
   -e KOWAN_AGENT_MODE=agent \
@@ -66,8 +66,7 @@ To see the command again, click the join command button on the host's row in **S
 !!! warning "The token is a password"
     The token in the join command gives control of that server's Docker, which is root access to it. Do not paste it into tickets or chats, and do not reuse it on another server.
 
-!!! tip "Restart the agent with the server"
-    The generated command sets no restart policy. Add `--restart unless-stopped` before the image name so the agent comes back after a reboot.
+The `--restart unless-stopped` policy brings the agent back after the server reboots.
 
 ### Run the agent with Docker Compose
 
