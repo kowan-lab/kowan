@@ -1600,7 +1600,7 @@ export interface LogSearchParams {
 export interface WorkloadResourcePoint {
   time: string;
   containers: number;
-  /** Average CPU % over the bucket (100 = one core). */
+  /** Average CPU % over the bucket, as a share of the host (100 = every core busy). */
   cpu: number;
   cpuMax: number;
   /** Average memory in bytes over the bucket. */

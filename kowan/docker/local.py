@@ -110,9 +110,10 @@ class CpuSampleCache:
 
     A one-shot stats sample carries no ``precpu_stats``, so CPU% can't be derived
     from the sample alone. Instead we keep the previous ``cpu_stats`` of each
-    container in memory and compute the delta against it (the same math ``docker
-    stats`` does between consecutive samples, just over the caller's interval —
-    15 s for the monitor — instead of ~1 s).
+    container in memory and compute the delta against it (the delta ``docker
+    stats`` takes between consecutive samples, just over the caller's interval —
+    15 s for the monitor — instead of ~1 s), as a share of the whole host like
+    :func:`_calculate_cpu_percent`.
 
     Bounded two ways so it can't grow on hosts with container churn: entries not
     refreshed within ``ttl`` seconds are evicted lazily, and at most
@@ -134,8 +135,8 @@ class CpuSampleCache:
         self._max = max(1, int(max_entries))
         self._ttl = float(ttl)
         self._clock = clock
-        # id -> (total_usage, system_cpu_usage, online_cpus, sampled_at, last_cpu)
-        self._samples: "OrderedDict[str, Tuple[float, float, float, float, Optional[float]]]" = OrderedDict()
+        # id -> (total_usage, system_cpu_usage, sampled_at, last_cpu)
+        self._samples: "OrderedDict[str, Tuple[float, float, float, Optional[float]]]" = OrderedDict()
 
     def __len__(self) -> int:
         return len(self._samples)
@@ -144,26 +145,20 @@ class CpuSampleCache:
         return cid in self._samples
 
     @staticmethod
-    def _extract(raw: Dict[str, Any]) -> Optional[Tuple[float, float, float]]:
+    def _extract(raw: Dict[str, Any]) -> Optional[Tuple[float, float]]:
         cpu_stats = (raw or {}).get("cpu_stats") or {}
-        usage = cpu_stats.get("cpu_usage") or {}
-        total = usage.get("total_usage")
+        total = (cpu_stats.get("cpu_usage") or {}).get("total_usage")
         system = cpu_stats.get("system_cpu_usage")
         if total is None or not system:
             # Windows daemons don't report system_cpu_usage: no delta possible.
             return None
-        online = float(cpu_stats.get("online_cpus", 0) or 0)
-        if online == 0:
-            online = float(len(usage.get("percpu_usage") or []))
-        if online == 0:
-            online = 1.0
-        return float(total), float(system), online
+        return float(total), float(system)
 
     def _evict(self, now: float) -> None:
         # Oldest entries sit at the front; drop the expired ones, then trim to cap.
         while self._samples:
             cid, entry = next(iter(self._samples.items()))
-            if now - entry[3] <= self._ttl:
+            if now - entry[2] <= self._ttl:
                 break
             del self._samples[cid]
         while len(self._samples) > self._max:
@@ -175,7 +170,7 @@ class CpuSampleCache:
         if cur is None:
             return
         now = self._clock()
-        self._samples[cid] = (cur[0], cur[1], cur[2], now, cpu)
+        self._samples[cid] = (cur[0], cur[1], now, cpu)
         self._samples.move_to_end(cid)
         self._evict(now)
 
@@ -193,15 +188,15 @@ class CpuSampleCache:
         if cur is None:
             return None
         prev = self._samples.get(cid)
-        if prev is not None and now - prev[3] < self.MIN_INTERVAL and prev[4] is not None:
-            return prev[4]
+        if prev is not None and now - prev[2] < self.MIN_INTERVAL and prev[3] is not None:
+            return prev[3]
         cpu: Optional[float] = None
         if prev is not None:
             cpu_delta = cur[0] - prev[0]
             system_delta = cur[1] - prev[1]
             if cpu_delta >= 0.0 and system_delta > 0.0:
-                cpu = (cpu_delta / system_delta) * cur[2] * 100.0
-        self._samples[cid] = (cur[0], cur[1], cur[2], now, cpu)
+                cpu = cpu_delta / system_delta * 100.0
+        self._samples[cid] = (cur[0], cur[1], now, cpu)
         self._samples.move_to_end(cid)
         return cpu
 
@@ -2648,7 +2643,12 @@ def _stats_from_response(v: Dict[str, Any]) -> models.ContainerStats:
 
 
 def _calculate_cpu_percent(v: Dict[str, Any]) -> float:
-    """Reproduce ``docker stats`` CPU math."""
+    """CPU% as a share of the whole host: 100 is every core busy.
+
+    ``system_cpu_usage`` already counts all the host's cores, so the ratio of
+    the two deltas is that share. ``docker stats`` multiplies it by
+    ``online_cpus`` (100 per core, 400 on a busy 4-core host); Kowan does not,
+    so container, workload and host figures share one 0-100 scale."""
     cpu_stats = v.get("cpu_stats") or {}
     pre = v.get("precpu_stats") or {}
     cpu_usage = cpu_stats.get("cpu_usage") or {}
@@ -2661,14 +2661,8 @@ def _calculate_cpu_percent(v: Dict[str, Any]) -> float:
         pre.get("system_cpu_usage", 0) or 0
     )
 
-    online = float(cpu_stats.get("online_cpus", 0) or 0)
-    if online == 0:
-        online = float(len(cpu_usage.get("percpu_usage") or []))
-    if online == 0:
-        online = 1.0
-
     if system_delta > 0.0 and cpu_delta > 0.0:
-        return (cpu_delta / system_delta) * online * 100.0
+        return cpu_delta / system_delta * 100.0
     return 0.0
 
 

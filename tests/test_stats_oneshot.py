@@ -2,8 +2,8 @@
 
 ``LocalClient.container_stats`` asks the Engine for ``one-shot=true`` (API >=
 1.41), which carries no ``precpu_stats``; :class:`CpuSampleCache` keeps the
-previous ``cpu_stats`` per container and does the ``docker stats`` math against
-it. The first sample of a container (no baseline) falls back to the legacy
+previous ``cpu_stats`` per container and takes the delta against it, as a share
+of the whole host (100 = every core busy, not 100 per core). The first sample of a container (no baseline) falls back to the legacy
 two-sample call.
 """
 
@@ -40,27 +40,24 @@ class TestCpuSampleCache(unittest.TestCase):
         self.assertIsNone(c.compute("a", _raw(100, 1000)))
         self.assertIn("a", c)
 
-    def test_delta_math_matches_docker_stats(self):
+    def test_delta_is_a_share_of_the_host(self):
         clk = _Clock()
         c = CpuSampleCache(clock=clk)
         c.compute("a", _raw(1_000, 10_000, online=4))
         clk.t += 15
-        # cpu delta 500 over system delta 4000 on 4 cpus -> 500/4000*4*100 = 50%
-        self.assertAlmostEqual(c.compute("a", _raw(1_500, 14_000, online=4)), 50.0)
+        # cpu delta 500 over system delta 4000 (all 4 cpus) -> 12.5% of the host;
+        # docker stats would say 50% (x4 cpus).
+        self.assertAlmostEqual(c.compute("a", _raw(1_500, 14_000, online=4)), 12.5)
         clk.t += 15
         # idle: no cpu progress -> 0%
         self.assertEqual(c.compute("a", _raw(1_500, 18_000, online=4)), 0.0)
 
-    def test_online_cpus_falls_back_to_percpu_len(self):
+    def test_every_core_busy_is_100(self):
         clk = _Clock()
         c = CpuSampleCache(clock=clk)
-        raw1 = _raw(0, 1000, online=0)
-        raw1["cpu_stats"]["cpu_usage"]["percpu_usage"] = [0, 0]
-        c.compute("a", raw1)
+        c.compute("a", _raw(0, 1000, online=8))
         clk.t += 1
-        raw2 = _raw(100, 2000, online=0)
-        raw2["cpu_stats"]["cpu_usage"]["percpu_usage"] = [50, 50]
-        self.assertAlmostEqual(c.compute("a", raw2), 100 / 1000 * 2 * 100)
+        self.assertAlmostEqual(c.compute("a", _raw(1000, 2000, online=8)), 100.0)
 
     def test_counter_reset_after_restart_has_no_baseline(self):
         clk = _Clock()
@@ -157,10 +154,10 @@ class TestContainerStatsOneShot(unittest.TestCase):
                 {"stream": "false", "one-shot": "true"},
             ],
         )
-        # legacy sample: (100/1000)*2*100 = 20%
-        self.assertAlmostEqual(first.cpu_percent, 20.0)
-        # one-shot vs the legacy sample's cpu_stats: (200/2000)*2*100 = 20%
-        self.assertAlmostEqual(second.cpu_percent, 20.0)
+        # legacy sample: 100/1000*100 = 10% of the host
+        self.assertAlmostEqual(first.cpu_percent, 10.0)
+        # one-shot vs the legacy sample's cpu_stats: 200/2000*100 = 10%
+        self.assertAlmostEqual(second.cpu_percent, 10.0)
         self.assertEqual(second.mem_usage, 100)
         self.assertAlmostEqual(second.mem_percent, 10.0)
         self.assertEqual(second.pids, 3)

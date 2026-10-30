@@ -109,6 +109,18 @@ class TestHistory(unittest.TestCase):
         self.assertEqual(self.h.prune(T0 + timedelta(days=31)), 4)
         self.assertEqual(self.store.workload_hosts("dep~d1"), {})
 
+    def test_cpu_across_hosts_stays_a_share_of_a_host(self):
+        # CPU is a share of each host (0-100): a workload on two hosts is their
+        # average, its peak the busiest host's; memory still adds up.
+        def row(host, cpu, peak):
+            return {"workload": "dep~d1", "host_id": host, "time": at(0), "samples": 1, "containers": 1,
+                    "cpu_avg": cpu, "cpu_max": peak, "mem_avg": 100 * MiB, "mem_max": 100 * MiB,
+                    "mem_limit": 0, "net_rx": 0, "net_tx": 0}
+
+        self.store.add_workload_metrics([row("a", 60.0, 90.0), row("b", 80.0, 85.0)])
+        [p] = self.store.list_workload_metrics("dep~d1", at(-60))
+        self.assertEqual((p["cpu"], p["cpuMax"], p["mem"], p["containers"]), (70.0, 90.0, 200 * MiB, 2))
+
     def grow(self, n, start, step, offset=0):
         for i in range(n):
             self.h.observe("local", {"c1": self.web}, {"c1": stats(start + i * step)}, {},

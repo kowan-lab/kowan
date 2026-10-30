@@ -72,13 +72,14 @@ class _WorkloadMetricMixin(_Base):
         return {r["host_id"]: json.loads(r["labels"] or "{}") for r in rows}
 
     def list_workload_metrics(self, workload: str, since: str, hours: float = 24) -> List[Dict[str, Any]]:
-        """Points from ``since`` on, summed over the workload's hosts, oldest
+        """Points from ``since`` on, combined over the workload's hosts, oldest
         first. Ranges over two days come back in hourly buckets."""
         bucket = "substr(time, 1, 13) || ':00:00Z'" if hours > _HOURLY_AFTER_HOURS else "time"
-        # Per (host, bucket) first, then summed across hosts: CPU and memory
-        # of a workload spread over hosts add up.
+        # Per (host, bucket) first, then across hosts: memory, containers and
+        # traffic add up; CPU is a share of each host (0-100), so it is the
+        # hosts' average, and the peak the busiest host's.
         rows = self._query(
-            f"SELECT t, SUM(containers) AS containers, SUM(cpu_avg) AS cpu_avg, SUM(cpu_max) AS cpu_max, "
+            f"SELECT t, SUM(containers) AS containers, AVG(cpu_avg) AS cpu_avg, MAX(cpu_max) AS cpu_max, "
             "SUM(mem_avg) AS mem_avg, SUM(mem_max) AS mem_max, SUM(mem_limit) AS mem_limit, "
             "SUM(net_rx) AS net_rx, SUM(net_tx) AS net_tx FROM ("
             f"  SELECT {bucket} AS t, host_id, MAX(containers) AS containers, AVG(cpu_avg) AS cpu_avg, "

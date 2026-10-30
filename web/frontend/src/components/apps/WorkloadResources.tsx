@@ -74,11 +74,12 @@ export default function WorkloadResources({ workload }: { workload: string }) {
     {
       label: "CPU",
       value: s ? <>{s.last.cpu.toFixed(1)}<span className="text-[14px] text-muted-foreground"> %</span></> : "—",
-      note: s ? `peak ${s.peakCpu.toFixed(1)}% · 100% = one core` : "",
+      note: s ? `peak ${s.peakCpu.toFixed(1)}% · 100% = the whole host` : "",
       chart: (
         <LineChart
           height={160}
           unit="%"
+          yMax={100}
           labels={labels}
           series={[
             { name: "Average", data: points.map((p) => p.cpu), color: "primary" },

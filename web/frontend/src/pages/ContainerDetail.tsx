@@ -1544,8 +1544,8 @@ function StatsTab({
       </section>
       <section className="grid gap-[20px] lg:grid-cols-2">
         <div className="min-w-0">
-          <Panel title="CPU" meta="% of one core per 100">
-            <LineChart labels={labels} series={[{ name: "CPU", data: history.map((h) => h.s.cpuPercent), color: "primary" }]} unit="%" area height={200} />
+          <Panel title="CPU" meta="% of the host">
+            <LineChart labels={labels} series={[{ name: "CPU", data: history.map((h) => h.s.cpuPercent), color: "primary" }]} unit="%" yMax={100} area height={200} />
           </Panel>
         </div>
         <div className="min-w-0">
