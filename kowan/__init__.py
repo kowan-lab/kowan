@@ -9,4 +9,4 @@ tunnel (``kowan.tunnel``).
 
 # The release version, the single source for the package metadata, the CLI,
 # the agent and the MCP server.
-__version__ = "0.1.12"
+__version__ = "0.1.13"

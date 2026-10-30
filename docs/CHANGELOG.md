@@ -2,6 +2,26 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.13 — 2026-10-31
+
+- **What's new in the console.** **Settings → What's new** shows what changed in each release, with the version this server runs marked.
+- **Documentation on kowan.io.** Installation, a guide for every feature and the reference for configuration, container labels, the CLI, the REST API and MCP, searchable, at [kowan.io/docs](https://kowan.io/docs/).
+- **Hosts by their name.** A renamed host shows its name on the workload pages, in search and in the host menu, instead of its id (such as `local`).
+- **Every user can change their password.** **Settings → General → Profile** now works for operators and viewers too, and asks for the current password.
+- **Agents come back after a reboot.** The join command starts the agent with `--restart unless-stopped`. For an agent you already installed, run `docker update --restart unless-stopped kowan-agent` on its host.
+- **Team permissions cover schedules, volume backups and auto-update.** A team member sees and changes only those for the hosts, deployments and stacks they can access.
+- **Safer teams and workflows.** A team with API keys bound to it can no longer be deleted (its keys used to keep working with their full role). A workflow with a **Backup** step is admin-only and writes only inside the backups folder. A disabled workflow refuses its webhooks.
+- **AI assistants follow the API roles.** Through MCP, removing containers, images and volumes, pruning, disk cleanup and creating or destroying deployments need the operator role, as through the REST API, and destructive tools still ask for confirmation. An assistant no longer needs an admin key, which ignores team permissions.
+- **Backups say what they hold.** A Kowan backup includes the keys that decrypt your stored secrets, and **Settings → General → Backup & Restore** now says so: keep backups as safe as the server.
+
+### Other changes
+
+- **kowanctl reads a flag, then the environment, then the config file.** An environment variable now overrides the saved settings.
+- **Compose validation warns about relative paths.** A `./` bind mount, an `env_file` or a config `file:` resolves in a temporary folder on the host, not next to the original file.
+- **Compose port checks are named `port-in-use` and `port-duplicate` again.**
+- **Clearer texts.** The deployment's Configuration tab says when saving redeploys at once, the History tab names every revision source, registry links point at **Settings → Registries**, and the Users page no longer mentions LDAP.
+- **Reconcile settings accept durations.** `KOWAN_RECONCILE_INTERVAL` and `KOWAN_RECONCILE_COOLDOWN` take values such as `5s` or `2m`.
+
 ## 0.1.12 — 2026-10-30
 
 - **CPU is a share of the whole host.** 100% now means every core is busy, for containers, hosts and workloads alike; it used to be 100% per core, so a 4-core host could read 400%. Remote hosts switch once their agent is updated.
