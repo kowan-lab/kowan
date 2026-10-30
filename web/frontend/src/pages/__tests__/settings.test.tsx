@@ -66,6 +66,7 @@ describe("settings page", () => {
     // The archive carries the keys: the page says so and says to guard it.
     expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
     expect(screen.getByText("jwt.key")).toBeInTheDocument();
+    expect(screen.getByText(/store it like a password/i)).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/backup downloaded/i);
     expect(screen.getByRole("button", { name: /restore backup/i })).toBeDisabled();
@@ -83,6 +84,7 @@ describe("settings page", () => {
     // The archive carries the keys: the page says so and says to guard it.
     expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
     expect(screen.getByText("jwt.key")).toBeInTheDocument();
+    expect(screen.getByText(/store it like a password/i)).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/disk full/i);
     await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, new File(["x"], "bad.tar.gz"));

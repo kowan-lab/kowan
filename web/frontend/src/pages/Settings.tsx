@@ -209,7 +209,7 @@ function BackupCard() {
         secrets, and <Text as="span" mono>jwt.key</Text>, which signs sessions), so a
         restore brings everything back from the archive alone.{" "}
         <Text as="span" weight="semibold">Anyone with the archive can decrypt every stored secret:</Text>{" "}
-        keep it as safe as the keys. A key set through{" "}
+        store it like a password. A key set through{" "}
         <Text as="span" mono>KOWAN_SECRET_KEY</Text> or <Text as="span" mono>KOWAN_JWT_SECRET</Text>{" "}
         is not in the archive: give the restored server the same value. A restore
         is staged and applied the next time the server starts.

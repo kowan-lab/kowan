@@ -154,6 +154,22 @@ Durations accept Go's format (`720h`, `1h30m`), days (`90d`) or whole seconds;
 loop. `orjson` and `uvloop` are optional: without them the stdlib `json` and
 `asyncio` are used.
 
+## Control-plane backup
+
+`GET /api/v1/backup` (admin), `kowanctl backup` and the workflow **Backup**
+step (admin, under `<data>/backups`) write the same gzip tar
+(`kowan/backup.py`): `manifest.json`, a SQLite snapshot as `kowan.db`, the
+`stacks/` folder and the master keys kept as files, `secret.key` (encrypts
+stored secrets) and `jwt.key` (signs sessions). A restore is therefore complete
+from the archive alone: secrets stay decryptable and sessions stay valid.
+
+The archive is as sensitive as those keys: anyone holding it can decrypt every
+stored secret and sign sessions for that server. Store it like a password. The
+step and the CLI write it `0600`. A key supplied through `KOWAN_SECRET_KEY` or
+`KOWAN_JWT_SECRET` has no file and is not archived: configure the restored
+server with the same value. `tests/test_backup_keys.py` and
+`tests/test_api_backup.py` pin this.
+
 ## License
 
 MIT, see [LICENSE](../LICENSE). Kowan is free software: no private dependencies, no account required.
