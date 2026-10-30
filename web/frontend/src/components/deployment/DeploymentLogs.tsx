@@ -3,9 +3,9 @@
 // from a container row's "Logs" action).
 
 import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Select, Text } from "@/ui/kit";
-import { deploymentLogsWebSocketURL, listHosts } from "../../api/client";
+import { deploymentLogsWebSocketURL } from "../../api/client";
+import { useHostName } from "../../lib/hostsQuery";
 import LogViewer from "../logs/LogViewer";
 import type { LogSource } from "../logs/logStream";
 import type { Deployment } from "../../types";
@@ -23,8 +23,7 @@ export default function DeploymentLogs({
 }) {
   const hostId = deploymentHost(d);
   const isCompose = d.type === "compose";
-  const hostsQuery = useQuery({ queryKey: ["hosts"], queryFn: listHosts });
-  const hostLabel = hostsQuery.data?.find((h) => h.id === hostId)?.name || hostId || "";
+  const hostLabel = useHostName()(hostId ?? "");
   const servicesQuery = useDeploymentServices(d);
   const services = useMemo(() => servicesQuery.data ?? [], [servicesQuery.data]);
 

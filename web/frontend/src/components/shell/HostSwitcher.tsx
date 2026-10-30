@@ -2,7 +2,7 @@ import { Check, ChevronDown, Layers3, Plus, Server } from "lucide-react";
 import { DropdownMenu as M } from "radix-ui";
 import { useNavigate } from "react-router";
 import { ALL_HOSTS, useHost } from "@/HostContext";
-import { useHosts } from "@/lib/hostsQuery";
+import { useHostName, useHosts } from "@/lib/hostsQuery";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import type { Host } from "@/types";
@@ -31,10 +31,11 @@ export default function HostSwitcher() {
     navigate("/");
   };
   const hosts = useHosts();
+  const hostName = useHostName();
   const list: Host[] = hosts.data ?? [];
   const current = list.find((h) => h.id === hostId);
   const online = list.filter((h) => h.online).length;
-  const label = hostId === ALL_HOSTS ? "All hosts" : current?.name || hostId;
+  const label = hostId === ALL_HOSTS ? "All hosts" : hostName(hostId);
   const sub =
     hostId === ALL_HOSTS
       ? `${list.length} host${list.length === 1 ? "" : "s"} · ${online} online`

@@ -15,7 +15,8 @@ import {
 } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useHost } from "../HostContext";
-import { appHref, appIdForContainer, buildApps, containerCount, isReplaced, isSwarm, liveFirst, KIND_LABEL, parseAppId, servicesOf, composeServices, type App, type AppContainer } from "../lib/apps";
+import { useHostName } from "../lib/hostsQuery";
+import { appHref, appIdForContainer, buildApps, containerCount, isReplaced, isSwarm, liveFirst, KIND_LABEL, parseAppId, servicesOf, composeServices, type App, type AppContainer, type AppIdParts } from "../lib/apps";
 import { errorStatus, LIVE_REFETCH_MS, liveUnlessGone } from "../lib/live";
 import { updateKey, useContainerUpdates } from "../lib/updates";
 import { notify } from "../ui/toast";
@@ -72,6 +73,7 @@ export default function AppDetail() {
   });
   const host = parts?.kind === "deployment" ? depQ.data?.targets?.[0] ?? "" : parts?.hostId ?? "";
   const hostsQ = useQuery({ queryKey: ["hosts"], queryFn: listHosts });
+  const hostName = useHostName();
   const ctrsQ = useQuery({
     // Same key as useHostScopedList's single-host list: one cache with the Containers page.
     queryKey: ["containers:all", "host", host],
@@ -143,7 +145,7 @@ export default function AppDetail() {
       const stale = buildApps({ containers: [], fallbackHost: host, deployments: [depQ.data], scopeHosts: hostInfo ? [hostInfo] : null })[0];
       if (stale) return <AppView app={{ ...stale, stale: true, attention: { tone: "n", text: "Host offline · last known config" } }} tab={tab} setTab={setTab} />;
     }
-    return <NotFound scope={scope} missing={missing} error={depQ.error ?? ctrsQ.error ?? depsQ.error} name={parts ? appId : "Unknown workload"} />;
+    return <NotFound scope={scope} missing={missing} error={depQ.error ?? ctrsQ.error ?? depsQ.error} name={notFoundLabel(parts, hostName)} />;
   }
 
   return <AppView app={app} tab={tab} setTab={setTab} />;
@@ -162,6 +164,15 @@ function DetailSkeleton() {
       </div>
     </div>
   );
+}
+
+// The id in the URL keys on the host id; the message names the host as the user knows it.
+function notFoundLabel(parts: AppIdParts | null, hostName: (id: string) => string): string {
+  if (!parts) return "this link";
+  if (parts.kind === "deployment") return "this deployment";
+  const on = hostName(parts.hostId);
+  const what = parts.kind === "stack" ? `the stack ${parts.project}` : `the container ${parts.name}`;
+  return on ? `${what} on ${on}` : what;
 }
 
 function NotFound({ scope, missing, error, name }: { scope: string; missing: boolean; error: unknown; name: string }) {
@@ -199,9 +210,8 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
     if (tab === "config") setConfigVisited(true);
   }, [tab]);
 
-  const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts }).data ?? [];
   const host = app.hostIds[0] ?? "";
-  const hostName = hosts.find((h) => h.id === host)?.name || host;
+  const hostName = useHostName()(host);
   const d = app.deployment;
   const configLabel = d ? "Configuration" : app.kind === "stack" ? "Compose" : "Config";
   const tabs: { id: Tab; label: string; extra?: ReactNode }[] = [

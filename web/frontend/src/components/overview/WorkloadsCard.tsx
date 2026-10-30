@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { appHref, isReplaced, kindShort, useApps, type App } from "../../lib/apps";
 import { isAllHosts } from "../../HostContext";
+import { useHostName } from "../../lib/hostsQuery";
 import { HostChip, Pill, StateSquares, Tag } from "../apps/ui";
 import { cn } from "@/lib/utils";
 import { Btn, FRAME, SectHead } from "./ui";
@@ -15,7 +16,7 @@ export function WorkloadsCard({ hostId }: { hostId: string }) {
   const navigate = useNavigate();
   const { apps, hosts, isLoading } = useApps(hostId);
   const all = isAllHosts(hostId);
-  const hostName = (id: string) => hosts.find((h) => h.id === id)?.name || id;
+  const hostName = useHostName();
   const hostOnline = (id: string) => hosts.find((h) => h.id === id)?.online ?? true;
   const list = apps ?? [];
   const rank = (a: App) => (a.attention ? RANK[a.attention.tone] ?? 2 : 3);
