@@ -135,8 +135,8 @@ closed 10 differences.
 
 **Still to harden**, mostly against real services: WebSocket streaming (logs,
 stats, exec) is implemented but has little end-to-end coverage; some external
-providers (live LDAP, cloud secret managers) are implemented but not tested
-against the real services.
+providers (cloud secret managers) are implemented but not tested against the
+real services.
 
 ## Environment variables: retention and performance
 

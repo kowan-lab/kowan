@@ -482,7 +482,7 @@ export default function Users() {
                 />
                 <TextInput
                   label="Email"
-                  description="Matched against SSO / LDAP identities at login (optional)"
+                  description="A single sign-on account with this verified email is linked to this user at first sign-in (optional)"
                   placeholder="jane@example.com"
                   value={createValues.email}
                   onChange={(e) =>
@@ -559,7 +559,7 @@ export default function Users() {
                 />
                 <TextInput
                   label="Email"
-                  description="Matched against SSO / LDAP identities at login"
+                  description="A single sign-on account with this verified email is linked to this user at first sign-in"
                   placeholder="jane@example.com"
                   value={editValues.email}
                   onChange={(e) =>
