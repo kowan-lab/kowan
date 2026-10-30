@@ -1182,8 +1182,9 @@ function StepConfig({
           />
           <Callout color="blue" variant="light">
             Pair this step with a Cron trigger to get automated, scheduled
-            backups. The archive holds the whole database, so only admins can
-            add, run or expose a workflow with this step.
+            backups. The archive holds the whole database and the server's
+            keys, so only admins can add, run or expose a workflow with this
+            step, and it is written readable by the server's user only.
           </Callout>
         </Box>
       );

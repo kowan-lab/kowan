@@ -285,6 +285,7 @@ class TestDeploymentsAndBackup(CLICase):
         out, _ = self.run_cli("backup", "-o", dest)
         self.assertIn(dest, out)
         self.assertGreater(os.path.getsize(dest), 100)
+        self.assertEqual(os.stat(dest).st_mode & 0o777, 0o600)  # it holds the keys
         out, _ = self.run_cli("restore", dest)
         self.assertIn("restart", out.lower())
         self.run_cli("restore", os.path.join(self.home, "missing.tar.gz"), code=1)

@@ -849,8 +849,10 @@ class Engine:
         written path and size.
 
         The SQLite snapshot is taken via ``store.snapshot`` into a temp file, then a
-        manifest, ``kowan.db`` and the ``stacks/`` subtree are streamed into the
-        archive. The master secret key is deliberately NOT included.
+        manifest, ``kowan.db``, the master keys kept as files (``secret.key``,
+        ``jwt.key``) and the ``stacks/`` subtree are streamed into the archive
+        (see :mod:`kowan.backup`). The archive is as sensitive as the keys, so it
+        is written 0600 in a 0700 folder.
         """
         if self._deps.store is None:
             raise ValueError("backup step: store not configured")
@@ -859,7 +861,7 @@ class Engine:
 
         # Always under {data_dir}/backups; "path" only names a sub-folder there.
         dest_dir = policy.backup_dir(self._deps.data_dir, step.config.get("path", ""))
-        os.makedirs(dest_dir, exist_ok=True)
+        os.makedirs(dest_dir, mode=0o700, exist_ok=True)
 
         filename = "kowan-backup-" + datetime.now(timezone.utc).strftime(
             "%Y-%m-%dT%H%M%SZ"
@@ -867,7 +869,8 @@ class Engine:
         dest_path = os.path.join(dest_dir, filename)
 
         def _write() -> None:
-            with open(dest_path, "wb") as w:
+            fd = os.open(dest_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as w:
                 backup.create_backup(self._deps.store, self._deps.data_dir, w)
 
         try:

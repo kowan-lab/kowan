@@ -8,9 +8,12 @@
   database.
 
 Both routes are admin-only: a backup exposes the entire database and a restore
-replaces it. Note stored secrets are encrypted at rest, so a restored database is
-only usable on a server configured with the SAME ``KOWAN_SECRET_KEY`` that
-produced the backup.
+replaces it. The archive also carries the master keys kept as files
+(``secret.key``, ``jwt.key``; see :mod:`kowan.backup`), so a restore recovers
+decryptable secrets and valid sessions from the archive alone, and the archive
+is as sensitive as those keys. A key supplied through the environment
+(``KOWAN_SECRET_KEY`` / ``KOWAN_JWT_SECRET``) has no file and is not in the
+archive: the restore target needs the same value.
 """
 
 from __future__ import annotations

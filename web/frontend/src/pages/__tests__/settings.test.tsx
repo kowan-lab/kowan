@@ -63,6 +63,9 @@ describe("settings page", () => {
       },
     });
     await ready();
+    // The archive carries the keys: the page says so and says to guard it.
+    expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
+    expect(screen.getByText("jwt.key")).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/backup downloaded/i);
     expect(screen.getByRole("button", { name: /restore backup/i })).toBeDisabled();
@@ -77,6 +80,9 @@ describe("settings page", () => {
   it("reports backup failures", async () => {
     const { user } = renderApp("/settings", { api: { "GET /backup": reply(500, { error: "disk full" }), "POST /restore": reply(400, { error: "not a kowan backup" }) } });
     await ready();
+    // The archive carries the keys: the page says so and says to guard it.
+    expect(screen.getByText(/anyone with the archive can decrypt every stored secret/i)).toBeInTheDocument();
+    expect(screen.getByText("jwt.key")).toBeInTheDocument();
     await press(user, /download backup/i);
     await toast(/disk full/i);
     await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, new File(["x"], "bad.tar.gz"));

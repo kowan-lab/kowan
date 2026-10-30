@@ -77,6 +77,10 @@ class TestEveryStep(WorkflowCase):
         self.assertIn("wrote backup", results["backup"]["output"])
         backups = os.listdir(os.path.join(self.data_dir, "backups"))
         self.assertEqual(len(backups), 1)
+        # The archive carries the server's keys: owner-only, like the keys.
+        archive = os.path.join(self.data_dir, "backups", backups[0])
+        self.assertEqual(os.stat(archive).st_mode & 0o777, 0o600)
+        self.assertEqual(os.stat(os.path.dirname(archive)).st_mode & 0o777, 0o700)
         _, runs = await self.call("GET", f"/workflows/{wf['id']}/runs", "operator", expect=200)
         self.assertEqual(len(runs), 1)
 

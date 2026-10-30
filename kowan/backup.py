@@ -86,7 +86,8 @@ def create_backup(st: Snapshotter, data_dir: str, w: IO[bytes]) -> None:
     """Write a gzip+tar backup of the control-plane state to ``w``.
 
     Takes a consistent SQLite snapshot (via ``st.snapshot``) into a temporary
-    file, then streams a manifest, the snapshot as ``kowan.db``, and the
+    file, then streams a manifest, the snapshot as ``kowan.db``, the master keys
+    held as files in ``data_dir`` (``secret.key``, ``jwt.key``) and the
     ``stacks/`` subtree of ``data_dir`` (if present) into the archive.
 
     ``w`` is any binary file-like object with ``write`` (e.g. a StreamResponse

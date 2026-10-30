@@ -204,11 +204,15 @@ function BackupCard() {
         iconLeft={<Icon name="info-outline-rounded" size="sm" />}
         title="What is included"
       >
-        The backup contains the database and the stacks data directory. Secrets
-        are encrypted with <Text as="span" weight="semibold">KOWAN_SECRET_KEY</Text>, which is{" "}
-        <Text as="span" weight="semibold">not</Text> included — restoring on another server
-        requires the same key to decrypt them. A restore is staged and applied
-        the next time the server starts.
+        The backup contains the database, the stacks data directory and the
+        server's keys (<Text as="span" mono>secret.key</Text>, which encrypts stored
+        secrets, and <Text as="span" mono>jwt.key</Text>, which signs sessions), so a
+        restore brings everything back from the archive alone.{" "}
+        <Text as="span" weight="semibold">Anyone with the archive can decrypt every stored secret:</Text>{" "}
+        keep it as safe as the keys. A key set through{" "}
+        <Text as="span" mono>KOWAN_SECRET_KEY</Text> or <Text as="span" mono>KOWAN_JWT_SECRET</Text>{" "}
+        is not in the archive: give the restored server the same value. A restore
+        is staged and applied the next time the server starts.
       </Callout>
 
       <Divider />
