@@ -43,6 +43,20 @@ describe("deployment history", () => {
     expect(screen.queryByRole("button", { name: /roll back to #3/i })).toBeNull();
   });
 
+  it("names every revision source, never the raw code", async () => {
+    const sources = ["preview", "promote", "import", "tags", "registry"];
+    await history({
+      "GET /deployments/:id/revisions": sources.map((source, i) => ({
+        number: sources.length - i, createdAt: NOW, author: "", source, note: "", deployedAt: "", live: i === 0, changes: [],
+      })),
+    });
+    const list = screen.getByRole("list", { name: "Revisions" });
+    for (const label of ["Branch preview", "Promotion", "Imported", "New image tag", "Hosted registry"]) {
+      expect(within(list).getByText(label)).toBeInTheDocument();
+    }
+    for (const raw of sources) expect(within(list).queryByText(raw)).toBeNull();
+  });
+
   it("diffs a revision against the previous one or any other", async () => {
     const { user } = await history();
     await user.click(screen.getByText("#2").closest("button")!);
