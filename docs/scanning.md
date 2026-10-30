@@ -56,7 +56,6 @@ pass `_` as id and `?image=<ref>`.
 - Image detail: "Vulnerabilities" band with counts, scanner version, a
   searchable, paginated findings table and **Scan now** / **Re-scan**.
 - Container detail: chips in the header.
-- Dashboard: "Security" band with totals per host (shown once something was scanned).
 
 ## Safe update gate
 

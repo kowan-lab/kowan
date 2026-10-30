@@ -113,5 +113,7 @@ created_by)`, `api_keys.team_id`.
 * GitOps is admin-only (admins bypass grants), so GitOps-managed schedules
   and auto-update policies can point anywhere; they show to scoped users only
   where their grants cover the target.
-* JWTs are stateless: a role change applies at the next sign-in, grant and team
-  changes apply immediately.
+* A role change ends the user's sessions at once (the session version in their
+  tokens no longer matches, open WebSockets included once they reconnect), so
+  they sign in again under the new role; grant and team changes apply
+  immediately, without a new sign-in.
