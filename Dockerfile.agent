@@ -111,7 +111,7 @@ LABEL org.opencontainers.image.title="kowan-agent" \
       org.opencontainers.image.version="$VERSION" \
       org.opencontainers.image.source="$SOURCE_URL" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.url="https://kowan-lab.github.io/kowan"
+      org.opencontainers.image.url="https://kowan.io"
 
 # FROM scratch does not inherit the base image's ENV, so restate what matters.
 ENV PATH=/opt/venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \

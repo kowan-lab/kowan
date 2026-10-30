@@ -1,0 +1,2 @@
+# Building the website (scripts/build_site.py). Not needed to run Kowan.
+markdown==3.10.2
