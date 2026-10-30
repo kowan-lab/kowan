@@ -6,6 +6,8 @@ Provides:
   * ``POST /auth/logout``  — client-side session teardown (JWTs are stateless;
                              this is a courtesy endpoint the SPA calls).
   * ``GET  /me``           — the current authenticated user.
+  * ``PUT  /me/password``  — any user changes their own password (the current
+                             one is required).
   * ``/users`` CRUD        — admin only.
 
 Wire it up from the server bootstrap with ``register(app, svc)``.
@@ -39,6 +41,7 @@ from kowan.web import (
     json_response,
     now_rfc3339,
     read_json,
+    reject_unknown_fields,
 )
 
 log = logging.getLogger("kowan.api.authapi")
@@ -86,6 +89,7 @@ def register(app: web.Application, svc) -> None:
 
     # Protected.
     api_route(app, "GET", "/me", _me)
+    api_route(app, "PUT", "/me/password", _change_own_password)
     api_route(app, "POST", "/auth/logout", _logout)
 
     api_route(app, "GET", "/users", require_role(RoleAdmin)(_list_users))
@@ -287,6 +291,64 @@ async def _me(request: web.Request) -> web.Response:
     except Exception:  # noqa: BLE001 - store NotFoundError
         return error_response(404, "user not found")
     return json_response(u)
+
+
+async def _change_own_password(request: web.Request) -> web.Response:
+    """Change the caller's own password from ``{currentPassword, newPassword}``.
+
+    Open to every signed-in user (admins manage other accounts through
+    ``PUT /users/{id}``). The current password is checked under the sign-in
+    rate limit, so a stolen session cannot guess it. Every other session ends;
+    this one carries on with the token in ``X-Session-Token``.
+    """
+    svc = _svc(request)
+    cu = user_from(request)
+    if cu is None:
+        return error_response(401, "not authenticated")
+    if getattr(cu, "key_hash", ""):
+        return error_response(400, "an API key has no password")
+    try:
+        body = await read_json(request)
+    except web.HTTPException:
+        return error_response(400, "invalid request body")
+    if not isinstance(body, dict):
+        return error_response(400, "invalid request body")
+    reject_unknown_fields(body, {"currentPassword", "newPassword"})
+    current = body.get("currentPassword") or ""
+    new = body.get("newPassword") or ""
+    if not isinstance(current, str) or not isinstance(new, str) or current == "" or new == "":
+        return error_response(400, "currentPassword and newPassword are required")
+    if len(new) < MIN_PASSWORD_LENGTH:
+        return error_response(400, f"password must be at least {MIN_PASSWORD_LENGTH} characters")
+    if len(current) > 1024 or len(new) > 1024:
+        return error_response(400, "password too long")
+    try:
+        u = svc.store.get_user(cu.id)
+    except Exception:  # noqa: BLE001 - store NotFoundError
+        return error_response(404, "user not found")
+    if u.password_hash == "":
+        return error_response(400, "this account signs in with single sign-on and has no password")
+
+    limiter = _limiter(svc)
+    address = _client_ip(request)
+    wait = limiter.retry_after(address, u.username)
+    if wait is not None or limiter.busy():
+        return _too_many(wait or 5)
+    if not await limiter.hashing(verify_password, u.password_hash, current):
+        limiter.failed(address, u.username)
+        return error_response(400, "current password is incorrect")
+    limiter.succeeded(address, u.username)
+
+    try:
+        u.password_hash = await asyncio.to_thread(hash_password, new)
+        svc.store.update_user(u)
+        svc.store.bump_session_version(u.id)
+    except Exception as err:  # noqa: BLE001
+        log.error("change own password: %s id=%s", err, u.id)
+        return error_response(500, "failed to update password")
+    resp = json_response(u)
+    resp.headers["X-Session-Token"] = svc.jwt.issue(u.id, u.username, u.role, svc.store.session_version(u.id))
+    return resp
 
 
 async def _logout(request: web.Request) -> web.Response:

@@ -18,6 +18,7 @@ import { errorMessage } from "../utils";
 // ---------------------------------------------------------------------------
 
 interface PasswordFormValues {
+  current: string;
   password: string;
   confirm: string;
 }
@@ -26,18 +27,22 @@ function ProfileCard() {
   const { user, adoptSession } = useAuth();
 
   const [values, setValues] = useState<PasswordFormValues>({
+    current: "",
     password: "",
     confirm: "",
   });
-  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
+  const [errors, setErrors] = useState<{ current?: string; password?: string; confirm?: string }>({});
 
   const resetForm = () => {
-    setValues({ password: "", confirm: "" });
+    setValues({ current: "", password: "", confirm: "" });
     setErrors({});
   };
 
   const validate = (): boolean => {
-    const next: { password?: string; confirm?: string } = {};
+    const next: { current?: string; password?: string; confirm?: string } = {};
+    if (!values.current) {
+      next.current = "Enter your current password";
+    }
     if (values.password.length < 8) {
       next.password = "Password must be at least 8 characters";
     }
@@ -49,9 +54,9 @@ function ProfileCard() {
   };
 
   const mutation = useMutation({
-    mutationFn: (password: string) => {
+    mutationFn: (v: PasswordFormValues) => {
       if (!user) throw new Error("Not signed in");
-      return changeOwnPassword(user.id, password);
+      return changeOwnPassword(v.current, v.password);
     },
     onSuccess: ({ user: updated, token }) => {
       // Other sessions end with the old password; this tab carries on.
@@ -75,7 +80,7 @@ function ProfileCard() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    mutation.mutate(values.password);
+    mutation.mutate(values);
   };
 
   return (
@@ -93,6 +98,18 @@ function ProfileCard() {
       </Text>
       <form onSubmit={handleSubmit}>
         <Box direction="column" gap={4}>
+          <TextInput
+            type="password"
+            label="Current password"
+            placeholder="Current password"
+            autoComplete="current-password"
+            disabled={!user || mutation.isPending}
+            value={values.current}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, current: e.target.value }))
+            }
+            errorText={errors.current}
+          />
           <TextInput
             type="password"
             label="New password"

@@ -24,26 +24,31 @@ async function ready() {
 
 describe("settings page", () => {
   it("validates and changes the own password, adopting the new session", async () => {
+    // Not only admins: every user changes their own password.
     const { user } = renderApp("/settings", {
-      api: { "PUT /users/:id": reply(200, users.admin, { "x-session-token": "fresh-token" }), "GET /system/server/update": status() },
+      role: "viewer",
+      api: { "PUT /me/password": reply(200, users.viewer, { "x-session-token": "fresh-token" }) },
     });
     await ready();
     await user.type(screen.getByLabelText(/^new password/i), "short");
     await press(user, /update password/i);
     expect(await screen.findByText(/at least 8 characters/i)).toBeInTheDocument();
     expect(screen.getByText(/do not match/i)).toBeInTheDocument();
+    expect(screen.getByText(/enter your current password/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/current password/i), "old-password");
     await user.clear(screen.getByLabelText(/^new password/i));
     await user.type(screen.getByLabelText(/^new password/i), "long-enough-1");
     await user.type(screen.getByLabelText(/confirm new password/i), "long-enough-1");
     await press(user, /update password/i);
     await toast(/password updated/i);
-    expect(requests("PUT", "/users/u-admin")[0].body).toEqual({ password: "long-enough-1" });
+    expect(requests("PUT", "/me/password")[0].body).toEqual({ currentPassword: "old-password", newPassword: "long-enough-1" });
     await waitFor(() => expect(localStorage.getItem(TOKEN_KEY)).toBe("fresh-token"));
   });
 
   it("reports a password failure", async () => {
-    const { user } = renderApp("/settings", { api: { "PUT /users/:id": reply(400, { error: "password too common" }) } });
+    const { user } = renderApp("/settings", { api: { "PUT /me/password": reply(400, { error: "password too common" }) } });
     await ready();
+    await user.type(screen.getByLabelText(/current password/i), "old-password");
     await user.type(screen.getByLabelText(/^new password/i), "password1");
     await user.type(screen.getByLabelText(/confirm new password/i), "password1");
     await press(user, /update password/i);
