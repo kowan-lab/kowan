@@ -104,7 +104,8 @@ async def fleet_snapshot(svc: Any, *, crashed_limit: int = 25, alerts_limit: int
             for c in cs:
                 code = exit_code_from_status(c.status)
                 unhealthy = "(unhealthy)" in (c.status or "")
-                if c.state in ("restarting", "dead") or (c.state == "exited" and code not in (None, 0)) or unhealthy:
+                crashed_exit = c.state == "exited" and code not in (None, 0) and not c.manually_stopped
+                if c.state in ("restarting", "dead") or crashed_exit or unhealthy:
                     crashed.append({
                         "host": h.name, "hostId": h.id, "id": short_id(c.id), "name": container_name(c),
                         "image": c.image, "state": c.state, "status": c.status, "exitCode": code,

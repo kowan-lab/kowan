@@ -186,6 +186,17 @@ describe("formatting and misc", () => {
     expect(servicesOf(lone)).toBeNull();
   });
 
+  it("a container stopped on purpose with an error code is stopped, not a crash", () => {
+    const npm = c({ names: ["/npm-app"], state: "exited", status: "Exited (1) 3 hours ago", manuallyStopped: true });
+    const crash = c({ id: "b".repeat(64), names: ["/crashy"], state: "exited", status: "Exited (1) 3 hours ago" });
+    expect(trouble(npm)).toBeNull();
+    expect(trouble(crash)).toBe("exited");
+    const apps = buildApps({ containers: [npm, crash], fallbackHost: "local", deployments: [], scopeHosts: null });
+    const by = Object.fromEntries(apps.map((a) => [a.name, [a.tone, a.label, a.attention]]));
+    expect(by["npm-app"]).toEqual(["n", "Stopped", null]);
+    expect(by.crashy[0]).toBe("r");
+  });
+
   it("an old swarm task whose slot runs again is history, not a crash", () => {
     const task = (name: string, svcId: string, state: string, status: string) =>
       c({ id: name.padEnd(64, "0"), names: [`/${name}`], state, status, labels: {

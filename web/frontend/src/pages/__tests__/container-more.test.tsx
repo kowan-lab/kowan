@@ -9,7 +9,8 @@ import { dialog, press, toast } from "../../test/ui";
 
 const ID = containers[2].id; // a lone container, so it can be edited
 const lone = { ...containerInspect, Id: ID, Name: "/nightly-job", Config: { ...containerInspect.Config, Labels: {} } };
-const state = (s: Record<string, unknown>) => ({ ...lone, State: { ...lone.State, ...s } });
+const state = (s: Record<string, unknown>, policy = "no") =>
+  ({ ...lone, State: { ...lone.State, ...s }, HostConfig: { ...lone.HostConfig, RestartPolicy: { Name: policy } } });
 const URL = `/containers/${ID}?host=local`;
 const base = {
   "GET /hosts/:h/containers/:id/spec": containerSpec,
@@ -29,6 +30,8 @@ describe("container problems", () => {
     ["OOM without a limit", state({ Status: "exited", Running: false, ExitCode: 137, OOMKilled: true }), /out of memory/i, /no memory limit is set/i],
     ["restarting", state({ Status: "restarting", Running: true, Restarting: true }), /restarting: 0 restarts so far/i],
     ["dead", state({ Status: "dead", Running: false, ExitCode: 0 }), /nightly-job/i],
+    // unless-stopped would have restarted a crash: npm start exits 1 when stopped.
+    ["a stop with an error code", state({ Status: "exited", Running: false, ExitCode: 1 }, "unless-stopped"), /^stopped.*exit code 1/i, /stopped on purpose/i],
   ];
   for (const [name, inspect, title, detail] of cases) {
     it(`explains ${name}`, async () => {

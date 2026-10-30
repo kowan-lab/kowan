@@ -19,8 +19,9 @@ def ts(minutes_ago: float) -> str:
 class TestWorkloadTools(MCPCase):
     async def test_list_get_and_act_on_workloads(self):
         self.engine.add_container("grafana", "grafana/grafana:11", labels=STACK)
-        self.engine.add_container("prom", "prom/prometheus:2", labels={**STACK, "com.docker.compose.service": "prom"},
-                                  state="exited", exit_code=1)
+        prom = self.engine.add_container("prom", "prom/prometheus:2", labels={**STACK, "com.docker.compose.service": "prom"},
+                                         state="exited", exit_code=1)
+        self.engine.containers[prom]["HostConfig"]["RestartPolicy"]["Name"] = "no"  # a crash, not a stop
         self.engine.add_container("lone", "redis:7")
         _, dep = await self.call("POST", "/deployments", "operator", json={
             "name": "shop", "type": "container", "strategy": "standalone", "targets": ["local"],

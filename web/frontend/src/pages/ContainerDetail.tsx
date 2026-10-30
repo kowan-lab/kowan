@@ -978,6 +978,14 @@ function describeProblem(info: Info): Problem | null {
       return { color: "red", title: `Killed for running out of memory, ${timeAgo(info.finishedAt)}`, detail: info.memory ? `Memory limit ${formatBytes(info.memory)}. Raise it or find the leak in the logs.` : "No memory limit is set, so the host itself ran out of memory." };
     }
     if (info.exitCode !== undefined && info.exitCode !== 0) {
+      // always/unless-stopped would have restarted a crash: this was a stop.
+      if (st === "exited" && !info.error && (info.restartPolicy === "always" || info.restartPolicy === "unless-stopped")) {
+        return {
+          color: "gray",
+          title: `Stopped${info.finishedAt ? ` ${timeAgo(info.finishedAt)}` : ""}, exit code ${info.exitCode}`,
+          detail: `Its restart policy (${info.restartPolicy}) would have restarted it after a crash, so it was stopped on purpose; a process run through a wrapper such as npm start exits with an error when stopped.`,
+        };
+      }
       return {
         color: "red",
         title: `Exited with code ${info.exitCode}${info.finishedAt ? `, ${timeAgo(info.finishedAt)}` : ""}`,

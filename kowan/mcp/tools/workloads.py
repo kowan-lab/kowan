@@ -46,7 +46,8 @@ _KINDS = {"dep": "deployment", "stack": "stack", "ctr": "container"}
 
 def _problem(c: Any) -> bool:
     code = exit_code_from_status(c.status)
-    return (c.state in ("restarting", "dead") or (c.state == "exited" and code not in (None, 0))
+    return (c.state in ("restarting", "dead")
+            or (c.state == "exited" and code not in (None, 0) and not c.manually_stopped)
             or "(unhealthy)" in (c.status or ""))
 
 

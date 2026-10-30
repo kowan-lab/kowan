@@ -57,16 +57,21 @@ class TestRuleTypes(MonitorCase):
         loop = self.engine.add_container("loopy")
         self.engine.containers[loop]["RestartCount"] = 7
         job = self.engine.add_container("job")
+        self.engine.containers[job]["HostConfig"]["RestartPolicy"]["Name"] = "no"
+        # unless-stopped and still exited: stopped on purpose (npm exits 1 on SIGTERM).
+        app = self.engine.add_container("npm-app")
         await self.rule(type="container_unhealthy")
         await self.rule(type="container_restart_loop", operator=">=", threshold=3)
         await self.rule(type="container_exited")
         await self.monitor._tick()
         self.engine.containers[job]["State"].update(Running=False, Status="exited", ExitCode=2)
+        self.engine.containers[app]["State"].update(Running=False, Status="exited", ExitCode=1)
         await self.monitor._tick()
         msgs = " | ".join(a["message"] for a in await self.open_alerts())
         self.assertIn("sick", msgs)
         self.assertIn("restarted 7 times", msgs)
         self.assertIn("exited with code 2", msgs)
+        self.assertNotIn("npm-app", msgs)
         self.assertTrue(sick)
 
     async def test_host_down_and_sustained_gate(self):

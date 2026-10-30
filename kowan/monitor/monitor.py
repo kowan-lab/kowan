@@ -517,8 +517,9 @@ class Monitor:
 
     def _eval_exited(self, h: Host, r: AlertRule, containers: List[Container]) -> None:
         """Fire when a container that was seen running has since exited with a
-        non-zero exit code. Gating on the seen-running set avoids alerting on
-        long-dead one-shot containers at startup."""
+        non-zero exit code, unless it was stopped on purpose. Gating on the
+        seen-running set avoids alerting on long-dead one-shot containers at
+        startup."""
         seen = self._seen_running_snapshot(h.id)
         for c in containers:
             if c.state != "exited" or not rule_matches_container(r, c):
@@ -527,7 +528,8 @@ class Monitor:
                 continue
             code, ok = parse_exit_code(c.status)
             key = condition_key(r.id, h.id, c.id)
-            cond = ok and code != 0
+            # Stopped on purpose (see Container.manually_stopped): not a crash.
+            cond = ok and code != 0 and not c.manually_stopped
             msg = f"container {container_label(c)} on {host_label(h)} exited with code {code}"
             self._evaluate(r, h, key, container_label(c), cond, msg)
 

@@ -806,6 +806,9 @@ class LocalClient(Ops):
         # container_stats). Lives here so the agent (which runs a LocalClient)
         # gets the same fast path for remote hosts.
         self._cpu_samples = CpuSampleCache()
+        # container id -> stopped on purpose, for the exited-with-error ones
+        # (see _mark_manual_stops); an entry lives while its container does.
+        self._manual_stops: Dict[str, bool] = {}
 
     def _supports_stats_oneshot(self) -> bool:
         try:
@@ -1010,7 +1013,32 @@ class LocalClient(Ops):
                     labels=s.get("Labels") or {},
                 )
             )
+        await self._mark_manual_stops(out)
         return out
+
+    async def _mark_manual_stops(self, containers: List[models.Container]) -> None:
+        """Set ``manually_stopped`` on the containers that exited with an
+        error code although nothing crashed: with an always/unless-stopped
+        restart policy Docker restarts a crashed container, so one still
+        exited was stopped (docker stop). The list has no restart policy, so
+        those few are inspected, once each: a container leaves the exited
+        state only by starting again, which drops its entry."""
+        failed = [c for c in containers if c.state == "exited" and _exit_code(c.status) not in (None, 0)]
+        live = {c.id for c in failed}
+        for cid in [k for k in self._manual_stops if k not in live]:
+            del self._manual_stops[cid]
+
+        async def one(c: models.Container) -> None:
+            try:
+                doc = await self.inspect_container(c.id)
+            except Exception:  # noqa: BLE001 - unknown: keep it a problem
+                return
+            policy = ((doc.get("HostConfig") or {}).get("RestartPolicy") or {}).get("Name") or ""
+            self._manual_stops[c.id] = policy in ("always", "unless-stopped")
+
+        await asyncio.gather(*(one(c) for c in failed if c.id not in self._manual_stops))
+        for c in failed:
+            c.manually_stopped = self._manual_stops.get(c.id, False)
 
     async def inspect_container(self, id: str) -> Dict[str, Any]:
         return await self._request_json("GET", f"/containers/{id}/json")
@@ -2608,6 +2636,15 @@ def _swarm_nodes_from_engine(raw: Any) -> List[models.SwarmNode]:
             continue
         out.append(_swarm_node_from_engine(n))
     return out
+
+
+_EXITED = re.compile(r"Exited \((-?\d+)\)")
+
+
+def _exit_code(status: str) -> Optional[int]:
+    """The exit code in a list status ("Exited (1) 2 hours ago"), if any."""
+    m = _EXITED.search(status or "")
+    return int(m.group(1)) if m else None
 
 
 def _stats_from_response(v: Dict[str, Any]) -> models.ContainerStats:

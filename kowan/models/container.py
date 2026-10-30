@@ -40,6 +40,11 @@ class Container(BaseModel):
     ports: List[Port] = Field(default_factory=list)
     labels: Dict[str, str] = Field(default_factory=dict)
     host_id: str = Field(default="", alias="hostId")
+    # Exited with a non-zero code but stopped on purpose (docker stop, an
+    # orchestrator): its restart policy is always/unless-stopped, so had it
+    # crashed Docker would have started it again. A process that dies on
+    # SIGTERM through a wrapper (``npm start``) exits 1 when merely stopped.
+    manually_stopped: bool = Field(default=False, alias="manuallyStopped")
 
     @field_validator("ports")
     @classmethod

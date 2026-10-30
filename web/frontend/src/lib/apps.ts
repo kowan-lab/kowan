@@ -277,7 +277,7 @@ function describeContainer(c: Container, all: Container[]): Pick<AppContainer, "
   if (state === "dead") return { tone: "r", label: "Dead", health, exitCode };
   if (state === "exited") {
     if (superseded(c, all)) return { tone: "n", label: `Replaced${dur}`, health, exitCode };
-    if (exitCode && exitCode !== 0) return { tone: "r", label: `Exited ${exitCode}${dur}`, health, exitCode };
+    if (exitCode && exitCode !== 0 && !c.manuallyStopped) return { tone: "r", label: `Exited ${exitCode}${dur}`, health, exitCode };
     return { tone: "n", label: `Stopped${dur}`, health, exitCode };
   }
   if (state === "created") return { tone: "n", label: "Created", health, exitCode };

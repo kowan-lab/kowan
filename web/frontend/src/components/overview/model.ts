@@ -52,7 +52,7 @@ export function trouble(c: Container, all: Container[] = []): Trouble | null {
   if (/\(unhealthy\)/i.test(c.status)) return "unhealthy";
   if (s === "exited") {
     const code = exitCode(c.status);
-    return code !== null && code !== 0 && !superseded(c, all) ? "exited" : null;
+    return code !== null && code !== 0 && !c.manuallyStopped && !superseded(c, all) ? "exited" : null;
   }
   return null;
 }

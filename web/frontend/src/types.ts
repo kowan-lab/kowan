@@ -80,6 +80,9 @@ export interface Container {
   ports: ContainerPort[];
   labels: Record<string, string>;
   hostId: string;
+  /** Exited with an error code but stopped on purpose: its restart policy
+   *  (always/unless-stopped) would have restarted it after a crash. */
+  manuallyStopped?: boolean;
 }
 
 export interface Image {
