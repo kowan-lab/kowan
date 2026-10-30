@@ -109,28 +109,28 @@ class TestRules(unittest.TestCase):
     def test_port_in_use_with_fix(self):
         text = "services:\n  a:\n    image: x:1\n    restart: always\n    ports:\n      - 127.0.0.1:8080:80/udp\n      - 9000:90\n"
         res = run(text, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})
-        d = find(res, "kowan-in-use")
+        d = find(res, "port-in-use")
         self.assertEqual((d.severity, d.path, d.line, d.column), ("error", "services.a.ports[0]", 6, 9))
         self.assertIn("'other'", d.message)
         # 8081 is taken on the host too -> next free is 8082; ip and proto kept.
         self.assertEqual(d.fix.patch, [{"op": "set", "path": ["services", "a", "ports", 0], "value": "127.0.0.1:8082:80/udp"}])
         # tcp 8080 free: protocol matters.
-        self.assertNotIn("kowan-in-use", codes(run(text, host_ports={(8080, "tcp"): "o"})))
+        self.assertNotIn("port-in-use", codes(run(text, host_ports={(8080, "tcp"): "o"})))
         # Unknown host facts: the rule is skipped.
-        self.assertNotIn("kowan-in-use", codes(run(text)))
+        self.assertNotIn("port-in-use", codes(run(text)))
         fixed = apply_patch(text, d.fix.patch)
-        self.assertNotIn("kowan-in-use", codes(run(fixed, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})))
+        self.assertNotIn("port-in-use", codes(run(fixed, host_ports={(8080, "udp"): "other", (8081, "udp"): "x"})))
 
     def test_port_in_use_long_syntax(self):
         text = "services:\n  a:\n    image: x:1\n    restart: always\n    ports:\n      - target: 80\n        published: 8080\n"
-        d = find(run(text, host_ports={(8080, "tcp"): "o"}), "kowan-in-use")
+        d = find(run(text, host_ports={(8080, "tcp"): "o"}), "port-in-use")
         self.assertEqual(d.fix.patch[0]["path"], ["services", "a", "ports", 0, "published"])
         self.assertEqual(d.fix.patch[0]["value"], 8081)
 
     def test_port_duplicate(self):
         res = run("services:\n  a:\n    image: x:1\n    restart: always\n    ports: ['80:80']\n"
                   "  b:\n    image: x:1\n    restart: always\n    ports: ['80:8080']\n")
-        d = find(res, "kowan-duplicate")
+        d = find(res, "port-duplicate")
         self.assertEqual(d.path, "services.b.ports[0]")
 
     def test_volumes(self):

@@ -255,7 +255,7 @@ def rule_ports(ctx: LintContext) -> List[Diagnostic]:
             for port, proto in published_ports(e):
                 key = (port, proto)
                 if key in used_here and used_here[key] != name:
-                    out.append(_diag(ctx, SEVERITY_ERROR, "kowan-duplicate",
+                    out.append(_diag(ctx, SEVERITY_ERROR, "port-duplicate",
                                      f"host port {port}/{proto} is published by both {used_here[key]!r} and {name!r}",
                                      path))
                 used_here.setdefault(key, name)
@@ -272,7 +272,7 @@ def rule_ports(ctx: LintContext) -> List[Diagnostic]:
                                 fix = Fix(f"Publish on {free} instead", [{"op": "set", "path": path, "value": repl}])
                         if fix is not None:
                             taken.add(free)
-                    out.append(_diag(ctx, SEVERITY_ERROR, "kowan-in-use",
+                    out.append(_diag(ctx, SEVERITY_ERROR, "port-in-use",
                                      f"host port {port}/{proto} is already used on the target host by {host[key]!r}",
                                      path, fix))
     return out
