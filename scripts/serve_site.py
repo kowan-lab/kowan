@@ -11,6 +11,7 @@ on Pages.
 
 import functools
 import http.server
+import importlib
 import pathlib
 import sys
 import threading
@@ -40,6 +41,7 @@ def rebuild_if_changed() -> None:
         if newest <= _built_at:
             return
         try:
+            importlib.reload(build_site)  # pick up edits to the generator too
             pages = build_site.build()
             print(f"rebuilt with {len(pages)} documentation pages", flush=True)
         except build_site.BuildError as err:

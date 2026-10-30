@@ -259,15 +259,17 @@ def page_html(page: Page, sections, order: list[Page], icons: str) -> str:
   <aside class="dside">
     <div class="dsearch" role="search">
       <label class="sr-only" for="dsearch-input">Search the documentation</label>
-      <input id="dsearch-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false"
+      <input id="dsearch-input" type="search" role="combobox" placeholder="Search the docs" autocomplete="off" spellcheck="false"
              aria-controls="dsearch-results" aria-expanded="false" aria-autocomplete="list">
       <kbd aria-hidden="true">/</kbd>
       <ul id="dsearch-results" class="dsearch-results" role="listbox" aria-label="Search results" hidden></ul>
     </div>
-    <details class="dnav-wrap" open>
+    <details class="dnav-wrap">
       <summary class="mono">Menu</summary>
       <nav class="dnav" aria-label="Documentation">{nav_html(sections, page)}</nav>
     </details>
+    <script>/* Open as a sidebar on wide screens, folded on phones, decided before the first paint. */
+    if (matchMedia("(min-width: 861px)").matches) document.currentScript.previousElementSibling.open = true;</script>
   </aside>
   <main id="content" class="dmain">
     <p class="dcrumb mono"><a href="/docs/">Docs</a><span aria-hidden="true">/</span><span>{esc(page.section)}</span></p>

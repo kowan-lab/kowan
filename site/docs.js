@@ -1,11 +1,8 @@
-// Kowan documentation: search, copy buttons on code, the current section in
-// "On this page", and the menu folded on small screens. No dependencies.
+// Kowan documentation: search, copy buttons on code and the current section
+// in "On this page". No dependencies. (The menu's open state is set inline in
+// each page, before the first paint.)
 (function () {
   "use strict";
-
-  // ── Menu: open on wide screens (the sidebar), folded on phones.
-  var navWrap = document.querySelector(".dnav-wrap");
-  if (navWrap && window.matchMedia("(max-width: 860px)").matches) navWrap.removeAttribute("open");
 
   // ── Copy buttons on code blocks.
   document.querySelectorAll(".prose pre").forEach(function (pre) {
