@@ -481,6 +481,10 @@ async def _handle_hook(request: web.Request) -> web.StreamResponse:
         wf = svc.store.get_workflow_by_run_token(token)
     except Exception as err:
         raise NotFound("workflow webhook not found") from err
+    # "Enabled" allows scheduled, webhook and polling runs: a disabled workflow
+    # still runs by hand, never from its public URL.
+    if not wf.enabled:
+        raise Conflict("workflow is disabled")
 
     # Gate on the matching webhook trigger's configured method. The path token
     # may match a specific webhook trigger's config token or the

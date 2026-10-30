@@ -181,6 +181,26 @@ class TestWebhookAndCrud(WorkflowCase):
         r = await self.client.post("/hooks/workflow/" + hook["token"])
         self.assertEqual(r.status, 404)
 
+    async def test_disabled_workflow_refuses_its_webhooks(self):
+        steps = [{"name": "h", "type": "http", "config": {"url": self.url + "/x"}}]
+        wf = await self.create(steps, triggers=[{"type": "webhook", "enabled": True,
+                                                 "config": {"token": "trigger-token-123", "method": "post"}}])
+        _, hook = await self.call("POST", f"/workflows/{wf['id']}/webhook", "admin", expect=200)
+        await self.call("PUT", f"/workflows/{wf['id']}", json={"name": "wf", "steps": steps, "enabled": False,
+                                                               "triggers": wf["triggers"]}, expect=200)
+        for token in (hook["token"], "trigger-token-123"):
+            r = await self.client.post("/hooks/workflow/" + token, data=b"x")
+            self.assertEqual(r.status, 409, token)
+            self.assertIn("disabled", (await r.json())["error"])
+        self.assertEqual(self.svc.store.list_runs(wf["id"], 10), [])
+        # A manual run still works.
+        run = await self.run_and_wait(wf["id"])
+        self.assertEqual(run["trigger"], "manual")
+        await self.call("PUT", f"/workflows/{wf['id']}", json={"name": "wf", "steps": steps, "enabled": True,
+                                                               "triggers": wf["triggers"]}, expect=200)
+        r = await self.client.post("/hooks/workflow/" + hook["token"], data=b"x")
+        self.assertEqual(r.status, 202)
+
     async def test_crud_roles_protection_and_masking(self):
         steps = [{"name": "h", "type": "http", "config": {"url": self.url, "headers": "Authorization: Bearer s3cr3t"}}]
         await self.roles("POST", "/workflows", "operator", json={"name": "x", "steps": steps})
