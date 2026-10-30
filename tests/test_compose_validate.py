@@ -149,6 +149,25 @@ class TestRules(unittest.TestCase):
         fixed = apply_patch(text, d.fix.patch)
         self.assertNotIn("volume-undeclared", codes(run(fixed)))
 
+    def test_relative_paths(self):
+        # Compose reaches the host as text in a temp file: relative paths resolve there.
+        text = ("services:\n  a:\n    image: x:1\n    restart: always\n    volumes:\n      - ./rel:/r\n"
+                "      - ../up:/u\n      - /abs:/a\n      - data:/d\n      - ${DIR}/x:/x\n"
+                "      - {type: bind, source: conf, target: /c}\n"
+                "    env_file:\n      - .env\n      - /etc/app.env\n      - {path: extra.env}\n"
+                "  b:\n    image: y:1\n    restart: always\n    env_file: b.env\n"
+                "configs:\n  site:\n    file: ./site.conf\n  abs:\n    file: /etc/site.conf\n"
+                "secrets:\n  key:\n    file: key.pem\nvolumes:\n  data: {}\n")
+        rel = [d for d in run(text).diagnostics if d.code == "relative-path"]
+        self.assertEqual([(d.severity, d.path) for d in rel], [
+            ("warning", "services.a.volumes[0]"), ("warning", "services.a.volumes[1]"),
+            ("warning", "services.a.volumes[5]"), ("warning", "services.a.env_file[0]"),
+            ("warning", "services.a.env_file[2]"), ("warning", "services.b.env_file"),
+            ("warning", "configs.site.file"), ("warning", "secrets.key.file"),
+        ])
+        self.assertIn("temporary folder", rel[0].message)
+        self.assertNotIn("relative-path", codes(run(GOOD)))
+
     def test_depends_and_healthchecks(self):
         text = ("services:\n  web:\n    image: x:1\n    restart: always\n    depends_on: [db, ghost]\n"
                 "  api:\n    image: x:1\n    restart: always\n    depends_on:\n      cache: {condition: service_healthy}\n"
@@ -239,9 +258,12 @@ class TestStructural(unittest.TestCase):
         # Lint covers depends_on better than the CLI message: no duplicate.
         res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    depends_on: [b]\n"))
         self.assertEqual(codes(res), ["depends-on-unknown"])
-        # env_file lives on the target host: info, not an error.
+        # env_file lives on the target host: info, not an error (a relative one
+        # also warns that it resolves in the temp folder there).
         res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    env_file: .env.prod\n"))
         self.assertTrue(res.ok, [d.to_dict() for d in res.diagnostics])
+        self.assertEqual(sorted(codes(res)), ["env-file-unchecked", "relative-path"])
+        res = asyncio.run(validate_text("services:\n  a:\n    image: x:1\n    restart: always\n    env_file: /srv/app.env\n"))
         self.assertEqual(codes(res), ["env-file-unchecked"])
 
     def test_cli_output_parsing(self):

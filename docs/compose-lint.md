@@ -52,7 +52,7 @@ YAML syntax errors are reported as `yaml-syntax` with the parser's position.
 Kowan's `[[secret]]` references are masked with same-length filler before
 parsing, so they never break the YAML and positions stay exact.
 `env_file` is read on the target host, so a missing one is `env-file-unchecked`
-(info), not an error.
+(info), not an error; a relative one also gets the `relative-path` warning.
 
 ## Lint rules
 
@@ -68,6 +68,7 @@ parsing, so they never break the YAML and positions stay exact.
 | `port-in-use` | error | next free port | published port used by a running container on the host |
 | `port-duplicate` | error | | two services publish the same host port |
 | `bind-path-missing` | warning / error | | absolute bind source missing on the host (short syntax: Docker creates an empty root-owned dir; long syntax fails) |
+| `relative-path` | warning | | relative bind source, `env_file` or config/secret `file:`. Every compose deployment (inline or from git) reaches the host as text written to a temporary file, so docker compose resolves these in that temporary folder, not next to the original file |
 | `volume-undeclared` | error | declare it | named volume not under top-level `volumes:` |
 | `healthcheck-missing` | info | | a service others depend on has no healthcheck |
 | `healthcheck-required` | warning | | `condition: service_healthy` on a service without healthcheck |
