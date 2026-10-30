@@ -55,7 +55,7 @@
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "downloadUrl": "https://github.com/kowan-lab/kowan/releases",
-  "softwareHelp": "https://github.com/kowan-lab/kowan/tree/main/docs",
+  "softwareHelp": "https://kowan.io/docs/",
   "sameAs": ["https://github.com/kowan-lab/kowan"]
 }
 </script>
@@ -152,7 +152,7 @@
     <nav class="nav" aria-label="Main">
       <a class="cell wide" href="#features">Features<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
       <a class="cell wide" href="#quick-start">Get started<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
-      <a class="cell" href="https://github.com/kowan-lab/kowan/tree/main/docs">Docs<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
+      <a class="cell" href="/docs/">Docs<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
       <a class="cell hot" href="https://github.com/kowan-lab/kowan">GitHub<svg class="corner" aria-hidden="true"><use href="#i-corner"/></svg></a>
     </nav>
   </div>
@@ -206,8 +206,8 @@
     <figure class="hero-shot">
       <div class="frame reg">
           <picture>
-            <source srcset="img/dashboard-light-1440.webp 1440w, img/dashboard-light.webp 2880w" sizes="(min-width: 1394px) 1320px, 100vw" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/dashboard-dark.webp" srcset="img/dashboard-dark-1440.webp 1440w, img/dashboard-dark.webp 2880w" sizes="(min-width: 1394px) 1320px, 100vw" width="1440" height="900" fetchpriority="high"
+            <source srcset="img/dashboard-light-720.webp 720w, img/dashboard-light-1440.webp 1440w, img/dashboard-light.webp 2880w" sizes="(min-width: 1394px) 1320px, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/dashboard-dark.webp" srcset="img/dashboard-dark-720.webp 720w, img/dashboard-dark-1440.webp 1440w, img/dashboard-dark.webp 2880w" sizes="(min-width: 1394px) 1320px, 100vw" width="1440" height="900" fetchpriority="high"
                  alt="Kowan's Docker host overview: containers, CPU, memory and disk use, and the workloads that need attention.">
           </picture>
         </div>
@@ -241,8 +241,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/container-detail-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/container-detail-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/container-detail-light-720.webp 720w, img/container-detail-light-1440.webp 1440w, img/container-detail-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/container-detail-dark-720.webp" srcset="img/container-detail-dark-720.webp 720w, img/container-detail-dark-1440.webp 1440w, img/container-detail-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="A container's page: health, image, ports, networks, mounts and live resource use, with tabs for logs, console, stats and files.">
           </picture>
         </div>
@@ -254,8 +254,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/container-logs-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/container-logs-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/container-logs-light-720.webp 720w, img/container-logs-light-1440.webp 1440w, img/container-logs-light.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/container-logs-dark-720.webp" srcset="img/container-logs-dark-720.webp 720w, img/container-logs-dark-1440.webp 1440w, img/container-logs-dark.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="A container's live log stream in the Kowan console.">
           </picture>
         </div>
@@ -264,8 +264,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/network-map-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/network-map-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/network-map-light-720.webp 720w, img/network-map-light-1440.webp 1440w, img/network-map-light.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/network-map-dark-720.webp" srcset="img/network-map-dark-720.webp 720w, img/network-map-dark-1440.webp 1440w, img/network-map-dark.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="The network map: containers linked to the Docker networks, ports and domains they use.">
           </picture>
         </div>
@@ -292,8 +292,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/workloads-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/workloads-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/workloads-light-720.webp 720w, img/workloads-light-1440.webp 1440w, img/workloads-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/workloads-dark-720.webp" srcset="img/workloads-dark-720.webp 720w, img/workloads-dark-1440.webp 1440w, img/workloads-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="The Workloads page: compose stacks, Kowan deployments and lone containers as cards, with a degraded stack under Needs you.">
           </picture>
         </div>
@@ -378,8 +378,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/exposure-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/exposure-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/exposure-light-720.webp 720w, img/exposure-light-1440.webp 1440w, img/exposure-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/exposure-dark-720.webp" srcset="img/exposure-dark-720.webp 720w, img/exposure-dark-1440.webp 1440w, img/exposure-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="The Exposure page: published ports by reach, with a warning on a database admin tool open to the internet.">
           </picture>
         </div>
@@ -401,8 +401,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/workload-detail-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/workload-detail-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/workload-detail-light-720.webp 720w, img/workload-detail-light-1440.webp 1440w, img/workload-detail-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/workload-detail-dark-720.webp" srcset="img/workload-detail-dark-720.webp 720w, img/workload-detail-dark-1440.webp 1440w, img/workload-detail-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="A workload's page: its containers, and its update, backup and schedule policies set with knobs.">
           </picture>
         </div>
@@ -424,8 +424,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/ai-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/ai-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/ai-light-720.webp 720w, img/ai-light-1440.webp 1440w, img/ai-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/ai-dark-720.webp" srcset="img/ai-dark-720.webp 720w, img/ai-dark-1440.webp 1440w, img/ai-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="The AI assistants page: ready-to-paste MCP setups for Claude Code, Claude Desktop and Cursor.">
           </picture>
         </div>
@@ -447,8 +447,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/deployment-history-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/deployment-history-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/deployment-history-light-720.webp 720w, img/deployment-history-light-1440.webp 1440w, img/deployment-history-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/deployment-history-dark-720.webp" srcset="img/deployment-history-dark-720.webp 720w, img/deployment-history-dark-1440.webp 1440w, img/deployment-history-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="A deployment's history: five revisions by two people, with the diff of the latest promotion from staging.">
           </picture>
         </div>
@@ -460,8 +460,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/previews-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/previews-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/previews-light-720.webp 720w, img/previews-light.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/previews-dark-720.webp" srcset="img/previews-dark-720.webp 720w, img/previews-dark.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="Preview environments of a git deployment: one for a branch and one for pull request 42, both deployed.">
           </picture>
         </div>
@@ -470,8 +470,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/disk-cleanup-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/disk-cleanup-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/disk-cleanup-light-720.webp 720w, img/disk-cleanup-light-1440.webp 1440w, img/disk-cleanup-light.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/disk-cleanup-dark-720.webp" srcset="img/disk-cleanup-dark-720.webp 720w, img/disk-cleanup-dark-1440.webp 1440w, img/disk-cleanup-dark.webp 2880w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="Disk cleanup: stopped containers, unused images and volumes with their sizes, safe ones picked.">
           </picture>
         </div>
@@ -493,8 +493,8 @@
       <figure class="media">
         <div class="frame reg">
           <picture>
-            <source srcset="img/uptime-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/uptime-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/uptime-light-720.webp 720w, img/uptime-light-1440.webp 1440w, img/uptime-light.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/uptime-dark-720.webp" srcset="img/uptime-dark-720.webp 720w, img/uptime-dark-1440.webp 1440w, img/uptime-dark.webp 2880w" sizes="(min-width: 1394px) 770px, (min-width: 961px) 58vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="The Uptime page: four checks with their recent results, uptime over 24 hours and 30 days, response time and certificate days left; one check is down.">
           </picture>
         </div>
@@ -506,8 +506,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/logs-history-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/logs-history-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/logs-history-light-720.webp 720w, img/logs-history-light.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/logs-history-dark-720.webp" srcset="img/logs-history-dark-720.webp 720w, img/logs-history-dark.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="Searching the kept logs of three workloads for errors over the last 24 hours.">
           </picture>
         </div>
@@ -516,8 +516,8 @@
       <figure>
         <div class="frame reg">
           <picture>
-            <source srcset="img/resources-light.webp" media="(prefers-color-scheme: light)">
-            <img class="shot" src="img/resources-dark.webp" width="1440" height="900" loading="lazy"
+            <source srcset="img/resources-light-720.webp 720w, img/resources-light.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" media="(prefers-color-scheme: light)">
+            <img class="shot" src="img/resources-dark-720.webp" srcset="img/resources-dark-720.webp 720w, img/resources-dark.webp 1440w" sizes="(min-width: 1394px) 660px, (min-width: 961px) 50vw, 100vw" width="1440" height="900" loading="lazy"
                  alt="A workload's CPU and memory over 24 hours, with a warning that memory has grown 22 MB an hour without a restart.">
           </picture>
         </div>
@@ -584,7 +584,7 @@
   <div class="col">
     <div class="head">
       <h2 id="qs-title">Up and running in a minute</h2>
-      <p>All you need is a server with Docker. Kowan works out of the box; to add more servers later, set <code>KOWAN_EXTERNAL_URL</code> to the address they will use to reach it.</p>
+      <p>All you need is a server with Docker. Kowan works out of the box; to add more servers later, set <code>KOWAN_EXTERNAL_URL</code> to the address they will use to reach it. The <a href="/docs/installation/">installation guide</a> covers HTTPS and every option.</p>
     </div>
     <div class="qs">
       <div class="qs-code">
@@ -689,7 +689,7 @@ volumes:
         <h2 id="f-project">Project</h2>
         <ul>
           <li><a href="https://github.com/kowan-lab/kowan">GitHub</a></li>
-          <li><a href="https://github.com/kowan-lab/kowan/tree/main/docs">Documentation</a></li>
+          <li><a href="/docs/">Documentation</a></li>
           <li><a href="https://github.com/kowan-lab/kowan/discussions">Discussions</a></li>
           <li><a href="https://github.com/kowan-lab/kowan/blob/main/CONTRIBUTING.md">Contributing</a></li>
         </ul>
