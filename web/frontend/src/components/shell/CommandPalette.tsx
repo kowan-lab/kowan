@@ -5,6 +5,7 @@ import { CornerDownLeft, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/auth/AuthContext";
 import { ALL_HOSTS, useHost } from "@/HostContext";
+import { useHostName } from "@/lib/hostsQuery";
 import { Icon, StatePill } from "@/ui/kit";
 import { useTheme } from "@/ui/theme";
 import { cn } from "@/lib/utils";
@@ -107,7 +108,7 @@ function PaletteBody({ close }: { close: () => void }) {
   const [selected, setSelected] = useState("");
 
   const manyHosts = hostId === ALL_HOSTS || hosts.length > 1;
-  const hostName = (id: string) => hosts.find((h) => h.id === id)?.name || id;
+  const hostName = useHostName();
 
   const go = (to: string) => {
     close();

@@ -9,6 +9,7 @@ import { formatBytes } from "../utils";
 import { notify } from "../ui/toast";
 import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
+import { useHostName } from "../lib/hostsQuery";
 import { appHref, containerCount, isReplaced, kindShort, liveFirst, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
@@ -65,7 +66,8 @@ export default function Workloads() {
   const { apps, hosts, isLoading, error, refetch } = useApps(hostId);
   const canOperate = useCanOperate();
   const all = isAllHosts(hostId);
-  const scopeName = all ? "All hosts" : hosts.find((h) => h.id === hostId)?.name || hostId;
+  const hostName = useHostName();
+  const scopeName = all ? "All hosts" : hostName(hostId);
 
   const setParam = (k: string, v: string | null) =>
     setParams((p) => {
@@ -84,7 +86,6 @@ export default function Workloads() {
   const list = useMemo(() => inTab.filter(FILTERS.find((f) => f.id === filter)!.match), [inTab, filter]);
   const nContainers = (apps ?? []).reduce((s, a) => s + a.total, 0);
   const hostOnline = (id: string) => hosts.find((h) => h.id === id)?.online ?? true;
-  const hostName = (id: string) => hosts.find((h) => h.id === id)?.name || id;
   const offlineHosts = all ? hosts.filter((h) => !h.online) : hosts.filter((h) => h.id === hostId && !h.online);
 
   const viewSwitch = (

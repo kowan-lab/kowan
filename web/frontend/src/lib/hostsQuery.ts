@@ -21,3 +21,16 @@ export const hostsQuery = queryOptions({
 export function useHosts() {
   return useQuery(hostsQuery);
 }
+
+/**
+ * Resolves a host id to what the user reads: the host's display name (the
+ * local host's id is always `local`, its name is whatever it was renamed to).
+ * While the list loads the label is empty rather than the id, so a renamed
+ * host never flashes its key; the id shows only for a host the list does not
+ * know, or when the list cannot be read. Reads the shared list without
+ * refetching on mount, like the breadcrumb did.
+ */
+export function useHostName(): (id: string) => string {
+  const { data, isError } = useQuery({ ...hostsQuery, refetchOnMount: false, retryOnMount: false });
+  return (id) => (data ? data.find((h) => h.id === id)?.name || id : isError ? id : "");
+}

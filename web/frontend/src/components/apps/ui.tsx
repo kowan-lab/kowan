@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { listHosts } from "../../api/client";
 import { isAllHosts } from "../../HostContext";
+import { useHostName } from "../../lib/hostsQuery";
 import { cn } from "@/lib/utils";
 import type { AppTone } from "../../lib/apps";
 
@@ -162,6 +163,7 @@ export function Crumbs({ hostScope, parts }: { hostScope: string; parts: { label
   const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, refetchOnMount: false, retryOnMount: false }).data ?? [];
   const all = isAllHosts(hostScope);
   const host = hosts.find((h) => h.id === hostScope);
+  const hostName = useHostName();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // Up one level of the trail, not back through the history: the nearest
@@ -188,7 +190,7 @@ export function Crumbs({ hostScope, parts }: { hostScope: string; parts: { label
         ) : (
           <Dot tone={host ? (host.online ? "g" : "r") : "n"} size={6} />
         )}
-        {all ? "All hosts" : host?.name || hostScope}
+        {all ? "All hosts" : hostName(hostScope)}
       </span>
       {parts.map((p, i) => (
         <span key={`${p.label}-${i}`} className="inline-flex items-center gap-[8px]">
