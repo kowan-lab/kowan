@@ -1,0 +1,26 @@
+[
+  {
+    "title": "Getting started",
+    "pages": ["index", "installation", "first-steps", "adding-servers", "upgrading", "backup-and-restore"]
+  },
+  {
+    "title": "Running applications",
+    "pages": ["applications", "containers", "deployments", "compose-validation", "revisions-and-rollback", "previews-and-promotion", "gitops", "importing", "registries"]
+  },
+  {
+    "title": "Keeping things healthy",
+    "pages": ["image-updates", "vulnerability-scanning", "exposure-and-https", "volume-backups", "schedules", "workflows-and-webhooks", "disk-cleanup"]
+  },
+  {
+    "title": "Monitoring",
+    "pages": ["alerts-and-notifications", "uptime", "logs", "resource-history", "digest"]
+  },
+  {
+    "title": "Teams and security",
+    "pages": ["users-and-roles", "single-sign-on", "api-keys", "audit-log", "network-access", "security"]
+  },
+  {
+    "title": "Reference",
+    "pages": ["configuration", "container-labels", "cli", "api", "mcp", "mobile-app", "architecture", "changelog"]
+  }
+]

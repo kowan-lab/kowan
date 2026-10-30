@@ -123,24 +123,13 @@ kowanctl --server https://kowan.example.com login
 kowanctl hosts list
 ```
 
-The built-in MCP server is described in [docs/mcp.md](docs/mcp.md). The **AI assistants** page in the UI shows ready-to-paste setups for Claude Code, Claude Desktop and Cursor.
+The built-in MCP server is described in [the MCP documentation](https://kowan.io/docs/mcp/). The **AI assistants** page in the UI shows ready-to-paste setups for Claude Code, Claude Desktop and Cursor.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
-- [Updates and rollback](docs/updates-design.md)
-- [Vulnerability scanning](docs/scanning.md)
-- [Exposure and HTTPS](docs/exposure.md)
-- [Volume backups](docs/volume-backups.md)
-- [GitOps](docs/gitops.md), [compose validation](docs/compose-lint.md), [container labels](docs/labels.md), [scheduled start/stop](docs/schedules.md)
-- [Deployment history](docs/deployment-history.md), [previews and promotion](docs/previews-and-promotion.md), [import](docs/import.md)
-- [Uptime](docs/uptime.md), [retained logs](docs/retained-logs.md), [resource history](docs/resource-history.md)
-- [Disk cleanup](docs/disk-cleanup.md), [the digest](docs/digest.md), [phone and installed app](docs/mobile-pwa.md)
-- [Testing](docs/testing.md)
-- [Permissions](docs/permissions.md) and [SSO](docs/sso.md)
-- [MCP server](docs/mcp.md)
-- [Connections](docs/connections.md), typed credentials shared across services
-- [Changelog](docs/CHANGELOG.md)
+The full documentation is at **[kowan.io/docs](https://kowan.io/docs/)**: [installation](https://kowan.io/docs/installation/), [adding servers](https://kowan.io/docs/adding-servers/), guides for every feature, and the reference for [configuration](https://kowan.io/docs/configuration/), [container labels](https://kowan.io/docs/container-labels/), the [CLI](https://kowan.io/docs/cli/), the [REST API](https://kowan.io/docs/api/) and the [MCP server](https://kowan.io/docs/mcp/). Its sources are in [site/_docs](site/_docs).
+
+Notes on how Kowan works inside, for contributors, are in [docs/](docs/), starting from the [architecture](docs/architecture.md) and [testing](docs/testing.md). The [changelog](docs/CHANGELOG.md) lists what changed in each release.
 
 ## Contributing
 
