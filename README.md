@@ -10,6 +10,11 @@
 </p>
 
 <p align="center">
+  Manage containers and deploy Compose stacks on many Docker hosts from one web UI, including hosts behind NAT.<br>
+  Free and open source (MIT): an alternative to Portainer, Komodo and Dockhand.
+</p>
+
+<p align="center">
   <a href="https://kowan-lab.github.io/kowan">Website</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="docs/">Docs</a> ·
@@ -18,7 +23,10 @@
 
 <p align="center">
   <a href="https://github.com/kowan-lab/kowan/actions/workflows/ci.yml"><img src="https://github.com/kowan-lab/kowan/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/kowan-lab/kowan/releases/latest"><img src="https://img.shields.io/github/v/release/kowan-lab/kowan" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/image-ghcr.io%2Fkowan--lab%2Fkowan-2496ED?logo=docker&logoColor=white" alt="Docker image: ghcr.io/kowan-lab/kowan"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
 </p>
 
 <picture>
@@ -30,6 +38,7 @@
 
 ## Features
 
+- **Multi-host by design**: an agent on each host, connecting out from behind NAT or a firewall (edge) or accepting the server's connection (direct).
 - **Containers, images, volumes, networks and stacks** across all your hosts, with live logs, a web console and a file browser inside containers.
 - **Compose deployments** with validation before you deploy, from an editor, a template or a git repository; every change is a revision you can diff and roll back.
 - **Preview environments** for branches and pull requests, and **promotion** from staging to production of exactly what was tested.

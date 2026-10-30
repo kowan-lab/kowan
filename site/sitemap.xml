@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The site is one page. A project site under /kowan/ cannot serve the host's
+     /robots.txt, so submit this file in Google Search Console and Bing Webmaster
+     Tools instead. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://kowan-lab.github.io/kowan/</loc>
+    <lastmod>2026-10-30</lastmod>
+  </url>
+</urlset>
