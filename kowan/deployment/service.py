@@ -42,12 +42,13 @@ import os
 import re
 import secrets as _secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
 from kowan import registry
+from kowan.config import env_duration
 from kowan.deployment import gitsource, previews
 from kowan.errors import Conflict, Validation
 from kowan.models import (
@@ -90,8 +91,9 @@ _MAX_CONCURRENT_DEPLOYS = 3
 # live, and the minimum gap between two reconcile-driven redeploys of the SAME
 # deployment (so a flapping/crash-looping container can't trigger a tight redeploy
 # loop — the operator's "don't continuously redeploy" concern).
-_RECONCILE_INTERVAL = float(os.environ.get("KOWAN_RECONCILE_INTERVAL", "5"))
-_RECONCILE_COOLDOWN = float(os.environ.get("KOWAN_RECONCILE_COOLDOWN", "120"))
+# Durations like the other settings: "5", "15s", "2m" (kowan.config.env_duration).
+_RECONCILE_INTERVAL = env_duration("KOWAN_RECONCILE_INTERVAL", timedelta(seconds=5)).total_seconds()
+_RECONCILE_COOLDOWN = env_duration("KOWAN_RECONCILE_COOLDOWN", timedelta(seconds=120)).total_seconds()
 
 # Per-target runtime states reported by status().
 STATE_RUNNING = "running"

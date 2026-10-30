@@ -146,9 +146,11 @@ against the real services.
 | `KOWAN_ALERT_RETENTION` | `30d` | Delete **resolved** alerts older than this (active ones stay). |
 | `KOWAN_WORKFLOW_RUNS_KEEP` | `100` | Runs kept per workflow (the most recent; a run still `running` is never deleted). |
 | `KOWAN_UVLOOP` | (on) | `0` turns uvloop off and uses the standard asyncio loop. |
+| `KOWAN_RECONCILE_INTERVAL` | `5s` | How often the reconcile loop checks that enabled deployments are live. |
+| `KOWAN_RECONCILE_COOLDOWN` | `2m` | Minimum gap between two reconcile-driven redeploys of one deployment. |
 
 Durations accept Go's format (`720h`, `1h30m`), days (`90d`) or whole seconds;
-`0` turns that cleanup off. Pruning runs about once an hour in the monitor's
+`0` turns a retention cleanup off. Pruning runs about once an hour in the monitor's
 loop. `orjson` and `uvloop` are optional: without them the stdlib `json` and
 `asyncio` are used.
 
