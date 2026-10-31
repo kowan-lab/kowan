@@ -2,6 +2,20 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.15 — 2026-10-31
+
+- **Updates in the workload list.** Swarm services are now checked: a service has an update when its tag serves a newer image than the one swarm deployed, and **Update** rolls the service over through swarm. Old swarm tasks kept as history ("Replaced") no longer count as updates. When an image could not be compared, the list says **Not checked**, with the reason on hover, instead of "Up to date".
+- **Registries over plain HTTP.** A registry your Docker hosts list in `insecure-registries`, or one stored with the new **Plain HTTP** box, is checked for updates over HTTP.
+- **Registries without a credential.** Choose **None** for a public registry: pulls are anonymous.
+- **Saving a registry checks it first.** If the registry does not answer, the error shows in the form and nothing is saved, unless you choose **Save without checking**.
+- **Progress for every pull.** A panel in the corner shows each image being pulled, whatever started it (the Pull button, an update, a deploy, the auto-updater), with size and layers. The Pull and Update dialogs show their own. Team members see the pulls they started.
+- **Removing several images leaves the ones in use.** An image a running container uses, also by digest as swarm does, counts as in use and is skipped, instead of failing.
+
+### Other changes
+
+- **Images are matched to containers by image id.** The In use and Unused filters, and the update state of an image, no longer depend on the tag a container was created from.
+- **Update the agents.** Updating a swarm service on a remote host needs the agent of this release.
+
 ## 0.1.14 — 2026-10-31
 
 - **Agents fix their own restart policy.** An agent installed without a restart policy, as the join command did up to 0.1.12, sets `unless-stopped` on its own container when it starts, so it comes back after a reboot. Update your agents from **Settings → Server updates** and there is nothing to run by hand; a policy you chose is left as it is.
