@@ -470,6 +470,14 @@ class Ops(abc.ABC):
         """Remove a swarm stack (``docker stack rm``); return combined output."""
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def update_service_image(self, stack: str, service_id: str, image: str, registry_auth: str) -> None:
+        """Point a swarm service of ``stack`` at ``image`` (``docker service
+        update --image``): swarm then replaces its tasks with its own update
+        config. ``registry_auth`` (an ``X-Registry-Auth`` value) lets the nodes
+        pull. Only a manager can do it. ``stack`` is there for the grants."""
+        raise NotImplementedError
+
     # -- container filesystem (archive API) ----------------------------------
     # LocalClient / RemoteClient implement them. Paths are
     # absolute container paths already normalised by

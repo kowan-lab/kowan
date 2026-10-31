@@ -318,13 +318,12 @@ class _CredentialMixin(_Base):
         )
 
     # -- registry-kind adapters ---------------------------------------------
-    def update_registry_credential(
+    def registry_update_data(
         self, cred: Credential, *, password: str, config: Optional[dict[str, str]]
-    ) -> None:
-        """Update a registry credential. An empty ``password`` keeps the stored one;
-        ``config`` None leaves the provider config untouched, else it is merged
-        (blank/masked sensitive keys preserved). ``meta.hasPassword`` is refreshed.
-        """
+    ) -> dict[str, str]:
+        """The secret data a registry update would store (see
+        :meth:`update_registry_credential`), without storing it: a save that
+        verifies first checks the registry with it."""
         self._require_cipher()
         existing = self.credential_config(cred.id)
         old_pw = existing.get(_REG_PASSWORD_KEY, "")
@@ -339,7 +338,17 @@ class _CredentialMixin(_Base):
         data = dict(new_cfg)
         if new_pw:
             data[_REG_PASSWORD_KEY] = new_pw
-        cred.meta["hasPassword"] = new_pw != ""
+        return data
+
+    def update_registry_credential(
+        self, cred: Credential, *, password: str, config: Optional[dict[str, str]]
+    ) -> None:
+        """Update a registry credential. An empty ``password`` keeps the stored one;
+        ``config`` None leaves the provider config untouched, else it is merged
+        (blank/masked sensitive keys preserved). ``meta.hasPassword`` is refreshed.
+        """
+        data = self.registry_update_data(cred, password=password, config=config)
+        cred.meta["hasPassword"] = data.get(_REG_PASSWORD_KEY, "") != ""
         blob = self._encrypt_data(data)
         self._execute(
             "UPDATE credentials SET type = ?, name = ?, meta = ?, data = ?, "

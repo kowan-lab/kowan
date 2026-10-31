@@ -412,6 +412,10 @@ class RemoteClient(Ops):
     async def swarm_remove(self, stack: str) -> str:
         return await self._call("swarm_remove", {"stack": stack}) or ""
 
+    async def update_service_image(self, stack: str, service_id: str, image: str, registry_auth: str) -> None:
+        await self._call("update_service_image",
+                         {"stack": stack, "id": service_id, "image": image, "auth": registry_auth})
+
     # -- container filesystem (archive API) ----------------------------------
 
     async def container_path_stat(self, id: str, path: str) -> Dict[str, Any]:

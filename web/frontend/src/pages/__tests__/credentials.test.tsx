@@ -98,12 +98,37 @@ describe("registries page", () => {
     const d = await dialog(/new registry/i);
     await user.type(within(d).getByLabelText(/^name/i), "acme");
     await press(user, /^create$/i, d);
-    await toast(/registry host is required/i);
+    expect(await within(d).findByText(/enter the registry host/i)).toBeInTheDocument();
     await user.type(within(d).getByLabelText(/registry host/i), "ghcr.io");
     await choose(user, /credential/i, /ghcr-acme/i, d);
     await press(user, /^create$/i, d);
     await toast(/registry (created|saved|added)/i);
     expect(requests("POST", "/credentials")[0].body).toMatchObject({ kind: "registry", name: "acme", url: "ghcr.io", connectionRef: "c-ghcr" });
+    // Saving checks the registry first.
+    expect(requests("POST", "/credentials")[0].query.verify).toBe("1");
+  });
+
+  it("creates a public registry over plain HTTP, and saves it anyway when it does not answer", async () => {
+    const { user } = renderApp("/registries");
+    mockApi({ "POST /credentials": (r: { query: Record<string, string> }) =>
+      r.query.verify ? reply(422, { error: "connect to registry 10.0.0.5:5000: connection refused" })
+        : raw({ kind: "registry", type: "generic", name: "lan", meta: { url: "http://10.0.0.5:5000" } }) });
+    await row("private");
+    await press(user, /new registry/i, pageRoot());
+    const d = await dialog(/new registry/i);
+    await user.type(within(d).getByLabelText(/^name/i), "lan");
+    // A pasted http:// URL ticks Plain HTTP and keeps the host in the field.
+    await user.type(within(d).getByLabelText(/registry host/i), "http://10.0.0.5:5000");
+    expect(within(d).getByLabelText(/registry host/i)).toHaveValue("10.0.0.5:5000");
+    expect(within(d).getByLabelText(/plain http/i)).toBeChecked();
+    await choose(user, /credential/i, /none/i, d);
+    await press(user, /^create$/i, d);
+    expect(await within(d).findByText(/connection refused/i)).toBeInTheDocument();
+    await press(user, /save without checking/i, d);
+    await toast(/registry created/i);
+    const [checked, saved] = requests("POST", "/credentials");
+    expect(checked.body).toMatchObject({ url: "http://10.0.0.5:5000", connectionRef: "" });
+    expect(saved.query.verify).toBeUndefined();
   });
 
   it("tests a registry: verified, insecure, failed and error", async () => {

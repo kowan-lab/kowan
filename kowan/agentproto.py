@@ -704,6 +704,7 @@ _DISPATCH: Dict[str, Callable[..., Awaitable[None]]] = {
     "list_swarm_nodes": _unary("list_swarm_nodes", _a()),
     "swarm_deploy": _unary("swarm_deploy", _a("stack", "compose", defaults={"compose": ""})),
     "swarm_remove": _unary("swarm_remove", _a("stack")),
+    "update_service_image": _unary("update_service_image", _a("stack", "id", "image", "auth", defaults={"stack": "", "auth": ""})),
 }
 
 

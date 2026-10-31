@@ -128,6 +128,13 @@ class FakeEngine:
         # Like ``fail`` but only for the next matching request.
         self.fail_once: Dict[Tuple[str, str], Tuple[int, str]] = {}
         self.swarm = False
+        # Swarm services by id: {"ID", "Version": {"Index"}, "Spec"}; an update
+        # stores the new spec and the X-Registry-Auth it came with.
+        self.services: Dict[str, Dict[str, Any]] = {}
+        self.service_auth: Dict[str, str] = {}
+        # /info's RegistryConfig (insecure registries).
+        self.registry_config: Dict[str, Any] = {"IndexConfigs": {"docker.io": {"Name": "docker.io", "Secure": True}},
+                                                "InsecureRegistryCIDRs": ["127.0.0.0/8"]}
         # exec handlers: (container, argv) -> (exit code, stdout bytes)
         self.exec_handler: Optional[Callable[[str, List[str]], Tuple[int, bytes]]] = None
         # One-shot containers: image prefix -> fn(container) -> (exit code, log lines).
@@ -340,6 +347,8 @@ class FakeEngine:
             ("POST", r"/plugins/pull", self._plugin_pull), ("POST", r"/plugins/([^/]+)/(enable|set)", self._plugin_action),
             ("DELETE", r"/plugins/([^/]+)", self._plugin_remove),
             ("GET", r"/nodes", self._nodes),
+            ("GET", r"/services/([^/]+)", self._inspect_service),
+            ("POST", r"/services/([^/]+)/update", self._update_service),
         ]
 
     # -- system --------------------------------------------------------------
@@ -360,7 +369,24 @@ class FakeEngine:
             "KernelVersion": "6.10.0", "DockerRootDir": "/var/lib/docker",
             "Swarm": {"LocalNodeState": "active" if self.swarm else "inactive", "ControlAvailable": self.swarm,
                       "NodeID": "node1" if self.swarm else ""},
+            "RegistryConfig": self.registry_config,
         })
+
+    async def _inspect_service(self, request, body, params, sid):
+        if sid not in self.services:
+            return self._err(404, f"service {sid} not found")
+        return web.json_response(self.services[sid])
+
+    async def _update_service(self, request, body, params, sid):
+        svc = self.services.get(sid)
+        if svc is None:
+            return self._err(404, f"service {sid} not found")
+        if params.get("version") != str(svc["Version"]["Index"]):
+            return self._err(400, "update out of sequence")
+        svc["Spec"] = body
+        svc["Version"]["Index"] += 1
+        self.service_auth[sid] = request.headers.get("X-Registry-Auth", "")
+        return web.json_response({"Warnings": None})
 
     async def _df(self, request, body, params):
         """Like the Engine: image and volume use counts from the containers."""

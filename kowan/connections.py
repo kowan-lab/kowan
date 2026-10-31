@@ -182,14 +182,22 @@ async def resolve_service(store: Any, service_id: str, capability: str) -> Any:
     svc = store.get_credential(service_id)
     svc_meta = dict(svc.meta)
     svc_meta.setdefault("name", svc.name)
+    data = {} if svc_meta.get("connectionRef") else store.credential_config(service_id)
+    return build_service(store, svc.type, svc_meta, data, capability)
+
+
+def build_service(store: Any, svc_type: str, svc_meta: Dict[str, Any], data: Dict[str, str],
+                  capability: str) -> Any:
+    """Build ``capability`` for a service config that may not be stored yet
+    (``svc_meta`` with its ``connectionRef``, ``data`` its own secrets), as
+    :func:`resolve_service` does for a stored one."""
     ref = svc_meta.get("connectionRef", "") or ""
     if ref:
         conn = store.get_credential(ref)
-        data = store.credential_config(ref)
+        conn_data = store.credential_config(ref)
         # Service config (url/region/insecure) overlays the connection identity;
         # drop the ref itself so it doesn't leak into provider construction.
         merged = {**conn.meta, **svc_meta}
         merged.pop("connectionRef", None)
-        return build_capability(conn.type, data, capability, merged)
-    data = store.credential_config(service_id)
-    return build_capability(svc.type, data, capability, svc_meta)
+        return build_capability(conn.type, conn_data, capability, merged)
+    return build_capability(svc_type, data, capability, svc_meta)

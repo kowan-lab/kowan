@@ -31,6 +31,8 @@ import asyncio
 import time
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
+from . import pulls
+
 DEFAULT_TTL = 30.0
 
 # Ops methods after which the host's image list may have changed. compose/stack
@@ -211,7 +213,9 @@ class CachingOps:
             finally:
                 invalidate()
             if name == "pull_image" and result is not None:
-                return _InvalidatingStream(result, invalidate)
+                ref = pulls.pull_ref(args, kwargs) or ""
+                tracked = pulls.TRACKER.track(self._host_id, ref, result, pulls.current_user_id())
+                return _InvalidatingStream(tracked, invalidate)
             return result
 
         _mutating.__name__ = name

@@ -198,7 +198,7 @@ class TestCheckHost(unittest.TestCase):
             "img-d": {"RepoDigests": ["reg.example.com/x@sha256:same"]},
         }
 
-        async def fake_remote(store, ref):
+        async def fake_remote(store, ref, plain_http=False):
             if ref.registry == "reg.example.com":
                 raise ValueError("401 unauthorized")
             return "sha256:new"
@@ -234,7 +234,7 @@ class TestCheckImage(unittest.TestCase):
         }
         seen = []
 
-        async def fake_remote(store, ref):
+        async def fake_remote(store, ref, plain_http=False):
             seen.append(ref.tag)
             if ref.tag == "1.27":
                 raise ValueError("401 unauthorized")

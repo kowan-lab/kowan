@@ -290,11 +290,13 @@ export async function createRegistry(body: {
   // When delegating auth to a shared connection, send only the connection id
   // (and omit username/password/config).
   connectionRef?: string;
-}): Promise<Registry> {
+}, opts?: { verify?: boolean }): Promise<Registry> {
+  // verify: the server checks the registry first and answers 422 (nothing
+  // saved) when it does not answer.
   const { data } = await api.post<RawCredential>("/credentials", {
     kind: "registry",
     ...body,
-  });
+  }, { params: opts?.verify ? { verify: "1" } : undefined });
   return toRegistry(data);
 }
 
@@ -311,8 +313,9 @@ export async function updateRegistry(
     // When delegating auth to a shared connection, send only the connection id.
     connectionRef: string;
   }>,
+  opts?: { verify?: boolean },
 ): Promise<Registry> {
-  const { data } = await api.put<RawCredential>(`/credentials/${id}`, body);
+  const { data } = await api.put<RawCredential>(`/credentials/${id}`, body, { params: opts?.verify ? { verify: "1" } : undefined });
   return toRegistry(data);
 }
 

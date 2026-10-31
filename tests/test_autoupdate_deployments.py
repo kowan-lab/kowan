@@ -285,7 +285,7 @@ class TestUpdateStack(DeploymentUpdateCase):
         self.engine.add_container("mon-web-1", "nginx:1.27", labels=labels)
         self.engine.add_container("mon-db-1", "redis:7", labels={**labels, "com.docker.compose.service": "db"})
 
-        async def remote(store, ref):
+        async def remote(store, ref, plain_http=False):
             return NEW if ref.repository == "library/nginx" else "sha256:" + "0" * 64
 
         with mock.patch.object(updates, "_remote_digest", remote):

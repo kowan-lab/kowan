@@ -181,17 +181,28 @@ describe("images: updates, filters and bulk remove", () => {
     expect([A, B].some((id) => removed.includes(`/hosts/local/images/${id}`))).toBe(false);
   });
 
-  it("reports images that could not be removed and still removes the rest", async () => {
+  it("leaves the images of running containers and reports the ones that fail", async () => {
     const { user } = renderApp("/images", { api: {
-      "DELETE /hosts/:h/images/:id": (r: { params: Record<string, string> }) => (r.params.id === A ? reply(409, { error: "image is in use" }) : {}),
+      "DELETE /hosts/:h/images/:id": (r: { params: Record<string, string> }) => (r.params.id === C ? reply(409, { error: "image is in use" }) : {}),
     } });
     await ready();
     await user.click(screen.getByRole("checkbox", { name: /select every image shown/i }));
     await press(user, /^remove 3$/i, pageRoot());
     const d = await dialog(/remove 3 images/i);
-    expect(within(d).getByText(/used by a container/i)).toBeInTheDocument();
+    expect(within(d).getByText(/2 of them are used by a running container/i)).toBeInTheDocument();
     await press(user, /^remove$/i, d);
-    await toast(/removed 2, 1 failed/i);
+    await toast(/removed 0, 1 failed/i);
+    expect(requests("DELETE", "/hosts/local/images/:id").map((r) => r.path)).toEqual([`/hosts/local/images/${C}`]);
+  });
+
+  it("counts an untagged image a swarm task runs by digest as in use", async () => {
+    // A swarm task names repo:tag@sha256:… while the image it pulled has no tag.
+    const task = { id: "c-task".padEnd(64, "0"), names: ["/web_api.1.x"], image: "registry.local/api:1@sha256:" + "e".repeat(64), imageId: C,
+      state: "running", status: "Up 1 hour", created: 1_761_000_000, ports: [], labels: {}, hostId: "local" };
+    const { user } = renderApp("/images", { api: { "GET /hosts/:id/containers": [task] } });
+    await ready();
+    await press(user, /^in use · 1$/i, pageRoot());
+    expect(within(pageRoot()).getByText("<none>")).toBeInTheDocument();
   });
 
   it("checks one image now and pulls the newer one", async () => {

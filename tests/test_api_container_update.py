@@ -23,7 +23,7 @@ class UpdateCase(ServerCase):
         self.cid = self.engine.add_container("web", "nginx:1.27", ports=[(80, 8080)])
         self.engine.registry["nginx:1.27"] = NEW
 
-        async def remote(store, ref):
+        async def remote(store, ref, plain_http=False):
             return NEW
 
         self._p = mock.patch.object(updates, "_remote_digest", remote)

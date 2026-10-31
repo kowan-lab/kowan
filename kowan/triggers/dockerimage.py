@@ -44,6 +44,10 @@ _DOCKER_MANIFEST_ACCEPT = (
 _MANIFEST_BODY_LIMIT = 4 << 20
 
 
+class _Unreachable(ValueError):
+    """The registry could not be reached at that URL (refused, TLS failed)."""
+
+
 class _DockerImagePoller(Poller):
     """Parsed image reference plus optional credentials for one trigger."""
 
@@ -54,12 +58,16 @@ class _DockerImagePoller(Poller):
         reference: str,
         username: str,
         password: str,
+        plain_http: bool = False,
     ) -> None:
         self.registry = registry
         self.repository = repository
         self.reference = reference
         self.username = username
         self.password = password
+        # The registry may answer over plain HTTP (an insecure registry):
+        # like Docker, HTTPS is tried first and HTTP only when it fails.
+        self.plain_http = plain_http
 
     async def evaluate(self, config: Dict[str, str], state: str) -> Tuple[bool, str]:
         """Resolve the current manifest digest and report whether it changed.
@@ -76,8 +84,16 @@ class _DockerImagePoller(Poller):
         return digest != state, digest
 
     async def _resolve_digest(self, client: httpcap.Client) -> str:
+        try:
+            return await self._resolve_digest_at(client, "https")
+        except _Unreachable:
+            if not self.plain_http:
+                raise
+        return await self._resolve_digest_at(client, "http")
+
+    async def _resolve_digest_at(self, client: httpcap.Client, scheme: str) -> str:
         manifest_url = (
-            f"https://{self.registry}/v2/{self.repository}/manifests/{self.reference}"
+            f"{scheme}://{self.registry}/v2/{self.repository}/manifests/{self.reference}"
         )
 
         auth = ""
@@ -126,7 +142,7 @@ class _DockerImagePoller(Poller):
         try:
             return await client.request(method, manifest_url, limit=_MANIFEST_BODY_LIMIT, headers=headers)
         except httpcap.HTTPError as err:
-            raise ValueError(f"docker-image: {method} {manifest_url}: {err}") from err
+            raise _Unreachable(f"docker-image: {method} {manifest_url}: {err}") from err
 
     async def _authorization(self, client: httpcap.Client, challenge: str, manifest_url: str) -> str:
         """The Authorization header answering a 401's ``challenge``.
@@ -264,6 +280,7 @@ def _new_docker_image(config: Dict[str, str]) -> Poller:
         reference=reference,
         username=config.get("username", ""),
         password=config.get("password", ""),
+        plain_http=str(config.get("plainHttp", "")).lower() == "true",
     )
 
 

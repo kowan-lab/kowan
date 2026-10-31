@@ -3,9 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventsWebSocketURL, getMyPermissions } from "@/api/client";
 import { useHosts } from "@/lib/hostsQuery";
 import { setEventsLive } from "@/lib/live";
+import { recordPull, type PullProgress } from "@/lib/pulls";
 
 /**
- * Push instead of poll: one Docker events WebSocket per online host. Each event
+ * Push instead of poll: one Docker events WebSocket per online host (a team
+ * member, whom the server refuses Docker events, gets one for their own image
+ * pulls only). Each event
  * invalidates only the query families it affects (batched every 250 ms), so
  * lists update the moment something changes and idle tabs cost nothing.
  * Polling stays on as a slow safety net (lib/live.ts).
@@ -24,8 +27,11 @@ export function useDockerEvents(): void {
   // so they stay on polling instead of retrying a socket that can never open.
   const perms = useQuery({ queryKey: ["me-permissions"], queryFn: getMyPermissions, staleTime: 300_000, retry: false });
   const allowed = perms.isSuccess ? perms.data.mode !== "scoped" : perms.isError;
+  const decided = perms.isSuccess || perms.isError;
   const online = (hosts.data ?? []).filter((h) => h.online).map((h) => h.id).sort();
-  const key = allowed ? online.join(",") : "";
+  // Team members still follow their own image pulls: a pull-only socket.
+  const types = allowed ? "container,image,volume,network,pull" : "pull";
+  const key = decided && online.length ? `${types}|${online.join(",")}` : "";
 
   const pending = useRef(new Set<string>());
   const timer = useRef<number | null>(null);
@@ -35,7 +41,9 @@ export function useDockerEvents(): void {
       setEventsLive(false);
       return;
     }
-    const ids = key.split(",");
+    const [want, list] = key.split("|");
+    const ids = list.split(",");
+    const docker = want !== "pull";
     const open = new Set<string>();
     const sockets = new Map<string, WebSocket>();
     const retries = new Map<string, number>();
@@ -56,11 +64,12 @@ export function useDockerEvents(): void {
       for (const f of fams) pending.current.add(f);
       if (timer.current === null) timer.current = window.setTimeout(flush, 250);
     };
-    const updateLive = () => setEventsLive(open.size === ids.length);
+    // Lists poll fast unless Docker events push their changes.
+    const updateLive = () => setEventsLive(docker && open.size === ids.length);
 
     const connect = (id: string) => {
       if (disposed) return;
-      const ws = new WebSocket(eventsWebSocketURL(id, { type: "container,image,volume,network" }));
+      const ws = new WebSocket(eventsWebSocketURL(id, { type: want }));
       sockets.set(id, ws);
       ws.onopen = () => {
         open.add(id);
@@ -70,6 +79,11 @@ export function useDockerEvents(): void {
       ws.onmessage = (m) => {
         try {
           const ev = JSON.parse(m.data as string) as { type?: string };
+          // Progress of an image pull (kowan/docker/pulls.py), not a Docker event.
+          if (ev.type === "pull") {
+            recordPull(ev as PullProgress);
+            return;
+          }
           const fams = FAMILIES[ev.type ?? ""];
           if (fams) schedule(fams);
         } catch {

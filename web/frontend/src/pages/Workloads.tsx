@@ -414,7 +414,13 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
       <div className="mt-auto flex items-center gap-[8px] p-[14px_16px]">
         <span className={LBL}>{a.deployment?.preview ? `Preview · ${a.deployment.preview.pullRequest ? `PR #${a.deployment.preview.pullRequest}` : a.deployment.preview.ref}` : a.managed ? "Managed" : "Discovered"}</span>
         <span className="ml-auto">
-          {a.updates > 0 ? <Pill tone="a">Update · {a.updates}</Pill> : <span className={LBL}>Up to date</span>}
+          {a.updates > 0 ? (
+            <Pill tone="a">Update · {a.updates}</Pill>
+          ) : a.unchecked.length ? (
+            <span className={LBL} title={a.unchecked.join("\n")}>Not checked</span>
+          ) : (
+            <span className={LBL}>Up to date</span>
+          )}
         </span>
       </div>
       {att && (
@@ -538,7 +544,15 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                     </span>
                   </td>
                   <td className={cn(TD, "font-mono")}>{a.ports.filter((p) => p.public).map((p) => `:${p.publicPort}`).join(" ") || "—"}</td>
-                  <td className={TD}>{a.updates ? <Pill tone="a">Update · {a.updates}</Pill> : <span className="text-muted-foreground">—</span>}</td>
+                  <td className={TD}>
+                    {a.updates ? (
+                      <Pill tone="a">Update · {a.updates}</Pill>
+                    ) : a.unchecked.length ? (
+                      <span className="text-muted-foreground" title={a.unchecked.join("\n")}>Not checked</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td
                     className={cn(TD, "whitespace-normal")}
                     style={a.attention ? { color: a.attention.tone === "r" ? "var(--tone-red-text)" : a.attention.tone === "a" ? "var(--tone-amber-text)" : "var(--muted-foreground)" } : undefined}

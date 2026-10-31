@@ -145,7 +145,7 @@ class TestActionTools(MCPCase):
         self.engine.registry["nginx:1.27"] = new
         cid = self.engine.add_container("web", "nginx:1.27")
 
-        async def remote(store, ref):
+        async def remote(store, ref, plain_http=False):
             return new
 
         with mock.patch.object(updates, "_remote_digest", remote):

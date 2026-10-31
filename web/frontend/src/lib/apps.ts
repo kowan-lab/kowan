@@ -89,6 +89,9 @@ export interface App {
   project?: string;
   /** Containers with a newer image in the registry. */
   updates: number;
+  /** Why the containers that could not be checked were not (one line each),
+   *  so "up to date" is said only of images that were compared. */
+  unchecked: string[];
   attention: AppAttention | null;
   /** The host is offline: containers are unknown, the app is shown from config. */
   stale: boolean;
@@ -380,7 +383,7 @@ function portsOf(cs: AppContainer[]): AppPort[] {
   return [...seen.values()].sort((a, b) => a.publicPort - b.publicPort);
 }
 
-function summarize(base: Omit<App, "running" | "total" | "up" | "desired" | "tone" | "label" | "health" | "ports" | "updates" | "attention" | "createdAt">, createdFallback: number | null): App {
+function summarize(base: Omit<App, "running" | "total" | "up" | "desired" | "tone" | "label" | "health" | "ports" | "updates" | "unchecked" | "attention" | "createdAt">, createdFallback: number | null): App {
   const cs = base.containers;
   const total = cs.length;
   const running = cs.filter((c) => c.container.state === "running").length;
@@ -390,6 +393,7 @@ function summarize(base: Omit<App, "running" | "total" | "up" | "desired" | "ton
     starting: cs.filter((c) => c.health === "starting").length,
   };
   const updates = cs.filter((c) => c.update?.updateAvailable).length;
+  const unchecked = cs.filter((c) => c.update?.error && !c.update.updateAvailable).map((c) => `${c.name}: ${c.update!.error}`);
   const worst = cs.reduce<AppTone>((w, c) => (TONE_RANK[c.tone] > TONE_RANK[w] ? c.tone : w), "g");
 
   let tone: AppTone;
@@ -460,6 +464,7 @@ function summarize(base: Omit<App, "running" | "total" | "up" | "desired" | "ton
     health,
     ports: portsOf(cs),
     updates,
+    unchecked,
     attention,
     createdAt: Number.isFinite(createdAt as number) ? createdAt : createdFallback,
   };
@@ -494,7 +499,8 @@ export function buildApps(opts: {
       name,
       service: serviceOf(labels) || name,
       ...describeContainer(c, containers),
-      update: updates?.(hostId, c.id),
+      // An old Swarm task has nothing to update: a newer task runs in its slot.
+      update: superseded(c, containers) ? undefined : updates?.(hostId, c.id),
     };
     const owner = ownerDeployment(c, hostId, deployments);
     if (owner) {

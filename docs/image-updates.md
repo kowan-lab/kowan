@@ -31,6 +31,24 @@ The **Update** button of a single container that belongs to a Kowan deployment
 updates its whole deployment instead: recreating the container alone would be
 undone by the next deploy.
 
+- **A swarm service** (a stack Kowan did not deploy): swarm pins each task to
+  `repo:tag@sha256:…`, the digest the tag had at deploy time, so a task has an
+  update when the tag now serves another digest. Update points the service at
+  the new digest (`docker service update --image`, through a manager) and swarm
+  replaces the tasks with the service's own update config. Old tasks kept as
+  history ("Replaced") are never counted nor updated. A digest written by hand
+  without a tag stays pinned.
+
+A registry the host's daemon lists in `insecure-registries`, or a stored
+registry whose URL is `http://` (the **Plain HTTP** box in Registries), is asked
+over HTTP when HTTPS fails, as Docker does. In the workload list, **Not
+checked** (with the reasons on hover) replaces "Up to date" when some image
+could not be compared.
+
+Every pull (the Pull button, an update, a deploy, the auto-updater) reports its
+progress to the UI through the host's events WebSocket (`type=pull`,
+`kowan/docker/pulls.py`): a panel in the corner shows each pull in flight.
+
 Answers: 200 updated or already up to date, 409 blocked by the scan policy (or
 an update already running), 502 rolled back or failed; a stack answers 207
 when some containers failed.

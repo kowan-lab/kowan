@@ -240,5 +240,33 @@ class TestEventsHTTP(unittest.IsolatedAsyncioTestCase):
         await ws.close()
         self.assertIsNone(ops.args[1], "live stream must not set until")
 
+    async def test_ws_follows_pulls(self):
+        from kowan.docker import pulls
+
+        tracker = pulls.PullTracker(interval=0)
+        orig, pulls.TRACKER = pulls.TRACKER, tracker
+        try:
+            ops = _HostOps(_BytesStream(b""))
+            client = await self._client(ops)
+            # A pull already running is reported to a socket opened after it.
+            stream = tracker.track("local", "nginx:1.28", _BytesStream(b""))
+            ws = await client.ws_connect("/api/v1/hosts/local/events/ws?type=pull")
+            first = await ws.receive_json(timeout=5)
+            self.assertEqual((first["type"], first["ref"], first["status"]), ("pull", "nginx:1.28", "pulling"))
+            await stream.close()
+            last = await ws.receive_json(timeout=5)
+            self.assertEqual(last["status"], "error")  # closed before its end
+            await ws.close()
+            self.assertIsNone(ops.args, "type=pull alone opens no Docker events")
+            # Docker events and pulls together; pull never reaches Docker's filter.
+            ops2 = _HostOps(_BytesStream((json.dumps(DIE) + "\n").encode()))
+            client2 = await self._client(ops2)
+            ws2 = await client2.ws_connect("/api/v1/hosts/local/events/ws?type=container,pull")
+            await ws2.receive_json(timeout=5)
+            self.assertEqual(ops2.args[2], {"type": ["container"]})
+            await ws2.close()
+        finally:
+            pulls.TRACKER = orig
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,18 +16,18 @@ export const hosts: Host[] = [
 
 export const containers: Container[] = [
   {
-    id: "c-web".padEnd(64, "0"), names: ["/shop-web-1"], image: "nginx:1.27", state: "running", status: "Up 3 hours",
+    id: "c-web".padEnd(64, "0"), names: ["/shop-web-1"], image: "nginx:1.27", imageId: "sha256:" + "a".repeat(64), state: "running", status: "Up 3 hours",
     created: 1_761_000_000, ports: [{ ip: "0.0.0.0", privatePort: 80, publicPort: 8080, type: "tcp" }],
     labels: { "com.docker.compose.project": "shop", "com.docker.compose.service": "web", "kowan.deployment.id": "d-shop" },
     hostId: "local",
   },
   {
-    id: "c-db".padEnd(64, "0"), names: ["/shop-db-1"], image: "postgres:16", state: "running", status: "Up 3 hours (healthy)",
+    id: "c-db".padEnd(64, "0"), names: ["/shop-db-1"], image: "postgres:16", imageId: "sha256:" + "b".repeat(64), state: "running", status: "Up 3 hours (healthy)",
     created: 1_761_000_000, ports: [], labels: { "com.docker.compose.project": "shop", "com.docker.compose.service": "db" },
     hostId: "local",
   },
   {
-    id: "c-job".padEnd(64, "0"), names: ["/nightly-job"], image: "alpine:3.22", state: "exited", status: "Exited (1) 2 hours ago",
+    id: "c-job".padEnd(64, "0"), names: ["/nightly-job"], image: "alpine:3.22", imageId: "sha256:" + "d".repeat(64), state: "exited", status: "Exited (1) 2 hours ago",
     created: 1_761_000_000, ports: [], labels: {}, hostId: "local",
   },
 ];

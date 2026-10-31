@@ -32,6 +32,7 @@ no I/O so ``tests/test_updates.py`` covers them offline.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import logging
 import time
@@ -62,6 +63,11 @@ MAX_CONCURRENCY = 4
 
 DOCKER_HUB = "docker.io"
 DOCKER_HUB_API = "registry-1.docker.io"
+
+# Labels swarm puts on the containers of a service's tasks.
+SWARM_SERVICE_LABEL = "com.docker.swarm.service.id"
+SWARM_SERVICE_NAME_LABEL = "com.docker.swarm.service.name"
+SWARM_STACK_LABEL = "com.docker.stack.namespace"
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +162,46 @@ def parse_image_ref(ref: str) -> ImageRef:
     if registry == DOCKER_HUB and "/" not in rest:
         rest = "library/" + rest
     return ImageRef(registry=registry, repository=rest, tag=tag, digest=digest)
+
+
+def has_tag(ref: str) -> bool:
+    """Whether ``ref`` names a tag (``repo:tag``, ``repo:tag@sha256:...``)
+    rather than only a digest (``repo@sha256:...``)."""
+    name = (ref or "").split("@", 1)[0]
+    return ":" in name[name.rfind("/") + 1:]
+
+
+def swarm_service_of(labels: Dict[str, str]) -> str:
+    """The id of the swarm service a container is a task of, or ""."""
+    return (labels or {}).get(SWARM_SERVICE_LABEL, "")
+
+
+def registry_insecure(registry: str, entries: Iterable[str]) -> bool:
+    """Whether a daemon's insecure registries (``host:port`` names and CIDR
+    ranges, :attr:`SystemInfo.insecure_registries`) cover ``registry``, the
+    way Docker decides: the name itself, or its IP address inside a range.
+    Host names are not resolved, except ``localhost``."""
+    host = registry
+    if host.startswith("["):
+        host = host[1:host.find("]")]
+    elif host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    if host == "localhost":
+        host = "127.0.0.1"
+    try:
+        ip: Any = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    for entry in entries:
+        if entry == registry:
+            return True
+        if ip is not None and "/" in entry:
+            try:
+                if ip in ipaddress.ip_network(entry, strict=False):
+                    return True
+            except ValueError:
+                continue
+    return False
 
 
 def _repo_digest_name(entry: str) -> Tuple[str, str]:
@@ -283,9 +329,12 @@ class DigestCache:
 _CACHE = DigestCache()
 
 
-async def _remote_digest(store: Any, ref: ImageRef) -> str:
+async def _remote_digest(store: Any, ref: ImageRef, plain_http: bool = False) -> str:
     """Resolve the registry's manifest digest for ``ref`` via the docker-image
-    trigger's resolver, with stored-registry credentials when one matches."""
+    trigger's resolver, with stored-registry credentials when one matches.
+    ``plain_http`` lets it fall back to HTTP when HTTPS fails, as for a
+    registry the host's daemon pulls from over HTTP; a stored registry whose
+    URL is ``http://`` allows it too."""
     from kowan.agentupdate import _registry_creds
     from kowan.triggers.dockerimage import _new_docker_image
 
@@ -297,11 +346,29 @@ async def _remote_digest(store: Any, ref: ImageRef) -> str:
             "tag": ref.tag,
             "username": username,
             "password": password,
+            "plainHttp": "true" if plain_http or _stored_plain_http(store, ref.registry) else "",
         }
     )
     # evaluate(state="") returns the current digest without "firing".
     _, digest = await poller.evaluate({}, "")
     return digest
+
+
+def _stored_plain_http(store: Any, registry: str) -> bool:
+    """Whether the stored registry for ``registry`` is reached over HTTP."""
+    try:
+        reg = store.registry_view_by_host(registry)
+    except Exception:  # noqa: BLE001 - none stored
+        return False
+    return str(reg.url or "").lower().startswith("http://")
+
+
+async def _insecure_registries(ops: Any) -> List[str]:
+    """The registries the host's daemon pulls from over HTTP ([] when unknown)."""
+    try:
+        return list((await ops.system_info()).insecure_registries or [])
+    except Exception:  # noqa: BLE001 - no grant on the host, or it is down
+        return []
 
 
 def friendly_registry_error(ref: ImageRef, err: Exception) -> str:
@@ -445,6 +512,7 @@ def _ops_for(svc: Any, host_id: str) -> Any:
 async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCache = _CACHE) -> List[Dict[str, Any]]:
     """Build the per-container update report for one host (never raises per row)."""
     containers = await ops.list_containers(True)
+    insecure = await _insecure_registries(ops)
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
     image_cache: Dict[str, "asyncio.Task[Dict[str, Any]]"] = {}
 
@@ -474,9 +542,27 @@ async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCac
         except ValueError as err:
             row["error"] = str(err)
             return row
+
+        async def fetch() -> str:
+            async with sem:
+                try:
+                    return await _remote_digest(svc.store, ref, registry_insecure(ref.registry, insecure))
+                except Exception as err:  # noqa: BLE001
+                    raise ValueError(friendly_registry_error(ref, err)) from err
+
         if ref.digest:
             row["localDigest"] = ref.digest
-            row["error"] = "image pinned by digest"
+            if not (swarm_service_of(getattr(c, "labels", None) or {}) and has_tag(image)):
+                row["error"] = "image pinned by digest"
+                return row
+            # Swarm pins the tag of a service to the digest it had at deploy
+            # time: the service is behind when the tag now serves another one.
+            entry = await cache.resolve(ref.key, fetch, refresh=refresh)
+            row["checkedAt"] = entry.checked_at
+            row["remoteDigest"] = entry.digest
+            row["updateAvailable"] = bool(entry.digest) and entry.digest != ref.digest
+            if entry.error:
+                row["error"] = entry.error
             return row
         try:
             async with sem:
@@ -489,13 +575,6 @@ async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCac
         if not repo_digests:
             row["error"] = "local image (no registry digest)"
             return row
-
-        async def fetch() -> str:
-            async with sem:
-                try:
-                    return await _remote_digest(svc.store, ref)
-                except Exception as err:  # noqa: BLE001
-                    raise ValueError(friendly_registry_error(ref, err)) from err
 
         entry = await cache.resolve(ref.key, fetch, refresh=refresh)
         row["checkedAt"] = entry.checked_at
@@ -539,6 +618,7 @@ async def check_image(svc: Any, ops: Any, image_id: str, cache: DigestCache = _C
     img = await ops.inspect_image(image_id) or {}
     repo_digests = img.get("RepoDigests") or []
     tags = [t for t in (img.get("RepoTags") or []) if t and t != "<none>:<none>"]
+    insecure = await _insecure_registries(ops)
 
     async def one(tag: str) -> Dict[str, Any]:
         row: Dict[str, Any] = {"tag": tag, "localDigest": "", "remoteDigest": "", "updateAvailable": False, "checkedAt": now_rfc3339()}
@@ -553,7 +633,7 @@ async def check_image(svc: Any, ops: Any, image_id: str, cache: DigestCache = _C
 
         async def fetch() -> str:
             try:
-                return await _remote_digest(svc.store, ref)
+                return await _remote_digest(svc.store, ref, registry_insecure(ref.registry, insecure))
             except Exception as err:  # noqa: BLE001
                 raise ValueError(friendly_registry_error(ref, err)) from err
 
@@ -646,6 +726,9 @@ async def update_container_now(svc: Any, host_id: str, ops: Any, cid: str, insp:
         ref = parse_image_ref(image)
     except ValueError as err:
         raise Validation(f"cannot update {image or cid}: {err}") from err
+    service_id = swarm_service_of(labels)
+    if service_id and ref.digest and has_tag(image):
+        return await update_swarm_service(svc, ops, labels, image, ref)
     if ref.digest:
         raise Validation("image is pinned by digest; change the reference to update")
 
@@ -698,6 +781,38 @@ async def update_container_now(svc: Any, host_id: str, ops: Any, cid: str, insp:
         return {**payload, "error": out.message}, 502
     log.info("container %s updated to %s (new id %s): %s", cid[:12], image, (out.container_id or "")[:12], out.message)
     return payload, 200
+
+
+async def update_swarm_service(svc: Any, ops: Any, labels: Dict[str, str], image: str,
+                               ref: ImageRef) -> Tuple[Dict[str, Any], int]:
+    """Update the swarm service a task container belongs to. The container is
+    not recreated by hand (swarm would replace it): the service is pointed at
+    the digest its tag serves now, and swarm rolls its tasks over with the
+    service's own update config (order, parallelism, rollback on failure)."""
+    from kowan.autoupdate import engine
+    from kowan.registry import docker_auth_for
+
+    service_id = swarm_service_of(labels)
+    service = labels.get(SWARM_SERVICE_NAME_LABEL) or service_id[:12]
+    base: Dict[str, Any] = {"id": service_id, "name": service, "image": image}
+    insecure = await _insecure_registries(ops)
+    try:
+        remote = await _remote_digest(svc.store, ref, registry_insecure(ref.registry, insecure))
+    except Exception as err:  # noqa: BLE001
+        raise BadGateway(friendly_registry_error(ref, err)) from err
+    if remote == ref.digest:
+        return {**base, "outcome": engine.OUTCOME_CURRENT, "message": f"{service} already runs the newest image"}, 200
+    target = f"{image.split('@', 1)[0]}@{remote}"
+    auth = await docker_auth_for(svc.store, ref.pull_ref)
+    try:
+        await ops.update_service_image(labels.get(SWARM_STACK_LABEL, ""), service_id, target, auth)
+    except Exception as err:  # noqa: BLE001
+        msg = f"update service {service}: {err}"
+        return {**base, "outcome": engine.OUTCOME_FAILED, "message": msg, "error": msg}, 502
+    _CACHE.put(ref.key, remote)
+    log.info("swarm service %s updated to %s", service, target)
+    return {**base, "outcome": engine.OUTCOME_UPDATED,
+            "message": f"swarm is replacing the tasks of {service} with the new image"}, 200
 
 
 async def _deployment_update_response(svc: Any, dep: Any) -> web.StreamResponse:
@@ -758,6 +873,9 @@ async def _update_stack(request: web.Request) -> web.StreamResponse:
     except Exception as err:  # noqa: BLE001
         return error_response(502, f"check updates: {err}")
     containers = {c.id: c for c in await ops.list_containers(True)}
+    # An old swarm task kept as history is not updated: its service already
+    # runs a newer task, which carries the update when there is one.
+    live_services = {swarm_service_of(c.labels or {}) for c in containers.values() if c.state == "running"}
     targets = []
     for r in rows:
         c = containers.get(r.get("containerId", ""))
@@ -765,10 +883,20 @@ async def _update_stack(request: web.Request) -> web.StreamResponse:
             continue
         if _owning_deployment(svc, host_id, c.labels or {}) is not None:
             return error_response(409, f"{project} is a Kowan deployment; update the deployment")
+        service_id = swarm_service_of(c.labels or {})
+        if service_id and c.state != "running" and service_id in live_services:
+            continue
         if r.get("updateAvailable"):
             targets.append(c)
     results, worst = [], 200
+    services = set()
     for c in targets:
+        # The tasks of one swarm service are updated once, through the service.
+        service_id = swarm_service_of(c.labels or {})
+        if service_id in services:
+            continue
+        if service_id:
+            services.add(service_id)
         try:
             insp = await ops.inspect_container(c.id) or {}
             payload, status = await update_container_now(svc, host_id, ops, c.id, insp)

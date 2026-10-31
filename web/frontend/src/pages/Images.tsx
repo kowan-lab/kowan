@@ -35,7 +35,9 @@ import {
   listContainers,
   type ImageUpdateRow,
 } from "../api/client";
-import { describeUpdate, imageUpdate, normalizeRef, UPDATES_KEY, useContainerUpdates, type ImageUpdateState } from "../lib/updates";
+import { PullLine } from "../components/shell/PullsPanel";
+import { usePulls, usePullsDuring } from "../lib/pulls";
+import { describeUpdate, imageUpdate, UPDATES_KEY, useContainerUpdates, type ImageUpdateState } from "../lib/updates";
 
 type ImageFilter = "all" | "used" | "unused" | "untagged" | "update";
 import ConfirmModal from "../components/ConfirmModal";
@@ -159,6 +161,9 @@ export default function Images() {
     setPullRefError(null);
   };
 
+  // The pull this dialog started, as the server reports its progress (an
+  // ended pull leaves the list in seconds, so the newest match is ours).
+  const myPull = usePulls().filter((p) => p.hostId === targetHost && p.ref === pullRef.trim()).pop();
   const pullMutation = useMutation({
     mutationFn: (values: { ref: string; registryId: string }) =>
       pullImage(targetHost, values.ref, values.registryId || undefined),
@@ -391,7 +396,7 @@ export default function Images() {
       const tip = own.map((r) => `${r.tag}: ${r.error || (r.updateAvailable ? `registry has ${short(r.remoteDigest)}, here ${short(r.localDigest)}` : `up to date (${short(r.localDigest)})`)}`).join("\n");
       return { state, tip };
     }
-    const u = imageUpdate(updates.forHost(rowHost(image)), realTags(image));
+    const u = imageUpdate(updates.forHost(rowHost(image)), usersOf(image).map((c) => c.id));
     return { state: u.state, tip: u.rows.map((r) => `${r.containerName}: ${describeUpdate(r)}`).join("\n") };
   };
   const checkOne = useMutation({
@@ -431,24 +436,22 @@ export default function Images() {
     },
     onError: (err) => notify({ color: "red", title: "Pull failed", message: errorMessage(err, "Could not pull the image") }),
   });
+  const newerPull = usePullsDuring(pullNewer.variables ? [rowHost(pullNewer.variables)] : [], pullNewer.isPending).pop();
   const UPDATE_RANK: Record<ImageUpdateState, number> = { update: 3, error: 2, current: 1, none: 0 };
 
   const allImages = imagesQuery.data ?? [];
 
-  // Which images a container (running or stopped) uses, as Docker counts it:
-  // a container names its image by tag, or by id once the tag moved on.
+  // The containers (running or stopped) that use an image, by the image id
+  // Docker reports for each. Their reference does not tell: a tag may have
+  // moved on, and a swarm task runs repo:tag@sha256:… of an untagged image.
   const containersQuery = useHostScopedList<Container>("containers:all", hostId, (h) => listContainers(h, true), { refetchInterval: LIVE_REFETCH_MS });
-  const usedBy = (image: ImageRow): number => {
+  const usersOf = (image: ImageRow) => {
     const host = rowHost(image);
-    const tags = new Set(realTags(image).map(normalizeRef));
-    const bare = image.id.replace(/^sha256:/, "");
-    return (containersQuery.data ?? []).filter((c) => {
-      if ((c._hostId ?? hostId) !== host) return false;
-      const ref = c.image || "";
-      const id = ref.replace(/^sha256:/, "");
-      return tags.has(normalizeRef(ref)) || (id.length >= 12 && /^[0-9a-f]+$/.test(id) && bare.startsWith(id));
-    }).length;
+    return (containersQuery.data ?? []).filter((c) => (c._hostId ?? hostId) === host && !!c.imageId && c.imageId === image.id);
   };
+  const usedBy = (image: ImageRow): number => usersOf(image).length;
+  // Docker never removes the image of a running container, forced or not.
+  const runningUse = (image: ImageRow): boolean => usersOf(image).some((c) => c.state === "running");
   const FILTERS: { id: ImageFilter; label: string; match: (i: ImageRow) => boolean }[] = [
     { id: "all", label: "All", match: () => true },
     { id: "used", label: "In use", match: (i) => usedBy(i) > 0 },
@@ -477,20 +480,22 @@ export default function Images() {
   const bulkRemove = useMutation({
     mutationFn: async ({ rows, force }: { rows: ImageRow[]; force: boolean }) => {
       const failed: string[] = [];
-      for (const image of rows) {
+      const go = rows.filter((i) => !runningUse(i));
+      for (const image of go) {
         try {
           await removeImage(rowHost(image), image.id, force);
         } catch (err) {
           failed.push(`${realTags(image)[0] ?? shortId(image.id)}: ${errorMessage(err, "could not remove")}`);
         }
       }
-      return { removed: rows.length - failed.length, failed };
+      return { removed: go.length - failed.length, failed, kept: rows.length - go.length };
     },
-    onSuccess: ({ removed, failed }) => {
+    onSuccess: ({ removed, failed, kept }) => {
+      const keptNote = kept ? `${kept} used by a running container ${kept === 1 ? "was" : "were"} left in place.` : "";
       notify(
         failed.length
-          ? { color: "yellow", title: `Removed ${removed}, ${failed.length} failed`, message: failed.slice(0, 3).join("\n") + (failed.length > 3 ? `\n…and ${failed.length - 3} more` : "") }
-          : { color: "green", title: `Removed ${removed} image${removed === 1 ? "" : "s"}`, message: "Their disk space is free." },
+          ? { color: "yellow", title: `Removed ${removed}, ${failed.length} failed`, message: [...failed.slice(0, 3), ...(failed.length > 3 ? [`…and ${failed.length - 3} more`] : []), keptNote].filter(Boolean).join("\n") }
+          : { color: "green", title: `Removed ${removed} image${removed === 1 ? "" : "s"}`, message: keptNote || "Their disk space is free." },
       );
       setBulkOpen(false);
       setBulkForce(false);
@@ -598,6 +603,8 @@ export default function Images() {
       sortable: true,
       accessor: (image) => UPDATE_RANK[updateOf(image).state],
       cell: (image) => {
+        // The newer image being pulled from the row: its progress in place.
+        if (pullNewer.isPending && pullNewer.variables?.id === image.id && newerPull) return <PullLine pull={newerPull} />;
         const u = updateOf(image);
         if (u.state === "none") return <span title="No container runs it, or it was not checked yet">—</span>;
         const tip = u.tip;
@@ -1083,6 +1090,7 @@ export default function Images() {
                   error={pullRefError}
                   disabled={pullMutation.isPending}
                 />
+                {pullMutation.isPending && myPull && <PullLine pull={myPull} />}
               </Box>
             </Popup.Body>
             <Popup.Footer>
@@ -1153,11 +1161,24 @@ export default function Images() {
               <div key={imageKey(i)}><Code>{realTags(i)[0] ?? shortId(i.id)}</Code></div>
             ))}
             {picked.length > 8 && <div>…and {picked.length - 8} more.</div>}
-            {picked.some((i) => usedBy(i) > 0) && (
-              <div style={{ marginTop: 8 }}>
-                {picked.filter((i) => usedBy(i) > 0).length} of them {picked.filter((i) => usedBy(i) > 0).length === 1 ? "is" : "are"} used by a container: Docker refuses those unless forced, and a running container's image is never removed.
-              </div>
-            )}
+            {(() => {
+              const running = picked.filter(runningUse).length;
+              const stopped = picked.filter((i) => !runningUse(i) && usedBy(i) > 0).length;
+              return (
+                <>
+                  {running > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      {running} of them {running === 1 ? "is" : "are"} used by a running container and {running === 1 ? "stays" : "stay"}: Docker never removes those.
+                    </div>
+                  )}
+                  {stopped > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      {stopped} {stopped === 1 ? "is" : "are"} used only by stopped containers: Docker removes {stopped === 1 ? "it" : "them"} only with Force.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             <div style={{ marginTop: 8 }}>This cannot be undone. An image that fails is reported, the rest still go.</div>
           </>
         }

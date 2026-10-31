@@ -14,7 +14,11 @@ Query parameters:
     most :data:`MAX_EVENTS` (the newest). The WebSocket accepts ``since`` to
     replay from a point (also clamped) before following live.
   - type: ``container``/``image``/``network``/``volume``, comma-separated for
-    several. Anything else is a 400.
+    several. Anything else is a 400. The WebSocket also takes ``pull``: the
+    progress of the host's image pulls (:mod:`kowan.docker.pulls`), one
+    ``{"type": "pull", ...}`` summary per message: all of them for who sees
+    the whole host, the user's own for a team member. ``type=pull`` alone
+    opens no Docker events, so a team member can follow their pulls.
 
 The Ops layer (local Engine socket or the agent over the mux) yields the raw
 Engine NDJSON; this module normalises each line into a compact shape so the UI
@@ -33,6 +37,7 @@ from typing import Any, Dict, List, Optional
 from aiohttp import web
 
 from .. import jsonx
+from ..docker import pulls
 from ..errors import BadGateway, Validation
 from ..web import json_response
 from ._dockerws import _lines, _safe_close, _spawn_reader, _write_close_error, prepare_ws, resolve_ops
@@ -40,6 +45,7 @@ from ._dockerws import _lines, _safe_close, _spawn_reader, _write_close_error, p
 log = logging.getLogger("kowan.api.events")
 
 EVENT_TYPES = ("container", "image", "network", "volume")
+PULL_TYPE = "pull"
 DEFAULT_LOOKBACK = 3600  # seconds
 MAX_LOOKBACK = 24 * 3600
 MAX_EVENTS = 500
@@ -148,17 +154,21 @@ def _int_param(request: web.Request, key: str) -> Optional[int]:
         raise Validation(f"invalid {key}: must be unix seconds") from err
 
 
-def _filters(request: web.Request) -> Dict[str, List[str]]:
+def _types(request: web.Request, extra: tuple = ()) -> List[str]:
     raw = request.query.get("type", "").strip()
-    if not raw:
-        return {}
     types = [t.strip().lower() for t in raw.split(",") if t.strip()]
-    bad = [t for t in types if t not in EVENT_TYPES]
+    allowed = EVENT_TYPES + extra
+    bad = [t for t in types if t not in allowed]
     if bad:
         raise Validation(
-            f"invalid type {bad[0]!r}: expected one of {', '.join(EVENT_TYPES)}"
+            f"invalid type {bad[0]!r}: expected one of {', '.join(allowed)}"
         )
-    return {"type": sorted(set(types))}
+    return sorted(set(types))
+
+
+def _filters(request: web.Request) -> Dict[str, List[str]]:
+    types = _types(request)
+    return {"type": types} if types else {}
 
 
 def _clamp_since(since: Optional[int], now: int, default: int) -> int:
@@ -215,21 +225,27 @@ async def events_ws(request: web.Request) -> web.WebSocketResponse:
     """GET /hosts/{hostID}/events/ws — live events, one JSON object per message."""
     # Resolve and validate BEFORE upgrading so errors are plain HTTP responses.
     ops = resolve_ops(request)
-    filters = _filters(request)
+    types = _types(request, (PULL_TYPE,))
+    docker_types = [t for t in types if t != PULL_TYPE]
+    follow_pulls = PULL_TYPE in types
     since_q = _int_param(request, "since")
     since: Optional[int] = None
     if since_q:
         since = _clamp_since(since_q, int(time.time()), DEFAULT_LOOKBACK)
 
     ws = await prepare_ws(request)
+    if follow_pulls and not docker_types:
+        await _forward_pulls_only(request, ws)
+        return ws
     try:
-        stream = await ops.events(since, None, filters or None)
+        stream = await ops.events(since, None, {"type": docker_types} if docker_types else None)
     except Exception as err:  # noqa: BLE001 - report to the socket then close
         msg = "events are not supported by this host" if isinstance(err, NotImplementedError) else str(err)
         await _write_close_error(ws, msg)
         return ws
 
     reader = _spawn_reader(ws, lambda: _safe_close(stream))
+    forwarder = _forward_pulls(request, ws) if follow_pulls else None
     # While a client follows the live stream, image events (pull/tag/untag/
     # delete/import/load, incl. ones done outside Kowan) drop the host's cached
     # image list (kowan/docker/imagecache.py) so the next list is fresh.
@@ -251,8 +267,43 @@ async def events_ws(request: web.Request) -> web.WebSocketResponse:
         log.debug("events stream ended: %s", err)
     finally:
         reader.cancel()
+        if forwarder is not None:
+            forwarder.cancel()
         await _safe_close(stream)
     return ws
+
+
+def _forward_pulls(request: web.Request, ws: web.WebSocketResponse) -> "asyncio.Task[None]":
+    """Send the host's pull summaries to ``ws`` until cancelled."""
+    host_id = request.match_info.get("hostID", "")
+    only = pulls.visible_to(host_id)
+
+    async def run() -> None:
+        q = pulls.TRACKER.subscribe(host_id, only)
+        try:
+            while not ws.closed:
+                snap = await q.get()
+                await ws.send_str(jsonx.dumps(snap).decode("utf-8"))
+        except (ConnectionResetError, RuntimeError):
+            pass
+        finally:
+            pulls.TRACKER.unsubscribe(host_id, q)
+
+    return asyncio.ensure_future(run())
+
+
+async def _forward_pulls_only(request: web.Request, ws: web.WebSocketResponse) -> None:
+    """``type=pull`` alone: no Docker events, the pulls until the client goes."""
+    gone = asyncio.Event()
+    reader = _spawn_reader(ws, gone.set)
+    forwarder = _forward_pulls(request, ws)
+    try:
+        await gone.wait()
+    finally:
+        reader.cancel()
+        forwarder.cancel()
+        if not ws.closed:
+            await ws.close(code=1000)
 
 
 def register(app: web.Application, svc) -> None:

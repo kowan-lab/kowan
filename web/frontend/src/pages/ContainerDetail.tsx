@@ -1,3 +1,4 @@
+import { PullsDuring } from "../components/shell/PullsPanel";
 import {
   Suspense,
   lazy,
@@ -617,7 +618,9 @@ export default function ContainerDetail() {
             stopped and replaced, and gets a new ID; this page follows it.
           </>
         }
-      />
+      >
+        <PullsDuring hostIds={[host]} active={updateMutation.isPending} />
+      </ConfirmModal>
 
       {exposeOpen && (
         <ExposeDialog

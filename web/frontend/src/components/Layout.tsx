@@ -1,3 +1,4 @@
+import PullsPanel from "./shell/PullsPanel";
 import { Suspense, useEffect, useState } from "react";
 import { DropdownMenu as M } from "radix-ui";
 import { ArrowLeft, ChevronDown, LogOut, Search } from "lucide-react";
@@ -315,6 +316,7 @@ export default function Layout() {
         </SidebarInset>
       </SidebarProvider>
       <CommandPalette open={palette} onOpenChange={setPalette} />
+      <PullsPanel />
     </PageSlotContext.Provider>
   );
 }

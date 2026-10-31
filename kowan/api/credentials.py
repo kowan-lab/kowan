@@ -392,12 +392,17 @@ async def _create(svc: "Services", request: web.Request) -> web.Response:
             },
             createdAt=now, updatedAt=now,
         )
+        checked = None
+        if _wants_verify(request):
+            checked = await _verify_registry_draft(svc, cred, data)
+            if checked["error"]:
+                return error_response(422, checked["error"])
         try:
             svc.store.create_credential(cred, data)
         except Exception as err:  # noqa: BLE001
             log.error("create registry credential: %s", err)
             return error_response(500, "failed to create credential")
-        await _registry_validate_and_persist(svc, cred.id)
+        await _registry_persist(svc, cred.id, checked)
         return _write(svc, cred.id, 201)
 
     if kind == CredentialKindSecret:
@@ -491,12 +496,18 @@ async def _update(svc: "Services", request: web.Request) -> web.Response:
         password = str(body.get("password", "") or "")
         # config absent -> leave provider config untouched; present -> merge.
         config = _config_map(body, "config") if "config" in body else None
+        checked = None
+        if _wants_verify(request):
+            data = svc.store.registry_update_data(cred, password=password, config=config)
+            checked = await _verify_registry_draft(svc, cred, data)
+            if checked["error"]:
+                return error_response(422, checked["error"])
         try:
             svc.store.update_registry_credential(cred, password=password, config=config)
         except Exception as err:  # noqa: BLE001
             log.error("update registry credential: %s", err)
             return error_response(500, "failed to update credential")
-        await _registry_validate_and_persist(svc, cid)
+        await _registry_persist(svc, cid, checked)
         return _write(svc, cid, 200)
 
     if kind == CredentialKindSecret:
@@ -594,6 +605,35 @@ async def _validate_provider(provider: Any) -> Dict[str, Any]:
     if err:
         return {"verified": False, "insecure": insecure, "error": err}
     return {"verified": True, "insecure": insecure, "error": ""}
+
+
+def _wants_verify(request: web.Request) -> bool:
+    """``?verify=1``: check the registry before saving, and save only if it
+    answers (the form then shows the error inline and offers to save anyway)."""
+    return (request.query.get("verify") or "").lower() in ("1", "true", "yes")
+
+
+async def _verify_registry_draft(svc: "Services", cred: Credential, data: Dict[str, str]) -> Dict[str, Any]:
+    """The test button's check, on settings that are not stored yet."""
+    from kowan import connections
+
+    meta = {**cred.meta, "name": cred.name}
+    try:
+        provider = connections.build_service(svc.store, cred.type, meta, data, caps.CAP_DOCKER_REGISTRY_AUTH)
+    except Exception as err:  # noqa: BLE001
+        return {"verified": False, "insecure": False, "error": str(err)}
+    return await _validate_provider(provider)
+
+
+async def _registry_persist(svc: "Services", cred_id: str, checked: Optional[Dict[str, Any]]) -> None:
+    """Store a check made before saving, or check the saved registry now."""
+    if checked is None:
+        await _registry_validate_and_persist(svc, cred_id)
+        return
+    try:
+        svc.store.update_credential_status(cred_id, checked["verified"], checked["insecure"], checked["error"])
+    except Exception as err:  # noqa: BLE001
+        log.error("persist registry status: %s (id=%s)", err, cred_id)
 
 
 async def _registry_validate_and_persist(svc: "Services", cred_id: str) -> Dict[str, Any]:

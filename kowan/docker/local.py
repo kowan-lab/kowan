@@ -1006,6 +1006,7 @@ class LocalClient(Ops):
                     id=s.get("Id", ""),
                     names=s.get("Names") or [],
                     image=s.get("Image", ""),
+                    image_id=s.get("ImageID", "") or "",
                     state=s.get("State", ""),
                     status=s.get("Status", ""),
                     created=s.get("Created", 0),
@@ -1705,6 +1706,7 @@ class LocalClient(Ops):
             arch=info.get("Architecture", ""),
             mem_total=info.get("MemTotal", 0),
             ncpu=info.get("NCPU", 0),
+            insecure_registries=_insecure_registries(info.get("RegistryConfig") or {}),
         )
 
     async def disk_usage(self) -> models.DiskUsage:
@@ -1787,6 +1789,15 @@ class LocalClient(Ops):
         if code != 0:
             raise BadGateway(f"docker: stack rm: {out}")
         return out
+
+    async def update_service_image(self, stack: str, service_id: str, image: str, registry_auth: str) -> None:
+        cur = await self._request_json("GET", f"/services/{service_id}")
+        spec = cur.get("Spec") or {}
+        spec.setdefault("TaskTemplate", {}).setdefault("ContainerSpec", {})["Image"] = image
+        version = (cur.get("Version") or {}).get("Index", 0)
+        headers = {"X-Registry-Auth": registry_auth} if registry_auth else None
+        await self._request("POST", f"/services/{service_id}/update", params={"version": str(version)},
+                            json_body=spec, headers=headers)
 
     # -- internal: container create -----------------------------------------
 
@@ -2589,6 +2600,14 @@ def _volume_from_engine(v: Dict[str, Any]) -> models.Volume:
         labels=v.get("Labels") or None,
         options=v.get("Options") or None,
     )
+
+
+def _insecure_registries(cfg: Dict[str, Any]) -> List[str]:
+    """The registries ``/info``'s RegistryConfig marks as plain HTTP: the
+    named ones (IndexConfigs with Secure false) and the CIDR ranges."""
+    names = [name for name, idx in (cfg.get("IndexConfigs") or {}).items()
+             if isinstance(idx, dict) and idx.get("Secure") is False]
+    return sorted(names) + [str(c) for c in (cfg.get("InsecureRegistryCIDRs") or [])]
 
 
 def _is_not_swarm_manager(exc: BadGateway) -> bool:

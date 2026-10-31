@@ -73,7 +73,10 @@ export interface ContainerPort {
 export interface Container {
   id: string;
   names: string[];
+  /** The reference it was created from (a tag, an id, repo:tag@digest). */
   image: string;
+  /** The id of the image it runs. */
+  imageId?: string;
   state: string;
   status: string;
   created: number;

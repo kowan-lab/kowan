@@ -613,6 +613,7 @@ _OPS_RULES: Dict[str, Tuple[str, str, str]] = {
     "compose_down": ("stack", KIND_STACK, LEVEL_MANAGE),
     "swarm_deploy": ("stack", KIND_STACK, LEVEL_MANAGE),
     "swarm_remove": ("stack", KIND_STACK, LEVEL_MANAGE),
+    "update_service_image": ("stack", KIND_STACK, LEVEL_MANAGE),
     "list_images": ("hostlist", KIND_IMAGE, LEVEL_READ),
     "list_plugins": ("hostlist", KIND_HOST, LEVEL_READ),
     "list_swarm_nodes": ("host", KIND_HOST, LEVEL_READ),

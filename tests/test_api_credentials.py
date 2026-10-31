@@ -101,6 +101,27 @@ class TestRegistries(ServerCase):
         await self.call("GET", "/credentials/missing/registry/tags", "operator", params={"repository": "x"},
                         expect=404)
 
+    async def test_verify_before_saving(self):
+        # ?verify=1 checks the registry first and saves nothing when it fails.
+        status, err = await self.call("POST", "/credentials", "admin", params={"verify": "1"}, json={
+            "kind": "registry", "name": "https-only", "url": self.addr}, expect=422)
+        self.assertIn(f"http://{self.addr}", err["error"])
+        _, listed = await self.call("GET", "/credentials", "admin", params={"kind": "registry"}, expect=200)
+        self.assertNotIn("https-only", json.dumps(listed))
+        # A public registry over HTTP, no credential: saved, verified.
+        _, reg = await self.call("POST", "/credentials", "admin", params={"verify": "1"}, json={
+            "kind": "registry", "name": "lan", "url": "http://" + self.addr}, expect=201)
+        self.assertTrue(reg["meta"]["verified"], reg)
+        # An edit is checked with the settings it would store.
+        await self.call("PUT", f"/credentials/{reg['id']}", "admin", params={"verify": "1"}, json={
+            "name": "lan", "url": "http://127.0.0.1:1"}, expect=422)
+        _, again = await self.call("GET", f"/credentials/{reg['id']}", "admin", expect=200)
+        self.assertEqual(again["meta"]["url"], "http://" + self.addr)
+        # Without verify an unreachable registry is still saved, with its error.
+        _, saved = await self.call("PUT", f"/credentials/{reg['id']}", "admin", json={
+            "name": "lan", "url": "http://127.0.0.1:1"}, expect=200)
+        self.assertFalse(saved["meta"]["verified"])
+
     async def test_wrong_password_is_reported(self):
         _, reg = await self.call("POST", "/credentials", "admin", json={
             "kind": "registry", "name": "bad", "url": "http://" + self.addr, "username": "bob", "password": "wrong"}, expect=201)

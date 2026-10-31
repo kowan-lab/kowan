@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Callout,
+  Checkbox,
   Code,
   Icon,
   Popup,
@@ -129,10 +130,14 @@ function authMeta(
 
 interface RegistryFormState {
   name: string;
+  /** The host, without a scheme: `plainHttp` decides it. */
   url: string;
+  /** Reached over plain HTTP (stored as an `http://` URL), not HTTPS. */
+  plainHttp: boolean;
   /**
    * The shared connection (by id) whose type implements `dockerRegistryAuth`.
    * Credentials live only in the connection — the registry just references it.
+   * Empty for a public registry: pulls are anonymous.
    */
   connectionRef: string;
 }
@@ -141,17 +146,27 @@ function emptyForm(): RegistryFormState {
   return {
     name: "",
     url: "",
+    plainHttp: false,
     connectionRef: "",
   };
 }
+
+const stripScheme = (url: string) => url.replace(/^[a-z]+:\/\//i, "");
 
 /** Seed the form for editing: name, url and the referenced connection. */
 function formFromRegistry(registry: Registry): RegistryFormState {
   return {
     name: registry.name,
-    url: registry.url,
+    url: stripScheme(registry.url),
+    plainHttp: /^http:\/\//i.test(registry.url),
     connectionRef: registry.connectionRef ?? "",
   };
+}
+
+/** The URL to store: the host, with `http://` when it answers in plain HTTP. */
+function formUrl(form: RegistryFormState): string {
+  const host = stripScheme(form.url.trim());
+  return form.plainHttp ? `http://${host}` : host;
 }
 
 export default function Registries({ embedded }: { embedded?: boolean } = {}) {
@@ -166,6 +181,13 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
   const [form, setForm] = useState<RegistryFormState>(emptyForm());
   const [deleteTarget, setDeleteTarget] = useState<Registry | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  // Errors shown in the form: a missing field, or the connection check that
+  // runs on save (the registry is then not saved unless asked to anyway).
+  const [formErrors, setFormErrors] = useState<{ name?: string; url?: string; check?: string }>({});
+  const editForm = (patch: Partial<RegistryFormState>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    setFormErrors({});
+  };
   const [deployOpen, setDeployOpen] = useState(false);
 
   const registriesQuery = useQuery({
@@ -193,22 +215,24 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
     queryClient.invalidateQueries({ queryKey: ["registries"] });
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      // Auth always comes from the referenced connection: send name + url + the
-      // connection id. There are no inline credentials.
+    mutationFn: ({ verify }: { verify: boolean }) => {
+      // Auth comes from the referenced connection, or none for a public
+      // registry: send name + url + the connection id, no inline credentials.
+      // With verify the server checks the registry first and saves only if
+      // it answers.
       if (editTarget) {
         return updateRegistry(editTarget.id, {
           name: form.name.trim(),
-          url: form.url.trim(),
+          url: formUrl(form),
           connectionRef: form.connectionRef,
-        });
+        }, { verify });
       }
       return createRegistry({
         name: form.name.trim(),
-        url: form.url.trim(),
+        url: formUrl(form),
         type: "generic",
         connectionRef: form.connectionRef,
-      });
+      }, { verify });
     },
     onSuccess: (saved) => {
       notify({
@@ -223,9 +247,14 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
       setFormOpen(false);
       setEditTarget(null);
       setForm(emptyForm());
+      setFormErrors({});
       void invalidate();
     },
     onError: (err) => {
+      if ((err as { response?: { status?: number } })?.response?.status === 422) {
+        setFormErrors({ check: errorMessage(err, "The registry did not answer.") });
+        return;
+      }
       notify({
         color: "red",
         title: editTarget ? "Could not update registry" : "Could not create registry",
@@ -330,42 +359,28 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm());
+    setFormErrors({});
     setFormOpen(true);
   };
 
   const openEdit = (registry: Registry) => {
     setEditTarget(registry);
     setForm(formFromRegistry(registry));
+    setFormErrors({});
     setFormOpen(true);
   };
 
   const submitForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.name.trim().length === 0) {
-      notify({
-        color: "red",
-        title: "Name is required",
-        message: "Give the registry a name.",
-      });
+    const errors = {
+      name: form.name.trim() ? undefined : "Give the registry a name.",
+      url: stripScheme(form.url.trim()) ? undefined : "Enter the registry host.",
+    };
+    if (errors.name || errors.url) {
+      setFormErrors(errors);
       return;
     }
-    if (form.url.trim().length === 0) {
-      notify({
-        color: "red",
-        title: "Registry host is required",
-        message: "Enter the registry host.",
-      });
-      return;
-    }
-    if (form.connectionRef.length === 0) {
-      notify({
-        color: "red",
-        title: "Select a credential",
-        message: "Create a registry credential first, then select it.",
-      });
-      return;
-    }
-    saveMutation.mutate();
+    saveMutation.mutate({ verify: true });
   };
 
   const columns: Column<Registry>[] = [
@@ -662,9 +677,8 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
                   placeholder="My private registry"
                   data-autofocus
                   value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
+                  errorText={formErrors.name}
+                  onChange={(e) => editForm({ name: e.target.value })}
                 />
                 <TextInput
                   label="Registry host"
@@ -675,18 +689,27 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
                   }
                   placeholder="ghcr.io"
                   value={form.url}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, url: e.target.value }))
-                  }
+                  errorText={formErrors.url}
+                  onChange={(e) => {
+                    // A pasted http:// URL ticks the box; the field keeps the host.
+                    const url = e.target.value;
+                    editForm(/^https?:\/\//i.test(url) ? { url: stripScheme(url), plainHttp: /^http:/i.test(url) } : { url });
+                  }}
+                />
+                <Checkbox
+                  label="Plain HTTP"
+                  description="The registry answers over HTTP, not HTTPS. Docker pulls from it only when the host lists it in insecure-registries."
+                  checked={form.plainHttp}
+                  onChange={(e) => editForm({ plainHttp: e.target.checked })}
                 />
 
                 <ConnectionField
                   capability="dockerRegistryAuth"
                   value={form.connectionRef}
-                  onChange={(ref) =>
-                    setForm((f) => ({ ...f, connectionRef: ref }))
-                  }
+                  onChange={(ref) => editForm({ connectionRef: ref })}
                   isEdit={!!editTarget}
+                  optional
+                  description="None for a public registry: pulls are anonymous."
                 />
                 {selectedConn && (
                   <Callout variant="light" color="blue">
@@ -695,6 +718,27 @@ export default function Registries({ embedded }: { embedded?: boolean } = {}) {
                     the login automatically (for AWS/GCP/Azure it exchanges the
                     cloud identity for a short-lived registry token on each
                     pull/push; no manual <Code>docker login</Code>).
+                  </Callout>
+                )}
+                {formErrors.check && (
+                  <Callout
+                    variant="light"
+                    color="danger"
+                    iconLeft={<Icon name="warning-outline-rounded" />}
+                    title="The registry did not answer"
+                  >
+                    <Box direction="column" gap={2} align="start">
+                      <span>{formErrors.check}</span>
+                      <Button
+                        variant="outline"
+                        color="neutral"
+                        size="sm"
+                        onClick={() => saveMutation.mutate({ verify: false })}
+                        loading={saveMutation.isPending}
+                      >
+                        Save without checking
+                      </Button>
+                    </Box>
                   </Callout>
                 )}
               </Box>

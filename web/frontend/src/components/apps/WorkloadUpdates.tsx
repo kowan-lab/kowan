@@ -15,6 +15,7 @@ import { UPDATES_KEY } from "../../lib/updates";
 import { notify } from "../../ui/toast";
 import { errorMessage } from "../../utils";
 import { DiffView } from "../gitops/DiffView";
+import { PullsDuring } from "../shell/PullsPanel";
 import { Btn } from "./ui";
 
 const KEEP = "__keep";
@@ -75,6 +76,7 @@ export function UpdateWorkloadButton({ app }: { app: App }) {
                 ? "They are pulled and the deployment is redeployed once. If a service does not come up healthy, it goes back to its current image."
                 : "Each container is recreated with its own settings on the new image, and goes back to the old one if it does not come up."}
             </Text>
+            <PullsDuring hostIds={app.hostIds} active={run.isPending} />
           </Popup.Body>
           <Popup.Footer>
             <Button variant="clear" onClick={() => setOpen(false)} disabled={run.isPending}>Cancel</Button>

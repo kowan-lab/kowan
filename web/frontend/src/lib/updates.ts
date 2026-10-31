@@ -29,27 +29,14 @@ export function describeUpdate(u: ContainerUpdateStatus): string {
   return `Up to date (${short(u.localDigest)})`;
 }
 
-/** An image reference in full form, so "nginx", "nginx:latest" and
- *  "docker.io/library/nginx:latest" compare equal. A digest is dropped. */
-export function normalizeRef(ref: string): string {
-  let r = (ref || "").split("@")[0];
-  const slash = r.lastIndexOf("/");
-  if (!r.slice(slash + 1).includes(":")) r += ":latest";
-  const first = r.split("/")[0];
-  const hasRegistry = r.includes("/") && (first.includes(".") || first.includes(":") || first === "localhost");
-  if (!hasRegistry) r = `docker.io/${r}`;
-  if (r.startsWith("docker.io/") && r.split("/").length === 2) r = r.replace("docker.io/", "docker.io/library/");
-  return r;
-}
-
 export type ImageUpdateState = "update" | "current" | "error" | "none";
 
 /** Whether an image has an update, from the report rows of the containers
- *  that run it (matched by tag): any newer digest wins, then a failed check,
+ *  that run it (their ids): any newer digest wins, then a failed check,
  *  then up to date; "none" when no checked container runs it. */
-export function imageUpdate(rows: ContainerUpdateStatus[], tags: string[]): { state: ImageUpdateState; rows: ContainerUpdateStatus[] } {
-  const want = new Set(tags.map(normalizeRef));
-  const mine = rows.filter((r) => want.has(normalizeRef(r.image)));
+export function imageUpdate(rows: ContainerUpdateStatus[], containerIds: string[]): { state: ImageUpdateState; rows: ContainerUpdateStatus[] } {
+  const want = new Set(containerIds);
+  const mine = rows.filter((r) => want.has(r.containerId));
   const state: ImageUpdateState = !mine.length ? "none"
     : mine.some((r) => r.updateAvailable) ? "update"
       : mine.some((r) => r.error) ? "error"

@@ -34,6 +34,10 @@ class Container(BaseModel):
     id: str = Field(default="")
     names: List[str] = Field(default_factory=list)
     image: str = Field(default="")
+    # The id of the image the container runs. ``image`` is the reference it
+    # was created from, which may name a tag that moved on since, or carry a
+    # digest (swarm tasks run ``repo:tag@sha256:...``).
+    image_id: str = Field(default="", alias="imageId")
     state: str = Field(default="")
     status: str = Field(default="")
     created: int = Field(default=0)
@@ -238,6 +242,9 @@ class SystemInfo(BaseModel):
     arch: str = Field(default="")
     mem_total: int = Field(default=0, alias="memTotal")
     ncpu: int = Field(default=0, alias="ncpu")
+    # Registries the daemon pulls from over plain HTTP: names (``host:port``)
+    # and CIDR ranges (``10.0.0.0/8``), from its ``insecure-registries``.
+    insecure_registries: List[str] = Field(default_factory=list, alias="insecureRegistries")
 
 
 class SwarmNode(BaseModel):
