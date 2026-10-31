@@ -2,6 +2,20 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.16 — 2026-10-31
+
+- **Runbooks.** Name the actions you run often on a workload, such as emptying a cache, migrating a database or reloading a configuration, and anyone with access runs them with a click. A runbook has one or more steps, on one workload or several, in a running container or in a throwaway copy of the service. Parameters reach the command as environment variables, never pasted into it. Each run is followed live and kept with its output. Find them in a tab of each workload, under **Automation → Runbooks** and in ⌘K. They can also be declared with `kowan.runbook.*` labels, scheduled, and run by AI assistants through MCP. Kowan suggests some from the workload's images.
+- **Runbooks when an alert fires.** An alert rule can run a runbook, at most once every few minutes for the same container. The steps read which container fired, on which host and why.
+- **Crash snapshots.** When a container dies with an error and nobody stopped it, Kowan saves its last logs, configuration, environment (secrets hidden) and recent resources at once, before a restart replaces it. They are in the workload's new **Crashes** tab.
+- **Host groups.** Put hosts in groups such as `production` or `customer-x`. A team permission, an auto-update default, a schedule or a runbook step can then cover a whole group, including hosts added to it later. Kowan's own containers are never stopped or updated by a group.
+- **Inventory.** **Workloads → More → Export inventory** downloads what runs where, as CSV or JSON.
+- **Health.** **Settings → Health** shows Kowan's own state: database size and free disk, the round trip to each host, whether the background work keeps up, and what is running now.
+
+### Other changes
+
+- **Schedules can run a runbook or act on a host group.**
+- **Alerts say which container they are about.**
+
 ## 0.1.15 — 2026-10-31
 
 - **Updates in the workload list.** Swarm services are now checked: a service has an update when its tag serves a newer image than the one swarm deployed, and **Update** rolls the service over through swarm. Old swarm tasks kept as history ("Replaced") no longer count as updates. When an image could not be compared, the list says **Not checked**, with the reason on hover, instead of "Up to date".
