@@ -54,6 +54,9 @@ def register(app: web.Application, svc: Any) -> None:
     api_route(app, "GET", "/autoupdate/settings", _get_settings)
     api_route(app, "PUT", "/autoupdate/settings", require_role("admin")(_put_settings))
     api_route(app, "GET", "/autoupdate/overview", _overview)
+    api_route(app, "GET", "/autoupdate/groups", _list_groups)
+    api_route(app, "PUT", "/autoupdate/groups/{tag}", require_role("operator")(_put_group))
+    api_route(app, "DELETE", "/autoupdate/groups/{tag}", require_role("operator")(_delete_group))
     api_route(app, "GET", "/autoupdate/history", _history)
     api_route(app, "POST", "/autoupdate/check", require_role("operator")(_check))
     base = "/hosts/{hostID}/containers/{id}/autoupdate"
@@ -84,6 +87,61 @@ def _targets(o: Dict[str, Any]) -> List[tuple]:
     if o.get("kind") == "deployment":
         return [(authz.KIND_DEPLOYMENT, "", o.get("target", ""))]
     return [(authz.KIND_CONTAINER, o.get("hostId", ""), o.get("target", ""))]
+
+
+KIND_GROUP = "group"
+
+
+def _group_targets(store: Any, tag: str) -> List[tuple]:
+    """A host group's policy acts on every host in it: host-wide access to
+    each (an empty group: fleet-wide only)."""
+    hosts = store.hosts_with_tag(tag)
+    return [(authz.KIND_HOST, h, "") for h in hosts] or [(authz.KIND_DEPLOYMENT, "", "")]
+
+
+async def _list_groups(request: web.Request) -> web.StreamResponse:
+    """Every host group with its hosts and its policy (null: none)."""
+    svc = _svc(request)
+    tags: Dict[str, List[str]] = {}
+    for h in authz.filter_hosts(svc.store.list_hosts()):
+        for t in h.tags:
+            tags.setdefault(t, []).append(h.id)
+    out = []
+    for tag in sorted(tags):
+        p = svc.store.get_autoupdate_policy(KIND_GROUP, "", tag)
+        out.append({"tag": tag, "hosts": tags[tag], "stored": p, "effective": resolve_policy({}, p, svc.autoupdater.defaults()).to_dict()})
+    return json_response(out)
+
+
+async def _put_group(request: web.Request) -> web.StreamResponse:
+    """The policy of a host group: the default of every container and
+    deployment on its hosts that has no policy of its own."""
+    svc = _svc(request)
+    from kowan.api.hosts import check_tags
+
+    try:
+        [tag] = check_tags([request.match_info["tag"]])
+    except Exception as err:  # noqa: BLE001
+        return error_response(400, str(err))
+    await authz.TargetAccess(svc.store, svc.docker).check(_group_targets(svc.store, tag), authz.LEVEL_MANAGE)
+    try:
+        p = validate_policy_body(await _body(request))
+    except ValueError as err:
+        return error_response(400, str(err))
+    if is_default_policy(p):
+        svc.store.delete_autoupdate_policy(KIND_GROUP, "", tag)
+    else:
+        svc.store.upsert_autoupdate_policy({**p, "kind": KIND_GROUP, "hostId": "", "target": tag,
+                                            "updatedAt": rfc3339(now_utc()), "updatedBy": _user(request)})
+    return json_response(svc.store.get_autoupdate_policy(KIND_GROUP, "", tag))
+
+
+async def _delete_group(request: web.Request) -> web.StreamResponse:
+    svc = _svc(request)
+    tag = request.match_info["tag"]
+    await authz.TargetAccess(svc.store, svc.docker).check(_group_targets(svc.store, tag), authz.LEVEL_MANAGE)
+    svc.store.delete_autoupdate_policy(KIND_GROUP, "", tag)
+    return json_response({"status": "deleted"})
 
 
 def _user(request: web.Request) -> str:
@@ -161,7 +219,8 @@ async def _overview(request: web.Request) -> web.StreamResponse:
     objs: Dict[tuple, Dict[str, Any]] = {}
     for p in store.list_autoupdate_policies():
         # A row equal to the defaults (left by an older knob save) shows like no policy.
-        if not is_default_policy(p):
+        # Host-group policies are listed by /autoupdate/groups.
+        if p["kind"] != KIND_GROUP and not is_default_policy(p):
             objs[(p["kind"], p["hostId"], p["target"])] = {"stored": p}
     for st in store.list_autoupdate_states():
         objs.setdefault((st["kind"], st["hostId"], st["target"]), {})["state"] = st["data"]

@@ -35,6 +35,8 @@ const Workflows = lazy(() => import("./pages/Workflows"));
 const GitOps = lazy(() => import("./pages/GitOps"));
 const Backups = lazy(() => import("./pages/Backups"));
 const Schedules = lazy(() => import("./pages/Schedules"));
+const Runbooks = lazy(() => import("./pages/Runbooks"));
+const Health = lazy(() => import("./pages/Health"));
 const WorkflowDetail = lazy(() => import("./pages/WorkflowDetail"));
 const Logs = lazy(() => import("./pages/Logs"));
 const Activity = lazy(() => import("./pages/Activity"));
@@ -109,6 +111,7 @@ export default function App() {
           <Route path="/workflows" element={<Workflows />} />
           <Route path="/backups" element={<Backups />} />
           <Route path="/schedules" element={<Schedules />} />
+          <Route path="/runbooks" element={<Runbooks />} />
           {/* /new must precede /:id so it is not captured by the :id param. */}
           <Route path="/workflows/new" element={<WorkflowDetail />} />
           <Route path="/workflows/:id" element={<WorkflowDetail />} />
@@ -127,6 +130,7 @@ export default function App() {
           <Route path="/changelog" element={<Changelog />} />
           <Route path="/ai" element={<AiAssistants />} />
           <Route path="/settings/network" element={<NetworkAccess />} />
+          <Route path="/settings/health" element={<Health />} />
           <Route path="/auto-update" element={<AutoUpdate />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/sso" element={<SsoProviders />} />

@@ -175,6 +175,7 @@ class Monitor:
 
         # tick_count counts elapsed ticks; used to schedule periodic pruning.
         self._tick_count = 0
+        self.last_tick_at = ""
         self._stop = asyncio.Event()
 
         # Per-host snapshot of every container seen running at least once, keyed
@@ -224,6 +225,8 @@ class Monitor:
         """One monitoring pass across all hosts: evaluate rules and record a
         metric sample per online host, then prune old samples periodically."""
         self._tick_count += 1
+        # Wall clock of the last pass, for the health page (kowan/api/health.py).
+        self.last_tick_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         try:
             hosts = self._store.list_hosts()
@@ -475,7 +478,7 @@ class Monitor:
             up = cid in running
             key = condition_key(r.id, h.id, cid)
             msg = f"container {container_label(snap)} is no longer running on {host_label(h)}"
-            self._evaluate(r, h, key, container_label(snap), not up, msg)
+            self._evaluate(r, h, key, container_label(snap), not up, msg, container=snap)
 
     def _eval_resource(
         self,
@@ -502,7 +505,7 @@ class Monitor:
                 f"container {container_label(c)} on {host_label(h)} reported "
                 f"{label} {value:.1f}{unit} (threshold {r.operator} {_fmt_g(r.threshold)}{unit})"
             )
-            self._evaluate(r, h, key, container_label(c), cond, msg)
+            self._evaluate(r, h, key, container_label(c), cond, msg, container=c)
 
     def _eval_unhealthy(self, h: Host, r: AlertRule, running: Dict[str, Container]) -> None:
         """Fire when a running container's Docker healthcheck reports unhealthy
@@ -513,7 +516,7 @@ class Monitor:
             key = condition_key(r.id, h.id, cid)
             cond = is_unhealthy(c)
             msg = f"container {container_label(c)} on {host_label(h)} is reporting unhealthy"
-            self._evaluate(r, h, key, container_label(c), cond, msg)
+            self._evaluate(r, h, key, container_label(c), cond, msg, container=c)
 
     def _eval_exited(self, h: Host, r: AlertRule, containers: List[Container]) -> None:
         """Fire when a container that was seen running has since exited with a
@@ -531,7 +534,7 @@ class Monitor:
             # Stopped on purpose (see Container.manually_stopped): not a crash.
             cond = ok and code != 0 and not c.manually_stopped
             msg = f"container {container_label(c)} on {host_label(h)} exited with code {code}"
-            self._evaluate(r, h, key, container_label(c), cond, msg)
+            self._evaluate(r, h, key, container_label(c), cond, msg, container=c)
 
     async def _eval_restart_loop(
         self, h: Host, rules: List[AlertRule], ops: Any, running: Dict[str, Container]
@@ -569,7 +572,7 @@ class Monitor:
                     f"container {container_label(c)} on {host_label(h)} has restarted "
                     f"{n} times (threshold {r.operator} {_fmt_g(r.threshold)})"
                 )
-                self._evaluate(r, h, key, container_label(c), cond, msg)
+                self._evaluate(r, h, key, container_label(c), cond, msg, container=c)
 
     async def _eval_disk(self, h: Host, rules: List[AlertRule], ops: Any) -> None:
         """Fire when the disk consumed by Docker on the host (images +
@@ -618,7 +621,8 @@ class Monitor:
     # --- evaluation core ---
 
     def _evaluate(
-        self, r: AlertRule, h: Host, key: str, resource: str, cond_true: bool, message: str
+        self, r: AlertRule, h: Host, key: str, resource: str, cond_true: bool, message: str,
+        container: Optional[Container] = None,
     ) -> None:
         """Apply the shared condition lifecycle for one rule×resource: honour the
         sustained-duration gate before firing, deduplicate while a condition
@@ -632,7 +636,7 @@ class Monitor:
             d = float(r.for_duration)
             if d > 0 and (time.monotonic() - st.pending_since) < d:
                 return  # condition not yet sustained long enough
-            st.alert_id = self._raise(r, h, resource, message)
+            st.alert_id = self._raise(r, h, resource, message, container)
             st.firing = True
             st.pending_since = None
             return
@@ -644,7 +648,7 @@ class Monitor:
         st.alert_id = ""
         st.pending_since = None
 
-    def _raise(self, r: AlertRule, h: Host, resource: str, message: str) -> str:
+    def _raise(self, r: AlertRule, h: Host, resource: str, message: str, container: Optional[Container] = None) -> str:
         """Persist an alert and publish it on the event bus, returning the new
         alert's id so the caller can auto-resolve it later. The alert level is
         the rule's severity (falling back to the rule type's default)."""
@@ -685,6 +689,10 @@ class Monitor:
                         "channelId": a.channel_id,
                         "resolved": a.resolved,
                         "createdAt": a.created_at,
+                        # The container it is about, for what reacts to it
+                        # (runbooks started by alerts, kowan/runbooks/alerts.py).
+                        "containerId": container.id if container is not None else "",
+                        "containerName": container_label(container) if container is not None else "",
                     },
                 )
             )

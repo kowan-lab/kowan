@@ -1,5 +1,11 @@
 import { createHttp } from "./http";
 import type {
+  SystemHealth,
+  GroupPolicy,
+  CrashSnapshot,
+  Runbook,
+  RunbookInput,
+  RunbookRun,
   Alert,
   AlertRule,
   AlertRuleType,
@@ -224,6 +230,12 @@ export async function getHostSwarm(hostId: string): Promise<HostSwarm> {
 
 export async function renameHost(id: string, name: string): Promise<Host> {
   const { data } = await api.patch<Host>(`/hosts/${id}`, { name });
+  return data;
+}
+
+/** Replace a host's groups (tags). */
+export async function setHostTags(id: string, tags: string[]): Promise<Host> {
+  const { data } = await api.patch<Host>(`/hosts/${id}`, { tags });
   return data;
 }
 
@@ -684,6 +696,91 @@ export function statsStreamWebSocketURL(hostId: string, id: string): string {
  * The token, the command (repeatable `cmd` param) and the TTY flag are passed
  * as query parameters since browsers cannot set WS handshake headers.
  */
+export async function getSystemHealth(): Promise<SystemHealth> {
+  const { data } = await api.get<SystemHealth>("/system/health");
+  return data;
+}
+
+// ── Inventory ──────────────────────────────────────────────────────────────
+
+/** Download what runs where (every visible container) as CSV or JSON. */
+export async function downloadInventory(format: "csv" | "json", group?: string): Promise<void> {
+  const response = await api.get<Blob>("/inventory", { params: { format, ...(group ? { group } : {}) }, responseType: "blob" });
+  const day = new Date().toISOString().slice(0, 10).split("-").join("");
+  saveBlob(response.data, parseFilename(response.headers["content-disposition"]) ?? `kowan-inventory-${day}.${format}`);
+}
+
+// ── Auto-update per host group ─────────────────────────────────────────────
+
+export async function listGroupPolicies(): Promise<GroupPolicy[]> {
+  const { data } = await api.get<GroupPolicy[]>("/autoupdate/groups");
+  return data ?? [];
+}
+
+export async function setGroupPolicy(tag: string, mode: string): Promise<void> {
+  await api.put(`/autoupdate/groups/${encodeURIComponent(tag)}`, { mode });
+}
+
+// ── Crash snapshots ────────────────────────────────────────────────────────
+
+export async function listCrashSnapshots(workload?: string, limit = 50): Promise<CrashSnapshot[]> {
+  const { data } = await api.get<CrashSnapshot[]>("/crash-snapshots", { params: { ...(workload ? { workload } : {}), limit } });
+  return data ?? [];
+}
+
+export async function getCrashSnapshot(id: string): Promise<CrashSnapshot> {
+  const { data } = await api.get<CrashSnapshot>(`/crash-snapshots/${encodeURIComponent(id)}`);
+  return data;
+}
+
+export async function deleteCrashSnapshot(id: string): Promise<void> {
+  await api.delete(`/crash-snapshots/${encodeURIComponent(id)}`);
+}
+
+// ── Runbooks ───────────────────────────────────────────────────────────────
+
+/** Stored and label-declared runbooks; with `workload`, those touching it. */
+export async function listRunbooks(workload?: string): Promise<Runbook[]> {
+  const { data } = await api.get<Runbook[]>("/runbooks", { params: workload ? { workload } : undefined });
+  return data ?? [];
+}
+
+export async function createRunbook(body: RunbookInput): Promise<Runbook> {
+  const { data } = await api.post<Runbook>("/runbooks", body);
+  return data;
+}
+
+export async function updateRunbook(id: string, body: RunbookInput): Promise<Runbook> {
+  const { data } = await api.put<Runbook>(`/runbooks/${encodeURIComponent(id)}`, body);
+  return data;
+}
+
+export async function deleteRunbook(id: string): Promise<void> {
+  await api.delete(`/runbooks/${encodeURIComponent(id)}`);
+}
+
+/** Start a run (202): follow it with runbookRunWebSocketURL. */
+export async function runRunbook(id: string, params: Record<string, string>, confirm: boolean): Promise<RunbookRun> {
+  const { data } = await api.post<RunbookRun>(`/runbooks/${encodeURIComponent(id)}/run`, { params, confirm });
+  return data;
+}
+
+export async function listRunbookRuns(id: string, limit = 30): Promise<RunbookRun[]> {
+  const { data } = await api.get<RunbookRun[]>(`/runbooks/${encodeURIComponent(id)}/runs`, { params: { limit } });
+  return data ?? [];
+}
+
+/** Suggested runbooks for a workload, from the images of its services. */
+export async function runbookSuggestions(workload: string): Promise<RunbookInput[]> {
+  const { data } = await api.get<RunbookInput[]>("/runbooks/suggestions", { params: { workload } });
+  return data ?? [];
+}
+
+/** Follow a run: every event so far, then the new ones. */
+export function runbookRunWebSocketURL(runId: string): string {
+  return wsUrl(`/runbook-runs/${encodeURIComponent(runId)}/ws`);
+}
+
 export function execWebSocketURL(
   hostId: string,
   id: string,
@@ -1210,6 +1307,18 @@ export async function createAlertRule(
 ): Promise<AlertRule> {
   const { data } = await api.post<AlertRule>("/alert-rules", body);
   return data;
+}
+
+/** The runbook an alert rule runs when it fires, or null. */
+export async function getRuleRunbook(ruleId: string): Promise<{ runbookId: string; cooldownMinutes: number } | null> {
+  const { data } = await api.get<{ runbookId: string; cooldownMinutes: number } | null>(`/alert-rules/${ruleId}/runbook`);
+  return data ?? null;
+}
+
+/** Link a runbook to an alert rule (runbookId ""): unlink. */
+export async function saveRuleRunbook(ruleId: string, runbookId: string, cooldownMinutes: number): Promise<void> {
+  if (runbookId) await api.put(`/alert-rules/${ruleId}/runbook`, { runbookId, cooldownMinutes });
+  else await api.delete(`/alert-rules/${ruleId}/runbook`);
 }
 
 export async function updateAlertRule(

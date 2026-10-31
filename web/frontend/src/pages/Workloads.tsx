@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { ChevronDown, ChevronRight, CircleAlert, Ellipsis, HeartPulse, LayoutGrid, List, Plus, WifiOff } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import ConfirmModal from "../components/ConfirmModal";
-import { prune } from "../api/client";
+import { downloadInventory, prune } from "../api/client";
 import { useContainerUpdates } from "../lib/updates";
 import { formatBytes } from "../utils";
 import { notify } from "../ui/toast";
@@ -154,6 +154,14 @@ export default function Workloads() {
     },
     onError: (err) => notify({ color: "red", title: "Prune failed", message: errorMessage(err, "Could not prune containers") }),
   });
+  // What runs where, every visible host (not only this view), as a file.
+  const exportInventory = async (format: "csv" | "json") => {
+    try {
+      await downloadInventory(format);
+    } catch (err) {
+      notify({ color: "red", title: "Export failed", message: errorMessage(err, "Could not export the inventory") });
+    }
+  };
   const moreMenu = (
     <Menu placement="bottom-end">
       <Menu.Trigger>
@@ -168,6 +176,8 @@ export default function Workloads() {
         <Menu.Item onSelect={() => setPruneOpen(true)} disabled={pruneHosts.length === 0}>
           Prune stopped containers…
         </Menu.Item>
+        <Menu.Item onSelect={() => void exportInventory("csv")}>Export inventory (CSV)</Menu.Item>
+        <Menu.Item onSelect={() => void exportInventory("json")}>Export inventory (JSON)</Menu.Item>
       </Menu.Content>
     </Menu>
   );

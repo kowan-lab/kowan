@@ -72,7 +72,10 @@ SCOPE_HOST = "host"
 SCOPE_DEPLOYMENT = "deployment"
 SCOPE_STACK = "stack"
 SCOPE_LABELS = "labels"
-SCOPES = (SCOPE_ALL_HOSTS, SCOPE_HOST, SCOPE_DEPLOYMENT, SCOPE_STACK, SCOPE_LABELS)
+# Every host in a group (target = the tag), as host grants: resolved each time
+# a principal loads, so tagging a host extends the grant to it at once.
+SCOPE_HOST_TAG = "host_tag"
+SCOPES = (SCOPE_ALL_HOSTS, SCOPE_HOST, SCOPE_DEPLOYMENT, SCOPE_STACK, SCOPE_LABELS, SCOPE_HOST_TAG)
 
 KIND_HOST = "host"
 KIND_CONTAINER = "container"
@@ -268,6 +271,14 @@ def _expand(rows: Iterable[Any], source: str, store: Any, dep_cache: Dict[str, T
     out: List[Grant] = []
     for r in rows:
         host_id, resource_name = r.host_id, ""
+        if r.scope_type == SCOPE_HOST_TAG:
+            try:
+                tagged = store.hosts_with_tag(r.target)
+            except Exception:  # noqa: BLE001 - fail closed: no host
+                tagged = []
+            out += [Grant(scope=SCOPE_HOST, level=r.level, host_id=h, target="", id=r.id, source=source,
+                          resource_name=f"group {r.target}") for h in tagged]
+            continue
         if r.scope_type == SCOPE_DEPLOYMENT:
             info = dep_cache.get(r.target)
             if info is None:

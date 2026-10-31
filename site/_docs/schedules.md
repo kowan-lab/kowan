@@ -12,6 +12,8 @@ Schedules start, stop or restart containers, deployments and Compose stacks at s
 | Container | Its name on a host, so the schedule survives a recreate | `start`, `stop`, `restart` |
 | Deployment | The Kowan [deployment](deployments.md) | `start`, `stop`, `restart`, `deploy` |
 | Stack | The Compose project name on a host | `start`, `stop`, `restart` |
+| Runbook | A [runbook](runbooks.md), with its parameters' defaults | `run` |
+| Host group | Every container on the hosts of a [group](host-groups.md), Kowan's own excepted | `start`, `stop`, `restart` |
 
 `deploy` redeploys the deployment with its saved configuration. `restart` of a deployment stops it, then starts it.
 

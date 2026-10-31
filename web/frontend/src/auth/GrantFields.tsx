@@ -7,6 +7,7 @@ import type { Grant, GrantInput, GrantScope, PermissionLevel } from "../types";
 const SCOPE_OPTIONS: { value: GrantScope; label: string; description: string }[] = [
   { value: "all_hosts", label: "All hosts", description: "Every host and everything on it, plus fleet-wide objects (workflows)." },
   { value: "host", label: "One host", description: "Everything on one host: containers, images, volumes, networks, deployments." },
+  { value: "host_tag", label: "Host group", description: "Everything on every host in a group, including hosts added to it later." },
   { value: "deployment", label: "Deployment", description: "One deployment and the containers, volumes and networks it runs." },
   { value: "stack", label: "Stack", description: "Containers, volumes and networks of one compose project on one host." },
   { value: "labels", label: "Label selector", description: "Containers, volumes and networks carrying a key=value label." },
@@ -29,6 +30,7 @@ export function grantValid(g: GrantInput): string | null {
   if (g.scope === "deployment" && !g.target) return "Pick a deployment";
   if (g.scope === "stack" && !g.target) return "Enter the compose project name";
   if (g.scope === "labels" && !/^[^=\s]+=.*$/.test(g.target ?? "")) return "Use key=value";
+  if (g.scope === "host_tag" && !g.target) return "Pick a group";
   return null;
 }
 
@@ -39,6 +41,8 @@ export function describeGrant(g: Pick<Grant, "scope" | "hostId" | "target">, hos
       return "all hosts";
     case "host":
       return `host ${hostName(g.hostId)}`;
+    case "host_tag":
+      return `hosts in group ${g.target}`;
     case "deployment":
       return `deployment ${depName(g.target)}`;
     case "stack":
@@ -111,6 +115,16 @@ export default function GrantFields({ value, onChange }: { value: GrantInput; on
           clearable={!needsHost}
           searchable
           onChange={(v) => set({ hostId: v ?? "" })}
+        />
+      )}
+      {value.scope === "host_tag" && (
+        <Select
+          label="Group"
+          description="Groups are set on the Hosts page."
+          options={[...new Set(names.hosts.flatMap((h) => h.tags ?? []))].sort().map((t) => ({ value: t, label: t }))}
+          value={value.target || null}
+          searchable
+          onChange={(v) => set({ target: v ?? "" })}
         />
       )}
       {value.scope === "deployment" && (

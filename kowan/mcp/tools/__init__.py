@@ -6,7 +6,7 @@ from ..registry import ToolRegistry
 
 
 def build_registry() -> ToolRegistry:
-    from . import actions, admin, docker_read, fleet, history, operations, workloads
+    from . import actions, admin, crashes, docker_read, fleet, history, operations, runbooks, workloads
 
     reg = ToolRegistry()
     docker_read.register(reg)
@@ -15,5 +15,7 @@ def build_registry() -> ToolRegistry:
     history.register(reg)
     operations.register(reg)
     actions.register(reg)
+    runbooks.register(reg)
+    crashes.register(reg)
     admin.register(reg)
     return reg

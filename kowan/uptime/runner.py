@@ -48,6 +48,7 @@ class UptimeRunner:
         self._sem = asyncio.Semaphore(_CONCURRENCY)
         self._task: Optional[asyncio.Task] = None
         self._pruned_at = 0.0
+        self.last_tick_at = ""
         self._locks: Dict[str, asyncio.Lock] = {}
 
     # -- lifecycle ---------------------------------------------------------
@@ -80,6 +81,7 @@ class UptimeRunner:
 
     def tick(self) -> None:
         now = time.monotonic()
+        self.last_tick_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         if now - self._pruned_at >= _PRUNE_EVERY:
             self._pruned_at = now
             self.prune()

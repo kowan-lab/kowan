@@ -49,11 +49,18 @@ UTC = timezone.utc
 TARGET_CONTAINER = "container"
 TARGET_DEPLOYMENT = "deployment"
 TARGET_STACK = "stack"
+TARGET_RUNBOOK = "runbook"
+# Every container on the hosts of a group (targetId = the tag).
+TARGET_GROUP = "group"
+LABEL_GROUP_OPT_OUT = "kowan.schedule.group"
 
 ACTIONS: Dict[str, Tuple[str, ...]] = {
     TARGET_CONTAINER: ("start", "stop", "restart"),
     TARGET_DEPLOYMENT: ("start", "stop", "restart", "deploy"),
     TARGET_STACK: ("start", "stop", "restart"),
+    # A runbook (kowan/runbooks) with its parameters' defaults.
+    TARGET_RUNBOOK: ("run",),
+    TARGET_GROUP: ("start", "stop", "restart"),
 }
 
 LABEL_PREFIX = "kowan.schedule."
@@ -70,6 +77,14 @@ STATUS_SKIPPED = "skipped"
 
 _ALLOWED_FIELDS = {"name", "targetType", "targetId", "hostId", "action", "cron", "timezone", "enabled", "onlyIf"}
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _kowan_own(labels: Dict[str, str]) -> bool:
+    """Kowan's own containers: never stopped by a group schedule (stopping an
+    agent would cut the host off)."""
+    title = labels.get("org.opencontainers.image.title", "")
+    return (title in ("kowan", "kowan-agent") or labels.get("kowan.support") == "true"
+            or bool(labels.get("kowan.role")) or bool(labels.get("kowan.volbackup.helper")))
 
 
 def _now() -> datetime:
@@ -95,7 +110,7 @@ def validate_schedule(body: Any, existing: Optional[Dict[str, Any]] = None) -> D
             s[k] = body[k]
     tt = str(s.get("targetType") or "")
     if tt not in ACTIONS:
-        raise errors.Validation("targetType must be container, deployment or stack")
+        raise errors.Validation("targetType must be container, deployment, stack, runbook or group")
     tid = str(s.get("targetId") or "").strip().lstrip("/")
     if not tid:
         raise errors.Validation("targetId is required")
@@ -104,7 +119,7 @@ def validate_schedule(body: Any, existing: Optional[Dict[str, Any]] = None) -> D
     if action not in ACTIONS[tt]:
         raise errors.Validation(f"action for a {tt} must be one of: {', '.join(ACTIONS[tt])}")
     host = str(s.get("hostId") or "").strip()
-    if tt != TARGET_DEPLOYMENT and not host:
+    if tt not in (TARGET_DEPLOYMENT, TARGET_RUNBOOK, TARGET_GROUP) and not host:
         raise errors.Validation("hostId is required for container and stack schedules")
     s["hostId"] = host
     cron = str(s.get("cron") or "").strip()
@@ -428,8 +443,77 @@ class ScheduleService:
             raise errors.NotFound(f"host {host_id!r} not found")
         return self.svc.docker.ops(host)
 
+    async def _run_group(self, action: str, tag: str) -> Tuple[str, str]:
+        """Start, stop or restart every container on a group's hosts, except
+        Kowan's own (server, agent, helpers) and those labelled
+        ``kowan.schedule.group: off``. Start wakes only the containers meant
+        to run (restart policy always or unless-stopped), not one-off jobs."""
+        hosts = self.store.hosts_with_tag(tag)
+        if not hosts:
+            return STATUS_FAILED, f"group {tag!r} has no hosts"
+        done, failed = 0, []
+        for hid in hosts:
+            try:
+                ops = self._ops(hid)
+                containers = await ops.list_containers(True)
+            except Exception as err:  # noqa: BLE001 - offline host: go on with the others
+                failed.append(f"{hid}: {err}")
+                continue
+            for c in containers:
+                labels = getattr(c, "labels", None) or {}
+                if _kowan_own(labels) or str(labels.get(LABEL_GROUP_OPT_OUT, "")).lower() in ("off", "false", "0", "no"):
+                    continue
+                state = (getattr(c, "state", "") or "").lower()
+                try:
+                    if action == "start":
+                        if state == "running":
+                            continue
+                        info = await ops.inspect_container(c.id) or {}
+                        policy = ((info.get("HostConfig") or {}).get("RestartPolicy") or {}).get("Name") or ""
+                        if policy not in ("always", "unless-stopped"):
+                            continue
+                        await ops.start_container(c.id)
+                    elif action == "stop":
+                        if state not in ("running", "restarting", "paused"):
+                            continue
+                        await ops.stop_container(c.id)
+                    else:
+                        if state != "running":
+                            continue
+                        await ops.restart_container(c.id)
+                    done += 1
+                except Exception as err:  # noqa: BLE001
+                    failed.append(f"{_container_name(c)}: {err}")
+        msg = f"group {tag}: {action} {done} container{'s' if done != 1 else ''} on {len(hosts)} host{'s' if len(hosts) != 1 else ''}"
+        if failed:
+            return STATUS_FAILED, msg + "; failed: " + "; ".join(failed[:5])
+        return STATUS_SUCCESS, msg
+
+    async def _run_runbook(self, s: Dict[str, Any]) -> Tuple[str, str]:
+        runbooks = getattr(self.svc, "runbooks", None)
+        if runbooks is None:
+            raise errors.Validation("runbook service unavailable")
+        try:
+            rb = await runbooks.get(s["targetId"])
+        except Exception:  # noqa: BLE001 - deleted, or its labels are gone
+            return STATUS_FAILED, "runbook not found"
+        try:
+            run = await runbooks.run_and_wait(rb, {}, s.get("name") or "schedule", "schedule")
+        except ValueError as err:  # a required parameter has no default, already running
+            return STATUS_FAILED, str(err)
+        failed = [r for r in run["steps"] if r["status"] != "succeeded"]
+        if run["status"] == "succeeded":
+            return STATUS_SUCCESS, f"runbook {rb['name']} done"
+        why = (failed[0]["error"] or f"exit code {failed[0]['exitCode']}") if failed else run["status"]
+        status = STATUS_SUCCESS if run["status"] == "warning" else STATUS_FAILED
+        return status, f"runbook {rb['name']} {run['status']}: {why}"
+
     async def _do(self, s: Dict[str, Any]) -> Tuple[str, str]:
         tt, action, tid = s["targetType"], s["action"], s["targetId"]
+        if tt == TARGET_RUNBOOK:
+            return await self._run_runbook(s)
+        if tt == TARGET_GROUP:
+            return await self._run_group(action, tid)
         if tt == TARGET_DEPLOYMENT:
             deps = getattr(self.svc, "deployments", None)
             if deps is None:

@@ -32,6 +32,8 @@ import DeploymentConfig from "../components/deployment/DeploymentConfig";
 import DeploymentLogs from "../components/deployment/DeploymentLogs";
 import { DeploymentGitSource, DeploymentHealth, DeploymentWebhook } from "../components/deployment/DeploymentOverview";
 import { useCanOperate } from "../components/deployment/shared";
+import { CrashList, useCrashCount } from "../components/crashes/Crashes";
+import { RunbookList } from "../components/runbooks/Runbooks";
 import LogRetentionControl from "../components/logs/LogRetentionControl";
 import LogViewer, { type LogSource } from "../components/logs/LogViewer";
 import { usePolicyControls } from "../components/apps/policies";
@@ -52,7 +54,7 @@ import { cn } from "@/lib/utils";
 // the container page.
 // ---------------------------------------------------------------------------
 
-const TABS = ["overview", "logs", "config", "history", "policies", "activity"] as const;
+const TABS = ["overview", "logs", "config", "history", "runbooks", "crashes", "policies", "activity"] as const;
 type Tab = (typeof TABS)[number];
 
 const ICON = "size-[16px] shrink-0";
@@ -213,12 +215,15 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
   const host = app.hostIds[0] ?? "";
   const hostName = useHostName()(host);
   const d = app.deployment;
+  const crashes = useCrashCount(app.id);
   const configLabel = d ? "Configuration" : app.kind === "stack" ? "Compose" : "Config";
   const tabs: { id: Tab; label: string; extra?: ReactNode }[] = [
     { id: "overview", label: "Overview", extra: <span className="font-mono text-[12px] leading-none font-medium text-muted-foreground">{app.total}</span> },
     { id: "logs", label: "Logs" },
     { id: "config", label: configLabel, extra: configDirty ? <><span aria-hidden className="size-[4px] rounded-full bg-[var(--tone-amber-solid)]" /><span className="sr-only">(unsaved changes)</span></> : undefined },
     ...(d ? [{ id: "history" as const, label: "History" }] : []),
+    { id: "runbooks", label: "Runbooks" },
+    { id: "crashes", label: "Crashes", extra: crashes ? <span className="font-mono text-[12px] leading-none font-medium text-[var(--tone-red-text)]">{crashes}</span> : undefined },
     { id: "policies", label: "Policies", extra: app.updates ? <span className="font-mono text-[12px] leading-none font-medium text-[var(--tone-amber-text)]">{app.updates} update{app.updates === 1 ? "" : "s"}</span> : undefined },
     { id: "activity", label: "Activity" },
   ];
@@ -308,6 +313,8 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
           ))}
         {tab === "config" && !d && (app.kind === "stack" ? <ComposeView app={app} /> : <ContainerConfig app={app} />)}
         {tab === "history" && d && <DeploymentHistory deployment={d} canOperate={canOperate} />}
+        {tab === "crashes" && <CrashList workload={app.id} canOperate={canOperate} />}
+        {tab === "runbooks" && <RunbookList workload={app.id} canOperate={canOperate} openRun={params.get("run")} />}
         {tab === "policies" && <PoliciesTab app={app} pc={pc} />}
         {tab === "activity" && (d ? <DeploymentActivity deployment={d} isAdmin={user?.role === "admin"} /> : <AppEvents app={app} />)}
         {/* The configuration form holds unsaved edits: keep it mounted once opened. */}

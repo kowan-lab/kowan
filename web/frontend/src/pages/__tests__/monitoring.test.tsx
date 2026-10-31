@@ -14,6 +14,26 @@ const rules = [
   { id: "r2", name: "hot cpu", type: "cpu_high", operator: ">", threshold: 90, severity: "", forDuration: 300, hostId: "local", match: "", labelKey: "app", labelValue: "web", channelId: "", autoResolve: false, enabled: false, createdAt: NOW },
 ];
 
+describe("alert rules and runbooks", () => {
+  it("runs a runbook when a rule fires, and shows the link when editing", async () => {
+    const runbook = { id: "rb-1", name: "Diagnose", description: "", confirm: false, params: [], steps: [], source: "kowan", workloads: [],
+      createdBy: "", createdAt: "", updatedAt: "", lastRun: null };
+    const { user } = renderApp("/monitoring", { api: {
+      "GET /alert-rules": rules, "GET /runbooks": [runbook],
+      "GET /alert-rules/:id/runbook": { runbookId: "rb-1", cooldownMinutes: 30 },
+    } });
+    await user.click(await screen.findByRole("tab", { name: /alert rules/i }, { timeout: 10_000 }));
+    await user.click((await screen.findAllByRole("button", { name: /^edit/i }))[0]);
+    const d = await dialog(/edit alert rule/i);
+    await waitFor(() => expect(within(d).getByRole("combobox", { name: /run a runbook/i })).toHaveTextContent("Diagnose"));
+    expect(within(d).getByLabelText(/at most every/i)).toHaveValue(30);
+    await choose(user, /run a runbook/i, /^none$/i, d);
+    await press(user, /^save$/i, d);
+    await toast(/rule updated/i);
+    expect(requests("DELETE", "/alert-rules/:id/runbook")).toHaveLength(1);
+  });
+});
+
 describe("monitoring page", () => {
   it("lists alerts and resolves an open one", async () => {
     const { user } = renderApp("/monitoring", { api: { "GET /alerts": alerts } });

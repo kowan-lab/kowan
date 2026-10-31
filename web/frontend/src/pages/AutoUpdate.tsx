@@ -24,6 +24,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
+import GroupPolicies from "../components/autoupdate/GroupPolicies";
 import HistoryTable from "../components/autoupdate/HistoryTable";
 import { MODE_OPTIONS, SCAN_OPTIONS, modeLabel, outcomeColor, outcomeText, scanLabel } from "../components/autoupdate/labels";
 import { SLOW_REFETCH_MS } from "../lib/live";
@@ -239,6 +240,8 @@ export default function AutoUpdate() {
           emptyText="No policies yet. Add a kowan.update label to a container, or set a policy on a container or deployment page."
         />
       </SectionCard>
+
+      <GroupPolicies canEdit={isOperator} />
 
       <SectionCard
         title="History"

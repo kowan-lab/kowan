@@ -175,6 +175,7 @@ async def _delete_alert_rule(request: web.Request) -> web.Response:
     rule_id = request.match_info["id"]
     _load_rule(svc, rule_id)  # 404 precheck
     svc.store.delete_alert_rule(rule_id)
+    svc.store.delete_rule_runbook(rule_id)
     return json_response({"status": "deleted"})
 
 

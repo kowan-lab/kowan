@@ -95,6 +95,10 @@ def _registrars() -> list:
     from .api import gitops as gitops_api
     from .api import volbackups as volbackups_api
     from .api import schedules as schedules_api
+    from .api import runbooks as runbooks_api
+    from .api import crashes as crashes_api
+    from .api import inventory as inventory_api
+    from .api import health as health_api
     from .api import containerfiles as containerfiles_api
     from .api import exposure as exposure_api
     from .api import hostedregistry as hostedregistry_api
@@ -186,6 +190,10 @@ def _registrars() -> list:
         # CronRunner from an on_startup hook. After deployments (svc.deployments).
         volbackups_api.register,
         schedules_api.register,
+        runbooks_api.register,
+        crashes_api.register,
+        inventory_api.register,
+        health_api.register,
         # MCP server (Streamable HTTP at /mcp, outside /api/v1; own auth+audit).
         # After deployments/workflows: its tools use svc.deployments / svc.workflow_engine.
         mcp_api.register,
@@ -582,6 +590,8 @@ def _register_background_workers(app: web.Application, svc: Services) -> None:
         monitor_task = asyncio.ensure_future(monitor.start())
         _app[MONITOR_KEY] = monitor
         _app[MONITOR_TASK_KEY] = monitor_task
+        # The health page reads it from the API's sub-application.
+        svc.attach("monitor", monitor)
 
         # Outbound tunnels to agent-mode (stoa) hosts. Edge hosts dial in; these
         # are dialed out from here and registered on the same hub.

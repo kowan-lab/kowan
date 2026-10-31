@@ -18,6 +18,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   alertRuleTypes,
   createAlertRule,
+  getRuleRunbook,
+  listRunbooks,
+  saveRuleRunbook,
   deleteAlertRule,
   listAlertRules,
   listAlerts,
@@ -328,6 +331,9 @@ interface RuleFormValues {
   channelId: string;
   autoResolve: boolean;
   enabled: boolean;
+  /** A runbook to run when the rule fires ("" none), at most once per cooldown. */
+  runbookId: string;
+  cooldownMinutes: number;
 }
 
 function defaultsFor(spec: AlertRuleTypeSpec | undefined): Partial<RuleFormValues> {
@@ -353,6 +359,8 @@ function blankRule(spec: AlertRuleTypeSpec | undefined): RuleFormValues {
     channelId: "",
     autoResolve: true,
     enabled: true,
+    runbookId: "",
+    cooldownMinutes: 10,
   };
 }
 
@@ -371,6 +379,8 @@ function ruleToForm(rule: AlertRule): RuleFormValues {
     channelId: rule.channelId || "",
     autoResolve: rule.autoResolve,
     enabled: rule.enabled,
+    runbookId: "",
+    cooldownMinutes: 10,
   };
 }
 
@@ -395,7 +405,11 @@ function AlertRulesTab() {
   const specFor = (t: AlertRuleType) => ruleTypes.find((s) => s.type === t);
 
   const createMutation = useMutation({
-    mutationFn: (values: RuleFormValues) => createAlertRule(toInput(values)),
+    mutationFn: async (values: RuleFormValues) => {
+      const rule = await createAlertRule(toInput(values));
+      if (values.runbookId) await saveRuleRunbook(rule.id, values.runbookId, values.cooldownMinutes);
+      return rule;
+    },
     onSuccess: () => {
       notify({
         color: "green",
@@ -415,8 +429,11 @@ function AlertRulesTab() {
   });
 
   const editMutation = useMutation({
-    mutationFn: (vars: { id: string; values: RuleFormValues }) =>
-      updateAlertRule(vars.id, toInput(vars.values)),
+    mutationFn: async (vars: { id: string; values: RuleFormValues }) => {
+      const rule = await updateAlertRule(vars.id, toInput(vars.values));
+      await saveRuleRunbook(vars.id, vars.values.runbookId, vars.values.cooldownMinutes);
+      return rule;
+    },
     onSuccess: () => {
       notify({
         color: "green",
@@ -688,6 +705,7 @@ function AlertRulesTab() {
         hosts={hosts}
         channels={channels}
         initial={editTarget ? ruleToForm(editTarget) : null}
+        ruleId={editTarget?.id}
         submitting={editMutation.isPending}
         onClose={() => setEditTarget(null)}
         onSubmit={(values) =>
@@ -730,7 +748,9 @@ function RuleFormModal({
   submitting,
   onClose,
   onSubmit,
+  ruleId,
 }: {
+  ruleId?: string;
   opened: boolean;
   title: string;
   ruleTypes: AlertRuleTypeSpec[];
@@ -764,6 +784,14 @@ function RuleFormModal({
   }, [opened]);
 
   const spec = ruleTypes.find((s) => s.type === values.type);
+
+  // The runbook it starts lives apart from the rule: load it into the form.
+  const runbooksQuery = useQuery({ queryKey: ["runbooks", ""], queryFn: () => listRunbooks(), enabled: opened });
+  const linkQuery = useQuery({ queryKey: ["rule-runbook", ruleId], queryFn: () => getRuleRunbook(ruleId!), enabled: opened && !!ruleId });
+  useEffect(() => {
+    if (opened && linkQuery.data) setValues((v) => ({ ...v, runbookId: linkQuery.data!.runbookId, cooldownMinutes: linkQuery.data!.cooldownMinutes }));
+  }, [opened, linkQuery.data]);
+  const runbookOptions = [{ value: "", label: "None" }, ...(runbooksQuery.data ?? []).map((r) => ({ value: r.id, label: r.name }))];
 
   // Switching type pulls in that type's sensible defaults for the numeric
   // fields, so the threshold/operator never carry over nonsensically.
@@ -919,6 +947,26 @@ function RuleFormModal({
                 value={values.channelId}
                 onChange={(v) => setFieldValue("channelId", v ?? "")}
               />
+
+              <Box direction="row" wrap gap={4}>
+                <Select
+                  label="Run a runbook"
+                  description="When the rule fires, with its parameters' defaults. The step reads $KOWAN_ALERT_CONTAINER, $KOWAN_ALERT_HOST, $KOWAN_ALERT_MESSAGE."
+                  options={runbookOptions}
+                  value={values.runbookId}
+                  onChange={(v) => setFieldValue("runbookId", v ?? "")}
+                />
+                {values.runbookId && (
+                  <NumberInput
+                    label="At most every (minutes)"
+                    description="For the same container."
+                    min={0}
+                    max={1440}
+                    value={values.cooldownMinutes}
+                    onChange={(v) => setFieldValue("cooldownMinutes", typeof v === "number" ? v : 10)}
+                  />
+                )}
+              </Box>
 
               <Box direction="row" wrap gap={4}>
                 <InputToggle

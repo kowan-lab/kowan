@@ -30,6 +30,7 @@ import { useHost } from "../HostContext";
 import { notify } from "../ui/toast";
 import ConfirmModal from "../components/ConfirmModal";
 import RenameHostDialog from "../components/hosts/RenameHostDialog";
+import HostGroupsDialog, { useHostGroups } from "../components/hosts/HostGroupsDialog";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
@@ -76,6 +77,8 @@ export default function Hosts() {
   }, [params, setParams, isAdmin]);
   const [deleteTarget, setDeleteTarget] = useState<Host | null>(null);
   const [renameTarget, setRenameTarget] = useState<Host | null>(null);
+  const [groupsTarget, setGroupsTarget] = useState<Host | null>(null);
+  const groups = useHostGroups();
   const [updateTarget, setUpdateTarget] = useState<Host | null>(null);
   const [enrollment, setEnrollment] = useState<EnrollResponse | null>(null);
 
@@ -281,6 +284,23 @@ export default function Hosts() {
       ),
     },
     {
+      key: "groups",
+      header: "Groups",
+      accessor: (h) => (h.tags ?? []).join(" "),
+      filter: { kind: "select", options: groups.map((g) => ({ value: g, label: g })) },
+      filterFn: (h, value) => !Array.isArray(value) || value.length === 0 || value.some((v) => (h.tags ?? []).includes(String(v))),
+      cell: (h) =>
+        h.tags?.length ? (
+          <Box direction="row" wrap gap={1}>
+            {h.tags.map((t) => (
+              <Badge key={t} variant="light" color="gray">{t}</Badge>
+            ))}
+          </Box>
+        ) : (
+          <Text size="sm" color="muted">-</Text>
+        ),
+    },
+    {
       key: "address",
       header: "Address",
       accessor: (h) => h.address || "",
@@ -349,9 +369,17 @@ export default function Hosts() {
     },
   ];
 
+  const groupsButton = (host: Host) =>
+    isAdmin && (
+      <Tooltip content="Groups">
+        <Button variant="clear" color="neutral" iconLeft="sell-outline" aria-label={`Groups of ${host.name}`} onClick={() => setGroupsTarget(host)} />
+      </Tooltip>
+    );
+
   const renderRowActions = (host: Host) => {
     const isLocal = host.id === "local";
-    if (isLocal) return null;
+    // The local host has no agent to manage: only its groups.
+    if (isLocal) return groupsButton(host) || null;
     return (
       <Box direction="row" gap={2} justify="end" wrap={false}>
         <Tooltip content="Join command">
@@ -367,6 +395,7 @@ export default function Hosts() {
             onClick={() => edgeCommandMutation.mutate(host.id)}
           />
         </Tooltip>
+        {groupsButton(host)}
         {isAdmin && (
           <Tooltip content="Rename host">
             <Button
@@ -601,6 +630,7 @@ export default function Hosts() {
       </Popup>
 
       <RenameHostDialog host={renameTarget} onClose={() => setRenameTarget(null)} />
+      <HostGroupsDialog host={groupsTarget} onClose={() => setGroupsTarget(null)} />
 
       {/* Delete confirmation modal */}
       <ConfirmModal

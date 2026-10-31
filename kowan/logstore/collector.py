@@ -54,6 +54,7 @@ class Collector:
         self._followers: Dict[Tuple[str, str], asyncio.Task] = {}
         self._task: Optional[asyncio.Task] = None
         self._pruned_at = 0.0
+        self.last_sync_at = ""
 
     def start(self) -> None:
         if self._task is None:
@@ -95,6 +96,7 @@ class Collector:
         """Start followers for the containers that should be followed and stop
         the others; prune when due."""
         now = time.monotonic()
+        self.last_sync_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         if now - self._pruned_at >= _PRUNE_EVERY:
             self._pruned_at = now
             try:

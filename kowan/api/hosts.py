@@ -15,7 +15,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import uuid
+from typing import Any, List
 
 from aiohttp import web
 
@@ -329,11 +331,36 @@ async def _rename_host(request: web.Request) -> web.Response:
     body = await read_json(request)
     if not isinstance(body, dict):
         raise Validation("invalid request body")
-    reject_unknown_fields(body, {"name"})
-    h.name = _check_name(svc, body.get("name"), h.id)
-    svc.store.rename_host(h.id, h.name)
+    reject_unknown_fields(body, {"name", "tags"})
+    if "tags" not in body:
+        # A rename: the name is required.
+        body.setdefault("name", None)
+    if "name" in body:
+        h.name = _check_name(svc, body.get("name"), h.id)
+        svc.store.rename_host(h.id, h.name)
+    if "tags" in body:
+        h.tags = check_tags(body.get("tags"))
+        svc.store.set_host_tags(h.id, h.tags)
     h.online = await _ping(svc, h)
     return json_response(h)
+
+
+_TAG = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
+MAX_TAGS = 20
+
+
+def check_tags(raw: Any) -> List[str]:
+    """Host tags (groups): lowercase words such as ``production`` or
+    ``customer-x``; at most 20 per host."""
+    if not isinstance(raw, list) or not all(isinstance(t, str) for t in raw):
+        raise Validation("tags must be a list of texts")
+    tags = sorted({t.strip().lower() for t in raw if t.strip()})
+    if len(tags) > MAX_TAGS:
+        raise Validation(f"at most {MAX_TAGS} tags per host")
+    for t in tags:
+        if not _TAG.match(t):
+            raise Validation(f"tag {t!r}: use lowercase letters, digits, dot, dash or underscore (up to 40)")
+    return tags
 
 
 async def _delete_host(request: web.Request) -> web.Response:

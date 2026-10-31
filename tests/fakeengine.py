@@ -644,7 +644,7 @@ class FakeEngine:
             return self._err(409, f"Container {ref} is not running")
         eid = new_id()
         self.execs[eid] = {"ID": eid, "ContainerID": c["Id"], "Cmd": (body or {}).get("Cmd") or [],
-                           "Running": False, "ExitCode": None}
+                           "Running": False, "ExitCode": None, "Tty": bool((body or {}).get("Tty"))}
         return web.json_response({"Id": eid}, status=201)
 
     def _run_exec(self, cid: str, argv: List[str]) -> Tuple[int, bytes]:
@@ -685,7 +685,9 @@ class FakeEngine:
             return self._err(404, "No such exec instance")
         code, out = self._run_exec(ex["ContainerID"], ex["Cmd"])
         ex["ExitCode"] = code
-        return web.Response(body=frame(out, 1 if code == 0 else 2), content_type="application/vnd.docker.raw-stream")
+        # With a TTY Docker sends the output raw, without stream frames.
+        return web.Response(body=out if ex["Tty"] else frame(out, 1 if code == 0 else 2),
+                            content_type="application/vnd.docker.raw-stream")
 
     async def _exec_inspect(self, request, body, params, eid):
         ex = self.execs.get(eid)

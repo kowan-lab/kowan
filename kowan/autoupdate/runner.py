@@ -121,6 +121,13 @@ def container_name(c: Any) -> str:
     return (names[0] if names else getattr(c, "id", "")[:12]).lstrip("/")
 
 
+def _kowan_own(labels: Dict[str, str]) -> bool:
+    """Kowan's own containers (server, agent, helpers) update through Kowan's
+    self-update, never through a host group's policy."""
+    title = labels.get("org.opencontainers.image.title", "")
+    return title in ("kowan", "kowan-agent") or bool(labels.get("kowan.role")) or bool(labels.get("kowan.volbackup.helper"))
+
+
 def tracked_ref(config_image: str, state: Dict[str, Any]) -> str:
     """The ref to follow: the container's own image ref, unless it is pinned
     to the digest our rollback put there, in which case the original tag."""
@@ -245,12 +252,16 @@ class AutoUpdater:
         if only is None:
             self._forget_missing(host.id, {container_name(c) for c in containers})
 
+        # A host group's policy is the default of what has none of its own (the
+        # first of the host's groups, by name, that has one).
+        group = next((p for p in (self.store.get_autoupdate_policy("group", "", t) for t in sorted(getattr(host, "tags", None) or []))
+                      if p), None)
         deployments = []
         dep_policies: Dict[str, Dict[str, Any]] = {}
         try:
             for d in self.store.list_deployments():
                 if host.id in (d.targets or []) and getattr(d, "strategy", "") != "swarm":
-                    p = self.store.get_autoupdate_policy("deployment", "", d.id)
+                    p = self.store.get_autoupdate_policy("deployment", "", d.id) or group
                     if p and p.get("mode", MODE_OFF) != MODE_OFF:
                         deployments.append(d)
                         dep_policies[d.id] = p
@@ -275,6 +286,8 @@ class AutoUpdater:
             if owning_dep(c) and LABEL_UPDATE not in labels:
                 continue  # the deployment's policy covers it
             stored = self.store.get_autoupdate_policy("container", host.id, name)
+            if stored is None and group is not None and not _kowan_own(labels):
+                stored = group
             eff = resolve_policy(labels, stored, defaults)
             if eff.mode == MODE_OFF:
                 continue

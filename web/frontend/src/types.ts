@@ -24,6 +24,9 @@ export interface Host {
   online: boolean;
   lastSeen: string;
   createdAt: string;
+  /** Host groups (production, customer-x): grants, schedules, runbooks and
+   *  auto-update policies can target every host in a group. */
+  tags?: string[];
 }
 
 /**
@@ -1156,7 +1159,7 @@ export interface AutoUpdateOverview {
 // ---------------------------------------------------------------------------
 
 export type PermissionLevel = "read" | "operate" | "manage";
-export type GrantScope = "all_hosts" | "host" | "deployment" | "stack" | "labels";
+export type GrantScope = "all_hosts" | "host" | "host_tag" | "deployment" | "stack" | "labels";
 export type GrantSubjectType = "team" | "user" | "apikey";
 
 export interface Grant {
@@ -1769,4 +1772,152 @@ export interface DigestPreview {
   title: string;
   text: string;
   level: string;
+}
+
+// ── Runbooks (kowan/runbooks) ─────────────────────────────────────────────
+
+export interface RunbookParam {
+  /** An environment variable name: the command reads it as `$NAME`. */
+  name: string;
+  label: string;
+  type: "text" | "number" | "choice";
+  choices: string[];
+  default: string;
+  required: boolean;
+}
+
+export interface RunbookStep {
+  title: string;
+  /** Workload id: dep~…, stack~host~project, ctr~host~name. */
+  workload: string;
+  /** The service it acts on; "" for a lone container (or any). */
+  service: string;
+  /** exec: in a running container; run: in a throwaway copy of the service. */
+  mode: "exec" | "run";
+  replicas: "one" | "all";
+  command: string;
+  continueOnError: boolean;
+  timeoutSeconds: number;
+}
+
+export type RunbookRunStatus = "running" | "succeeded" | "warning" | "failed";
+
+export interface RunbookRunSummary {
+  id: string;
+  status: RunbookRunStatus;
+  startedAt: string;
+  finishedAt: string;
+  user: string;
+  trigger: string;
+}
+
+export interface Runbook {
+  id: string;
+  name: string;
+  description: string;
+  confirm: boolean;
+  params: RunbookParam[];
+  steps: RunbookStep[];
+  /** "kowan" (defined here) or "labels" (read-only, from the compose file). */
+  source: "kowan" | "labels";
+  workloads: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastRun: RunbookRunSummary | null;
+}
+
+export type RunbookInput = Pick<Runbook, "name" | "description" | "confirm" | "params" | "steps">;
+
+export interface RunbookRecord {
+  step: number;
+  title: string;
+  workload: string;
+  service: string;
+  mode: "exec" | "run";
+  host: string;
+  container: string;
+  status: RunbookRunStatus;
+  exitCode: number | null;
+  error: string;
+  output?: string;
+  startedAt: string;
+  finishedAt: string;
+}
+
+export interface RunbookRun extends RunbookRunSummary {
+  runbookId: string;
+  runbookName: string;
+  workloads: string[];
+  params: Record<string, string>;
+  steps: RunbookRecord[];
+}
+
+/** A message on /runbook-runs/{id}/ws. */
+export type RunbookEvent =
+  | { type: "step"; record: number; data: RunbookRecord }
+  | { type: "output"; record: number; text: string }
+  | { type: "done"; run: RunbookRun };
+
+// ── Crash snapshots (kowan/crashes) ──────────────────────────────────────
+
+export interface CrashData {
+  exitCode: number;
+  oomKilled: boolean;
+  error: string;
+  startedAt: string;
+  finishedAt: string;
+  restartCount: number;
+  restartPolicy: string;
+  image: string;
+  imageId: string;
+  command: string[];
+  entrypoint: string[];
+  workingDir: string;
+  user: string;
+  memoryLimit: number;
+  cpus: number;
+  mounts: { type: string; source: string; destination: string; rw: boolean }[];
+  networks: string[];
+  health: { status: string; lastOutput: string };
+  /** Values of secret-looking names are hidden. */
+  env: { name: string; value: string }[];
+  labels: Record<string, string>;
+  logs: string;
+  metrics: { time: string; cpu: number; mem: number; memLimit: number }[];
+}
+
+export interface CrashSnapshot {
+  id: string;
+  hostId: string;
+  containerId: string;
+  containerName: string;
+  workload: string;
+  image: string;
+  exitCode: number;
+  oomKilled: boolean;
+  /** Crashes after this one, within a few minutes, counted here. */
+  repeats: number;
+  createdAt: string;
+  lastAt: string;
+  data?: CrashData;
+}
+
+/** GET /autoupdate/groups: a host group and its auto-update policy. */
+export interface GroupPolicy {
+  tag: string;
+  hosts: string[];
+  stored: { mode: string } | null;
+  effective: { mode: string };
+}
+
+/** GET /system/health: Kowan's own health. */
+export interface SystemHealth {
+  status: "ok" | "degraded";
+  problems: string[];
+  server: { version: string; startedAt: string; python: string };
+  storage: { files: { name: string; description: string; bytes: number }[]; disk: { path: string; total: number; free: number } };
+  hosts: { id: string; name: string; type: string; tags: string[]; lastSeen: string; online: boolean; pingMs: number | null; error: string; crashWatch: boolean }[];
+  loops: { name: string; description: string; lastRun: string; everySeconds: number; late: boolean }[];
+  work: { runbooksRunning: number; pulls: number; websockets: number; crashSnapshotsTaken: number };
 }

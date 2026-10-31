@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Box, Button, Callout, InputToggle, Popup, Select, TextInput } from "@/ui/kit";
-import { listContainers, listDeployments, listHosts } from "../../api/client";
+import { listContainers, listDeployments, listHosts, listRunbooks } from "../../api/client";
 import { notify } from "../../ui/toast";
 import { errorMessage } from "../../utils";
 import CronField from "./CronField";
@@ -42,21 +42,26 @@ export default function ScheduleEditor({
 
   const pick = open && !fixedTarget && !schedule;
   const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts, enabled: pick });
+  // Fleet-wide targets: no host to pick.
+  const fleet = f.targetType === "deployment" || f.targetType === "runbook" || f.targetType === "group";
   const containers = useQuery({
     queryKey: ["containers", f.hostId, "all"], queryFn: () => listContainers(f.hostId, true),
-    enabled: pick && f.targetType !== "deployment" && !!f.hostId,
+    enabled: pick && !fleet && !!f.hostId,
   });
+  const runbooks = useQuery({ queryKey: ["runbooks", ""], queryFn: () => listRunbooks(), enabled: pick && f.targetType === "runbook" });
   const deployments = useQuery({ queryKey: ["deployments"], queryFn: listDeployments, enabled: pick && f.targetType === "deployment" });
 
   const targetOptions = useMemo(() => {
     if (f.targetType === "deployment") return (deployments.data ?? []).map((d) => ({ value: d.id, label: d.name }));
+    if (f.targetType === "runbook") return (runbooks.data ?? []).map((r) => ({ value: r.id, label: r.name }));
+    if (f.targetType === "group") return [...new Set((hosts.data ?? []).flatMap((h) => h.tags ?? []))].sort().map((t) => ({ value: t, label: t }));
     const cs = containers.data ?? [];
     if (f.targetType === "stack") {
       const names = Array.from(new Set(cs.map((c) => c.labels?.[LABEL_PROJECT]).filter(Boolean) as string[])).sort();
       return names.map((n) => ({ value: n, label: n }));
     }
     return cs.map((c) => (c.names?.[0] ?? c.id).replace(/^\//, "")).sort().map((n) => ({ value: n, label: n }));
-  }, [f.targetType, containers.data, deployments.data]);
+  }, [f.targetType, containers.data, deployments.data, runbooks.data, hosts.data]);
 
   const save = useMutation({
     mutationFn: () => {
@@ -88,16 +93,24 @@ export default function ScheduleEditor({
             <Box direction="row" wrap gap={3}>
               <Select
                 label="Target type" width={160} value={f.targetType}
-                options={[{ value: "container", label: "Container" }, { value: "deployment", label: "Deployment" }, { value: "stack", label: "Stack" }]}
-                onChange={(v) => set({ targetType: v as ScheduleTargetType, targetId: "", action: "stop" })}
+                options={[{ value: "container", label: "Container" }, { value: "deployment", label: "Deployment" }, { value: "stack", label: "Stack" },
+                  { value: "runbook", label: "Runbook" }, { value: "group", label: "Host group" }]}
+                onChange={(v) => set({ targetType: v as ScheduleTargetType, targetId: "", action: v === "runbook" ? "run" : "stop", hostId: v === "runbook" || v === "group" ? "" : f.hostId || "local" })}
               />
-              {f.targetType !== "deployment" && (
+              {!fleet && (
                 <Select label="Host" width={180} value={f.hostId} onChange={(v) => set({ hostId: v, targetId: "" })}
                   options={(hosts.data ?? []).map((h) => ({ value: h.id, label: h.name }))} />
               )}
               <Select label="Target" width={240} value={f.targetId} onChange={(v) => set({ targetId: v })} options={targetOptions}
-                searchable loading={containers.isLoading || deployments.isLoading} emptyText="Nothing on this host" />
+                searchable loading={containers.isLoading || deployments.isLoading || runbooks.isLoading}
+                emptyText={f.targetType === "group" ? "No groups yet: set them on the Hosts page" : f.targetType === "runbook" ? "No runbooks yet" : "Nothing on this host"} />
             </Box>
+          )}
+          {f.targetType === "group" && (
+            <Callout color="info">
+              Every container on the group's hosts, except Kowan's own and those labelled <code>kowan.schedule.group: off</code>. Start wakes only the
+              containers meant to run (restart policy always or unless-stopped).
+            </Callout>
           )}
           <Box direction="row" wrap gap={3}>
             <Select label="Action" width={160} value={f.action} onChange={(v) => set({ action: v as ScheduleAction })}

@@ -65,6 +65,9 @@ from .schedules import _ScheduleMixin
 from .gitops import _GitOpsMixin
 from .sessions import _SessionMixin
 from .uptime import UPTIME_SCHEMA, _UptimeMixin
+from .runbooks import RUNBOOKS_SCHEMA, _RunbookMixin
+from .alertrunbooks import ALERT_RUNBOOKS_SCHEMA, _AlertRunbookMixin
+from .crashes import CRASHES_SCHEMA, _CrashMixin
 from .workload_metrics import WORKLOAD_METRICS_SCHEMA, _WorkloadMetricMixin
 
 
@@ -91,6 +94,14 @@ CREATE TABLE IF NOT EXISTS hosts (
     token      TEXT NOT NULL DEFAULT '',
     last_seen  TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+-- Host groups: tags such as production or customer-x (a table of its own, so
+-- an existing database gets it). Grants, schedules, runbooks and auto-update
+-- policies can target every host with a tag.
+CREATE TABLE IF NOT EXISTS host_tags (
+    host_id TEXT NOT NULL,
+    tag     TEXT NOT NULL,
+    PRIMARY KEY (host_id, tag)
 );
 
 CREATE TABLE IF NOT EXISTS deployments (
@@ -631,6 +642,10 @@ class _StoreBase:
             self._conn.executescript(UPTIME_SCHEMA)
             # Resource history per workload (kowan/store/workload_metrics.py).
             self._conn.executescript(WORKLOAD_METRICS_SCHEMA)
+            # Runbooks and their runs (kowan/store/runbooks.py).
+            self._conn.executescript(RUNBOOKS_SCHEMA)
+            self._conn.executescript(ALERT_RUNBOOKS_SCHEMA)
+            self._conn.executescript(CRASHES_SCHEMA)
             self._conn.commit()
 
     # -- lifecycle ---------------------------------------------------------
@@ -751,6 +766,9 @@ class _StoreBase:
 
 
 class Store(
+    _RunbookMixin,
+    _AlertRunbookMixin,
+    _CrashMixin,
     _UserMixin,
     _HostMixin,
     _APIKeyMixin,

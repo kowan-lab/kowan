@@ -97,6 +97,27 @@ When the new image cannot be scanned, every value except `never` blocks the upda
 
 Kowan looks for these labels on every host every 5 minutes. They appear on the **Schedules** page as read-only schedules. An invalid cron expression or time zone shows the schedule with its error, and it never runs. A schedule you create in Kowan for the same host, container and action overrides the label, even when it is disabled: disabling it is how you silence a label without touching the container. See [Schedules](schedules.md).
 
+### Runbooks
+
+| Label | Values | Effect |
+| --- | --- | --- |
+| `kowan.runbook.<name>.command` | A shell command | Declares the runbook `<name>` on this service (required). |
+| `kowan.runbook.<name>.title`, `.description` | Text | How it is shown. |
+| `kowan.runbook.<name>.mode` | `exec` (default) or `run` | In a running container, or in a throwaway copy of the service. |
+| `kowan.runbook.<name>.replicas` | `one` (default) or `all` | On one replica or on each, in turn. |
+| `kowan.runbook.<name>.confirm` | `true` | Asks for confirmation before running. |
+| `kowan.runbook.<name>.params` | `NAME, OTHER=default` | Parameters, read by the command as `$NAME`. |
+| `kowan.runbook.<name>.timeout` | Seconds | Default 600. |
+
+They appear in the workload's **Runbooks** tab, read-only. See [Runbooks](runbooks.md).
+
+### Crash snapshots and group schedules
+
+| Label | Values | Effect |
+| --- | --- | --- |
+| `kowan.snapshot` | `"off"` | No [crash snapshot](crash-snapshots.md) for this container. |
+| `kowan.schedule.group` | `"off"` | A [host group](host-groups.md) schedule leaves this container alone. |
+
 ### Backups
 
 | Label | Values | Effect |

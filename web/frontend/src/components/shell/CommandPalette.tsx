@@ -3,6 +3,8 @@ import { Command } from "cmdk";
 import { Dialog as D } from "radix-ui";
 import { CornerDownLeft, Search } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { listRunbooks } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { ALL_HOSTS, useHost } from "@/HostContext";
 import { useHostName } from "@/lib/hostsQuery";
@@ -103,6 +105,8 @@ function PaletteBody({ close }: { close: () => void }) {
   const features = useFeatures();
   const isAdmin = user?.role === "admin";
   const { apps, hosts, isLoading } = useApps(hostId);
+  // Runbooks are actions: "Run <name>" opens its run dialog where it lives.
+  const runbooks = useQuery({ queryKey: ["runbooks", ""], queryFn: () => listRunbooks(), staleTime: 60_000 });
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState("");
@@ -234,6 +238,14 @@ function PaletteBody({ close }: { close: () => void }) {
       ),
       run,
     });
+    const appName = new Map((apps ?? []).map((a) => [a.id, a.name]));
+    for (const rb of runbooks.data ?? []) {
+      const one = rb.workloads.length === 1 ? rb.workloads[0] : "";
+      const where = one ? appName.get(one) ?? "" : `${rb.workloads.length} workloads`;
+      out.push(action(`runbook:${rb.id}`, `Run ${rb.name}${where ? ` · ${where}` : ""}`, "terminal-rounded",
+        `runbook run ${rb.description} ${where}`,
+        () => go(one ? `${appHref(one, "runbooks")}&run=${encodeURIComponent(rb.id)}` : `/runbooks?run=${encodeURIComponent(rb.id)}`)));
+    }
     out.push(
       action("deploy", "New deployment", "add-rounded", "deploy stack compose create", () => go("/deployments/new")),
       action("theme", `Switch to ${theme === "dark" ? "light" : "dark"} theme`, theme === "dark" ? "light-mode-outline-rounded" : "dark-mode-outline-rounded", "theme dark light toggle", () => {
@@ -246,7 +258,7 @@ function PaletteBody({ close }: { close: () => void }) {
       }),
     );
     return out;
-  }, [apps, hosts, hostId, isAdmin, features, theme, manyHosts]);
+  }, [apps, hosts, hostId, isAdmin, features, theme, manyHosts, runbooks.data]);
 
   const query = q.trim();
   const ranked = useMemo(() => (query ? rank(entries, query) : entries.map((entry) => ({ entry, score: 0 }))), [entries, query]);

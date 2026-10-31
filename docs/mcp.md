@@ -112,6 +112,7 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `uptime_status` | viewer | read-only | Uptime checks with status, uptime 24 h / 7 d / 30 d, latency, certificate expiry, recent down periods |
 | `cleanup_plan` | viewer | read-only | What can be removed from a host, by category, with sizes and the suggested picks |
 | `list_schedules` | viewer | read-only | Scheduled start/stop (set in Kowan or by labels) and recent runs |
+| `list_runbooks` | viewer | read-only | Runbooks of the workloads you can see (steps, params) |
 | `list_backups` | viewer | read-only | Volume backup jobs (next run, last result) and recent runs |
 | `container_action` | operator | idempotent: no | start / stop / restart / pause / unpause / kill |
 | `deployment_action` | operator | open-world | deploy / redeploy (queued) / start / stop / sync (git) |
@@ -124,6 +125,7 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `set_log_retention` | operator | idempotent | Keep a workload's logs for `days` (1–365), or `days=0` to stop and delete them |
 | `run_uptime_check` | operator | idempotent, open-world | Probe a check now |
 | `run_schedule` | operator | idempotent: no | Run a schedule's start/stop now |
+| `run_runbook` | operator | idempotent: no | Run a runbook and wait (`confirm: true` when it asks); each step's output tail |
 | `run_backup` | operator | open-world | Start a backup job now |
 | `remove_container` | operator | **destructive** | Needs `confirm: true` |
 | `remove_image` | operator | **destructive** | Needs `confirm: true` |

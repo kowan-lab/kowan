@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import List
+
 from pydantic import BaseModel, ConfigDict, Field
 
 # Host type constants.
@@ -31,3 +33,5 @@ class Host(BaseModel):
     online: bool = Field(default=False)
     last_seen: str = Field(default="", alias="lastSeen")
     created_at: str = Field(default="", alias="createdAt")
+    # Host groups (production, customer-x): stored apart, in host_tags.
+    tags: List[str] = Field(default_factory=list)

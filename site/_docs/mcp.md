@@ -195,6 +195,9 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | `run_workflow` | operator | Start a workflow run. |
 | `list_schedules` | viewer | Scheduled starts and stops, with their next run and recent results. |
 | `run_schedule` | operator | Run a schedule's start or stop now. |
+| `crash_snapshots` | viewer | Containers that crashed, and what one looked like when it died: logs, configuration, environment (secrets hidden). |
+| `list_runbooks` | viewer | The runbooks of the workloads you can see: what each runs, where, and its parameters. |
+| `run_runbook` | operator | Run a runbook with its parameters and return each step's output. One that asks for confirmation needs `confirm: true`. |
 | `list_backups` | viewer | Volume backup jobs and recent runs. |
 | `run_backup` | operator | Start a backup job now. |
 

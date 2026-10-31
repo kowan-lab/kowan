@@ -37,8 +37,30 @@ def _service(svc) -> ScheduleService:
 
 
 def _targets(s):
-    """A schedule's (or a run's) target, for team/grant scoping."""
+    """A schedule's (or a run's) target, for team/grant scoping. A runbook's
+    targets are the workloads it touches (a gone one: fleet-wide only)."""
+    if s.get("targetType") == "runbook":
+        return _runbook_targets(s.get("targetId", ""))
+    if s.get("targetType") == "group":
+        hosts = _STORE[0].hosts_with_tag(s.get("targetId", "")) if _STORE else []
+        return [("host", h, "") for h in hosts] or [("deployment", "", "")]
     return [(s.get("targetType", ""), s.get("hostId", ""), s.get("targetId", ""))]
+
+
+# The store, for a runbook schedule's workloads (set by register).
+_STORE: list = []
+
+
+def _runbook_targets(rid: str):
+    from kowan.runbooks import model
+
+    parsed = model.parse_label_id(rid)
+    try:
+        if parsed is not None:
+            return [model.access_target(parsed[0])]
+        return model.runbook_targets(_STORE[0].get_runbook(rid), _STORE[0])
+    except Exception:  # noqa: BLE001
+        return [("deployment", "", "")]
 
 
 async def _find(svc, sid: str) -> dict:
@@ -160,6 +182,7 @@ async def _rescan(svc, request: web.Request) -> web.Response:
 def register(app: web.Application, svc) -> None:
     service = ScheduleService(svc)
     svc.attach("schedules", service)
+    _STORE[:] = [svc.store]
     h = bind_svc(svc)
     op = require_role("operator")
 

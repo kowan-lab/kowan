@@ -5,8 +5,10 @@
  */
 import { api } from "../../api/client";
 
-export type ScheduleTargetType = "container" | "deployment" | "stack";
-export type ScheduleAction = "start" | "stop" | "restart" | "deploy";
+/** A runbook runs with its parameters' defaults; a group is every container
+ *  on the hosts with that tag (Kowan's own excluded). */
+export type ScheduleTargetType = "container" | "deployment" | "stack" | "runbook" | "group";
+export type ScheduleAction = "start" | "stop" | "restart" | "deploy" | "run";
 
 export interface Schedule {
   id: string;
@@ -53,6 +55,8 @@ export const ACTIONS: Record<ScheduleTargetType, ScheduleAction[]> = {
   container: ["start", "stop", "restart"],
   deployment: ["start", "stop", "restart", "deploy"],
   stack: ["start", "stop", "restart"],
+  runbook: ["run"],
+  group: ["start", "stop", "restart"],
 };
 
 export async function listSchedules(filter: Partial<Pick<Schedule, "targetType" | "targetId" | "hostId">> = {}): Promise<Schedule[]> {

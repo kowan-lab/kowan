@@ -252,6 +252,16 @@ def validate_grant(store: Any, body: dict, *, subject_required: bool = True) -> 
             return None, "hostId must name an existing host"
         if not target or len(target) > 128:
             return None, "target must be the compose project name"
+    elif scope == authz.SCOPE_HOST_TAG:
+        from kowan.api.hosts import check_tags
+
+        try:
+            [target] = check_tags([target]) or [""]
+        except Exception as err:  # noqa: BLE001 - Validation, or no tag
+            return None, f"target must be a host group: {err}"
+        if not target:
+            return None, "target must be a host group"
+        host_id = ""
     elif scope == authz.SCOPE_LABELS:
         try:
             k, v = authz.parse_selector(target)
