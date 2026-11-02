@@ -13,7 +13,7 @@ typer==0.27.3
 pyyaml==6.0.3
 # IANA time zones for schedules (zoneinfo): the images start FROM scratch and
 # carry no /usr/share/zoneinfo, so without this only UTC would work.
-tzdata==2026.5
+tzdata==2026.6
 # Optional speedups, imported with a stdlib fallback (kowan/jsonx.py,
 # kowan/eventloop.py): faster JSON and a libuv event loop.
 orjson==3.13.0
