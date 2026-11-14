@@ -75,21 +75,31 @@ class _Provider:
         self.sink.append(msg)
 
 
+# The API reads "now" from the clock: its data is dated from it too, or it
+# falls out of the digest's window as the calendar moves on.
+API_NOW = datetime.now(timezone.utc)
+# The digest's slot (Monday 08:05) right after it, for the scheduler.
+# Within a week of it, so the data is inside the weekly window.
+SLOT = (API_NOW - timedelta(days=API_NOW.weekday())).replace(hour=8, minute=5, second=0, microsecond=0)
+if SLOT <= API_NOW:
+    SLOT += timedelta(days=7)
+
+
 class TestDigestAPI(ServerCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         await self.svc.digest.stop()
         st = self.svc.store
         st.upsert_image_scan({"imageId": "sha256:a", "imageRef": "nginx:1.20", "hostId": "local",
-                              "counts": {"critical": 2, "high": 5}, "fixable": 4, "scannedAt": ts(NOW)})
+                              "counts": {"critical": 2, "high": 5}, "fixable": 4, "scannedAt": ts(API_NOW)})
         st.upsert_image_scan({"imageId": "sha256:b", "imageRef": "alpine:3.22", "hostId": "local", "counts": {"low": 1}})
         st.upsert_image_scan({"imageId": "sha256:c", "imageRef": "broken", "status": "error", "counts": {"critical": 9}})
         st.save_backup_run({"jobName": "nightly", "hostId": "local", "status": "failed", "error": "repo locked\nmore",
-                            "startedAt": ts(NOW - timedelta(days=1)), "finishedAt": ts(NOW - timedelta(days=1))})
-        st.save_backup_run({"jobName": "old", "hostId": "local", "status": "failed", "startedAt": ts(NOW - timedelta(days=30))})
-        st.save_backup_run({"jobName": "fine", "hostId": "local", "status": "success", "startedAt": ts(NOW)})
-        st.create_alert(Alert(id=str(uuid.uuid4()), ruleId="r", level="critical", title="Disk almost full", createdAt=ts(NOW)))
-        st.create_alert(Alert(id=str(uuid.uuid4()), ruleId="r", level="info", title="done", resolved=True, createdAt=ts(NOW)))
+                            "startedAt": ts(API_NOW - timedelta(hours=1)), "finishedAt": ts(API_NOW - timedelta(hours=1))})
+        st.save_backup_run({"jobName": "old", "hostId": "local", "status": "failed", "startedAt": ts(API_NOW - timedelta(days=30))})
+        st.save_backup_run({"jobName": "fine", "hostId": "local", "status": "success", "startedAt": ts(API_NOW)})
+        st.create_alert(Alert(id=str(uuid.uuid4()), ruleId="r", level="critical", title="Disk almost full", createdAt=ts(API_NOW)))
+        st.create_alert(Alert(id=str(uuid.uuid4()), ruleId="r", level="info", title="done", resolved=True, createdAt=ts(API_NOW)))
         _, check = await self.call("POST", "/uptime/checks", json={"name": "Shop", "kind": "http", "target": "https://shop.example.com"},
                                    expect=201)
         # The preview runs at the real time, so this expiry is relative to it:
@@ -169,16 +179,16 @@ class TestDigestAPI(ServerCase):
                                                                "config": {"url": "https://hooks.example/off"}}, expect=201)
         self.assertFalse(off.get("enabled", False))  # omitted when off
         sched = self.svc.digest
-        self.assertFalse(await sched.tick(NOW))  # off
+        self.assertFalse(await sched.tick(SLOT))  # off
         digest.save_settings(st, dict(digest.DEFAULT_SETTINGS, enabled=True,
                                       sections={k: k == "backups" for k in digest.SECTIONS}))
-        self.assertFalse(await sched.tick(NOW - timedelta(hours=1)))
-        self.assertTrue(await sched.tick(NOW))
-        self.assertFalse(await sched.tick(NOW))  # same slot
+        self.assertFalse(await sched.tick(SLOT - timedelta(hours=1)))
+        self.assertTrue(await sched.tick(SLOT))
+        self.assertFalse(await sched.tick(SLOT))  # same slot
         self.assertEqual(len(self.sent), 1)
         self.assertIn("Failed backups (1)", self.sent[0].body)
         # Next week nothing failed: skipped, unless sendEmpty.
-        later = NOW + timedelta(days=7)
+        later = SLOT + timedelta(days=7)
         self.assertTrue(await sched.tick(later))
         self.assertTrue(digest.last_sent(st)["skipped"])
         self.assertEqual(len(self.sent), 1)
@@ -189,7 +199,7 @@ class TestDigestAPI(ServerCase):
         # An offline host or a proxy-less host just has nothing to add.
         with mock.patch("kowan.api.updates.check_host", mock.AsyncMock(side_effect=RuntimeError("offline"))), \
                 mock.patch("kowan.exposure.service.certificates", mock.AsyncMock(side_effect=RuntimeError("no proxy"))):
-            d = await digest.build(self.svc, digest.DEFAULT_SETTINGS, NOW)
+            d = await digest.build(self.svc, digest.DEFAULT_SETTINGS, API_NOW)
         self.assertEqual(d["sections"]["updates"], [])
         self.assertEqual([c["name"] for c in d["sections"]["certificates"]], ["https://shop.example.com"])
         # The loop survives errors.

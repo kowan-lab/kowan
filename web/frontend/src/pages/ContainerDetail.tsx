@@ -176,6 +176,20 @@ export default function ContainerDetail() {
   const deploymentsQuery = useQuery({ queryKey: ["deployments"], queryFn: listDeployments, enabled: hostResolved });
   const appTo = appHref(appIdForContainer(container, host, deploymentsQuery.data));
 
+  // Where to go when the container goes away while it is open (recreated by
+  // an update or a redeploy, removed elsewhere): its workload, one level up.
+  // Kept from the last time it loaded, since a gone container has no labels.
+  const parentTo = useRef<{ to: string; name: string } | null>(null);
+  if (inspectQuery.isSuccess) parentTo.current = { to: origin.kind !== "plain" && origin.name ? appTo : "/workloads", name };
+  // Set while an action of this page navigates on its own (update, recreate, remove).
+  const leaving = useRef(false);
+  const gone404 = inspectQuery.isError && errorStatus(inspectQuery.error) === 404;
+  useEffect(() => {
+    if (!gone404 || leaving.current || !parentTo.current) return;
+    notify({ color: "gray", title: `${parentTo.current.name} is gone`, message: "It was recreated or removed: back to its workload." });
+    navigate(parentTo.current.to, { replace: true });
+  }, [gone404, navigate]);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["container-inspect", host, id] });
     queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("containers") });
@@ -223,11 +237,15 @@ export default function ContainerDetail() {
   };
   const updateMutation = useUpdateContainer((res) => {
     setUpdateOpen(false);
-    // A deployment's container is recreated by its redeploy: open the workload.
+    // A deployment's container is recreated by its redeploy, a swarm task by
+    // its service: open the workload, the container's id is gone.
     if (res.deploymentId) navigate(`/workloads/dep~${res.deploymentId}`);
+    else if (res.swarmService || !res.id) navigate(appTo, { replace: true });
     else followTo(res.id);
   });
 
+  // These replace or remove the container and then go where they should.
+  leaving.current = updateMutation.isPending || removeMutation.isPending || editHandlers.opened;
   const acting = actionMutation.isPending ? actionMutation.variables : undefined;
   const busy = actionMutation.isPending || pauseMutation.isPending || updateMutation.isPending;
   const problem = describeProblem(info);
@@ -282,7 +300,9 @@ export default function ContainerDetail() {
                     Retry
                   </Button>
                 )}
-                <Link to="/workloads"><Button variant="outline" color="neutral">Go to workloads</Button></Link>
+                <Link to={parentTo.current?.to ?? "/workloads"}>
+                  <Button variant="outline" color="neutral">{parentTo.current ? "Back to the workload" : "Go to workloads"}</Button>
+                </Link>
               </Box>
             }
           />

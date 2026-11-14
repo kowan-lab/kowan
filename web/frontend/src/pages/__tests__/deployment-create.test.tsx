@@ -70,6 +70,32 @@ describe("new deployment", () => {
     await waitFor(() => expect(requests("POST", "/deployments/d-new/deploy")).toHaveLength(1));
   });
 
+  it("asks to confirm compose warnings, unless Settings turns it off", async () => {
+    const warn = { valid: true, diagnostics: [{ severity: "warning", rule: "image-latest", message: "nginx uses :latest", path: ["services", "web"] }] };
+    for (const confirm of [true, false]) {
+      const { user, unmount } = await start({ "POST /compose/validate": warn, "GET /features": { confirmComposeWarnings: confirm } });
+      const page = pageRoot();
+      await user.type(within(page).getByLabelText(/^name/i), "blog");
+      await user.click(within(page).getByLabelText(/^compose$/i));
+      await pickHost(user);
+      await press(user, /add service/i, page);
+      await user.type(within(page).getAllByLabelText(/service name/i).at(-1)!, "web");
+      await user.type(within(page).getAllByLabelText(/^image/i).at(-1)!, "nginx");
+      expect(await within(page).findByText(/nginx uses :latest/i, {}, { timeout: 5000 })).toBeInTheDocument(); // shown either way
+      if (confirm) {
+        await press(user, /^create$/i, page);
+        await toast(/review the 1 compose warning/i);
+        expect(requests("POST", "/deployments")).toHaveLength(0);
+        await user.click(within(page).getByLabelText(/deploy with 1 warning/i));
+      } else {
+        expect(within(page).queryByLabelText(/deploy with 1 warning/i)).toBeNull();
+      }
+      await press(user, /^create$/i, page);
+      await waitFor(() => expect(requests("POST", "/deployments").length).toBeGreaterThan(0));
+      unmount();
+    }
+  });
+
   it("validates before sending and reports partial failures", async () => {
     const { user } = await start({ "POST /deployments/:id/webhook": reply(500, { error: "db locked" }) });
     const page = pageRoot();

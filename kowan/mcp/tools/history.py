@@ -4,6 +4,7 @@ values and secrets redacted); rollback and promotion reuse the REST code."""
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 from ...auth import authorize as authz
@@ -27,6 +28,11 @@ def _cap_lines(lines: list) -> Dict[str, Any]:
     if len(lines) <= DIFF_MAX_LINES:
         return {"lines": lines}
     return {"lines": lines[:DIFF_MAX_LINES], "linesNote": f"diff cut to {DIFF_MAX_LINES} of {len(lines)} lines"}
+
+
+def _plain(model: Any) -> Dict[str, Any]:
+    """A pydantic model as the JSON the API speaks (camelCase)."""
+    return json.loads(model.model_dump_json(by_alias=True))
 
 
 def _target(svc: Any, source: Any, to: str) -> Any:
@@ -102,6 +108,97 @@ def register(reg: ToolRegistry) -> None:
         if len(y) > YAML_MAX_CHARS:
             out["yamlNote"] = f"YAML cut to {YAML_MAX_CHARS} of {len(y)} characters"
         return out
+
+    @reg.tool(
+        "get_deployment_config",
+        title="Get a deployment's configuration to edit",
+        description=(
+            "What a deployment runs, in full, to change it with update_deployment: the compose file (or the container "
+            "spec), its stack variables and the current revision number. Needs operate on the deployment; a git "
+            "deployment's compose comes from its repository and is changed there."
+        ),
+        schema={"properties": {"deployment": DEPLOYMENT_PROP}, "required": ["deployment"]},
+        role=ROLE_OPERATOR,
+    )
+    async def get_deployment_config(ctx, args):
+        d = resolve_deployment(ctx.svc, args["deployment"])
+        authz.check_deployment(d, authz.LEVEL_OPERATE)
+        rows = ctx.svc.store.list_deployment_revisions(d.id)
+        out: Dict[str, Any] = {
+            "deployment": d.name, "id": d.id, "type": d.type, "strategy": d.strategy,
+            "revision": rows[0]["number"] if rows else 0,
+            "variables": [{"key": v.key, "value": v.value, "secret": v.secret} for v in d.variables or []],
+            "git": bool(d.git),
+        }
+        if d.type == "compose":
+            out["compose"] = d.compose
+            if d.git:
+                out["note"] = "git deployment: the compose file is read from the repository; change it there"
+        elif d.spec is not None:
+            out["spec"] = _plain(d.spec)
+        return out
+
+    @reg.tool(
+        "update_deployment",
+        title="Update a deployment",
+        description=(
+            "Save a new version of a deployment: a whole new compose file (compose), container spec (spec) and/or "
+            "stack variables (variables, replacing them all). Read it first with get_deployment_config and pass its "
+            "revision as baseRevision, so a change made meanwhile is not overwritten. It is validated like an edit in "
+            "the console, recorded as a new revision with your note, and redeployed unless deploy=false."
+        ),
+        schema={
+            "properties": {
+                "deployment": DEPLOYMENT_PROP,
+                "baseRevision": {"type": "integer", "minimum": 0, "description": "The revision you read and changed."},
+                "compose": {"type": "string", "description": "The whole new compose YAML (compose deployments)."},
+                "spec": {"type": "object", "description": "The whole new container spec (container deployments)."},
+                "variables": {"type": "array", "items": {"type": "object"},
+                              "description": "Stack variables [{key, value, secret?}], replacing the current ones."},
+                "note": {"type": "string", "maxLength": 300, "description": "Why: shown in the revision history."},
+                "deploy": {"type": "boolean", "description": "Redeploy a running deployment right away (default true)."},
+            },
+            "required": ["deployment", "baseRevision"],
+        },
+        role=ROLE_OPERATOR, read_only=False, destructive=False, idempotent=False,
+    )
+    async def update_deployment(ctx, args):
+        from ...api.deployments import _Request, update_from_request
+        from ...redact import MASK
+
+        d = resolve_deployment(ctx.svc, args["deployment"])
+        authz.check_deployment(d, authz.LEVEL_MANAGE)
+        rows = ctx.svc.store.list_deployment_revisions(d.id)
+        current = rows[0]["number"] if rows else 0
+        if int(args["baseRevision"]) != current:
+            raise ToolError(f"{d.name} changed since revision {args['baseRevision']} (now {current}): "
+                            "call get_deployment_config again and redo the change on the current version")
+        if not any(k in args for k in ("compose", "spec", "variables")):
+            raise ToolError("nothing to change: pass compose, spec or variables")
+        if "compose" in args and d.git:
+            raise ToolError("a git deployment's compose file comes from its repository: change it there")
+        body: Dict[str, Any] = {
+            "name": d.name, "type": d.type, "strategy": d.strategy, "targets": list(d.targets or []),
+            "replicas": d.replicas, "compose": args.get("compose", d.compose),
+            "spec": args["spec"] if "spec" in args else (_plain(d.spec) if d.spec is not None else None),
+            "git": _plain(d.git) if d.git else None,
+            "variables": args["variables"] if "variables" in args
+            else [{"key": v.key, "value": v.value, "secret": v.secret} for v in d.variables or []],
+        }
+        # A reading copy (get_deployment) hides values: writing it back would
+        # replace real values with the mask.
+        if MASK in json.dumps({k: body[k] for k in ("compose", "spec", "variables")}):
+            raise ToolError("the new configuration contains hidden values (" + MASK + "): start from get_deployment_config, "
+                            "which has the real ones")
+        out = await update_from_request(ctx.svc, d, _Request(body), author=_author(ctx),
+                                        note=str(args.get("note") or ""), deploy=args.get("deploy", True) is not False)
+        if not hasattr(out, "id"):  # the compose gate refused it
+            raise ToolError("refused: " + (getattr(out, "text", "") or "the compose file did not validate"))
+        rows = ctx.svc.store.list_deployment_revisions(d.id)
+        new = rows[0]["number"] if rows else 0
+        return {"deployment": out.name, "revision": new, "changed": new != current, "status": out.status,
+                "note": "no change: the configuration was already this" if new == current
+                else "saved as a new revision; a running deployment redeploys in the background (get_deployment follows it)"}
 
     @reg.tool(
         "rollback_deployment",

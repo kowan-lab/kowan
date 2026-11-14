@@ -16,6 +16,16 @@ If you rename the stack during the import, the deployment gets a new project nam
 
 After the import, edit and deploy the stack from Kowan. A Kowan deploy applies Kowan's copy of the file, so it replaces changes made to the stack in Portainer or in the original folder.
 
+## Migrate what already runs (from Docker)
+
+You do not need Portainer to bring a stack or a container under Kowan: Kowan reads it from Docker. Open the workload and choose **Migrate to Kowan**, or go to **Import stacks → From Docker**, which lists every stack and container on your hosts that Kowan does not manage yet (Kowan's own containers excepted).
+
+- **A Compose stack** whose files are still on its host: Compose records the project's folder and files on its containers, and Kowan reads them there with a short-lived helper container that mounts the folder read-only (only `.yml`/`.yaml` files and the `.env`). The `.env` becomes stack variables, and relative bind paths such as `./data` become absolute paths in that folder. A stack that `build`s or uses `env_file` is flagged, since those still depend on the folder.
+- **A stack whose files are gone, or a Swarm stack**: Kowan writes a Compose file from what Docker reports about each container (image, command, environment, ports, volumes, networks, restart policy, limits, health check, labels), leaving out what the image already sets. Existing volumes and networks are declared `external` under their real names, so the data stays. For a Swarm stack, review the `deploy` sections: placement, update and resource settings are not visible from a container.
+- **A lone container** becomes a container deployment with its own settings.
+
+Values of variables whose names look secret (`PASSWORD`, `TOKEN`, `KEY`…) move to stack variables stored encrypted, referenced as `${NAME}`. Review the file and the variables, keep the name, and choose **Deploy now** to have Kowan take over at once (the containers are recreated: a short restart), or deploy later.
+
 ## Import from Portainer
 
 You need the admin role.

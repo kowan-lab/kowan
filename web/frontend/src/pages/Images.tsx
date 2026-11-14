@@ -28,7 +28,6 @@ import {
   listHosts,
   listImages,
   listRegistries,
-  prune,
   pullImage,
   removeImage,
   checkImageUpdate,
@@ -36,6 +35,7 @@ import {
   type ImageUpdateRow,
 } from "../api/client";
 import { PullLine } from "../components/shell/PullsPanel";
+import { pruneOn, pruneNotice } from "../lib/prune";
 import { usePulls, usePullsDuring } from "../lib/pulls";
 import { describeUpdate, imageUpdate, UPDATES_KEY, useContainerUpdates, type ImageUpdateState } from "../lib/updates";
 
@@ -49,7 +49,7 @@ import SectionCard from "../components/SectionCard";
 import EmptyState from "../components/EmptyState";
 import { ScanChips } from "../components/security/SeverityChips";
 import { useHostScans } from "../components/security/useHostScans";
-import { useHost, isAllHosts } from "../HostContext";
+import { ALL_HOSTS, useHost, isAllHosts } from "../HostContext";
 import { useHostScopedList, type WithHost } from "../useHostScopedList";
 import { LIVE_REFETCH_MS } from "../lib/live";
 import { realTags } from "../lib/images";
@@ -133,7 +133,9 @@ export default function Images() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildOpen]);
   useEffect(() => {
-    if (pruneOpen) setTargetHost(defaultTargetHost(hostId, hosts));
+    // In the "All hosts" view a prune goes to every online host, like the
+    // checkbox removal that already spans hosts.
+    if (pruneOpen) setTargetHost(aggregated ? ALL_HOSTS : defaultTargetHost(hostId, hosts));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pruneOpen]);
 
@@ -209,13 +211,9 @@ export default function Images() {
   });
 
   const pruneMutation = useMutation({
-    mutationFn: (all: boolean) => prune(targetHost, "images", all),
-    onSuccess: (res) => {
-      notify({
-        color: "green",
-        title: "Images pruned",
-        message: `Reclaimed ${formatBytes(res.spaceReclaimed)}`,
-      });
+    mutationFn: (all: boolean) => pruneOn(targetHost, hosts, "images", all),
+    onSuccess: (o) => {
+      notify(pruneNotice("images", o));
       setPruneOpen(false);
       invalidate();
     },
@@ -1202,12 +1200,13 @@ export default function Images() {
           if (targetHost === "") return;
           pruneMutation.mutate(pruneAll);
         }}
-        message="Reclaim disk space by removing unused images on the selected host."
+        message={targetHost === ALL_HOSTS ? "Reclaim disk space by removing unused images on every online host, one after the other." : "Reclaim disk space by removing unused images on the selected host."}
       >
         <HostSelectField
           value={targetHost}
           onChange={setTargetHost}
           description="Host to prune images on."
+          allLabel={`Every online host (${hosts.filter((h) => h.online).length})`}
           disabled={pruneMutation.isPending}
         />
         <RadioGroup
