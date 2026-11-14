@@ -171,3 +171,13 @@ class TestChannels(ServerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPlainHttpDetection(unittest.TestCase):
+    def test_tls_errors_of_a_plain_http_server(self):
+        from kowan.registry.basic import _speaks_plain_http
+
+        for msg in ("[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1006)",
+                    "[SSL] record layer failure (_ssl.c:1017)", "packet length too long"):
+            self.assertTrue(_speaks_plain_http(Exception(msg)), msg)
+        self.assertFalse(_speaks_plain_http(Exception("certificate verify failed")))
