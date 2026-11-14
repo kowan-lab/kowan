@@ -2,6 +2,21 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.17 — 2026-11-14
+
+- **Migrate what already runs, straight from Docker.** A stack or container Kowan only discovered becomes a Kowan deployment, with no Portainer needed: use **Migrate to Kowan** on the workload, or **Import → From Docker**. Kowan reads a Compose stack's original files on its host, or rebuilds the file from the containers. A lone container keeps its own settings. Keeping the name lets a deploy take over what runs, with the same volumes.
+- **Edit variables as a .env file.** **Edit as .env** opens every variable as text, ready to paste a `.env` into. Saved secrets stay hidden and unchanged.
+- **Variables the compose file needs, one click away.** A `${VAR}` with no default and no value is listed above the stack variables, to add one by one or all at once.
+- **Choose whether compose warnings need a confirmation.** **Settings → Features → Confirm compose warnings**: off, the warnings still show but no longer stop a deploy.
+- **Prune every host at once.** From the **All hosts** view, pruning images, volumes or networks goes through every online host, and says which ones failed.
+- **AI assistants can change a deployment.** Through MCP, `get_deployment_config` reads a deployment's compose file and `update_deployment` saves a new version as a revision, with a note. A change made meanwhile is never overwritten.
+
+### Other changes
+
+- **A container page follows its container.** When the container is recreated or removed while its page is open, as an update does, the page goes back to its workload instead of an error. Updating a swarm task opens its workload.
+- **No more endless loading when a host does not answer.** Quick calls to an agent give up after 45 seconds, and pages after 60, with an error you can retry.
+- **Digest tests no longer depend on the date.**
+
 ## 0.1.16 — 2026-10-31
 
 - **Runbooks.** Name the actions you run often on a workload, such as emptying a cache, migrating a database or reloading a configuration, and anyone with access runs them with a click. A runbook has one or more steps, on one workload or several, in a running container or in a throwaway copy of the service. Parameters reach the command as environment variables, never pasted into it. Each run is followed live and kept with its output. Find them in a tab of each workload, under **Automation → Runbooks** and in ⌘K. They can also be declared with `kowan.runbook.*` labels, scheduled, and run by AI assistants through MCP. Kowan suggests some from the workload's images.
