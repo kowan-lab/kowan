@@ -318,7 +318,10 @@ class TestPKCEAndState(unittest.TestCase):
         c = Cipher(b"k" * 32)
         v = seal(c, {"s": "abc", "exp": time.time() + 10})
         self.assertEqual(open_sealed(c, v)["s"], "abc")
-        self.assertIsNone(open_sealed(c, v[:-2] + "AA"))
+        # Change one character in the middle (one at the end may only touch
+        # base64 padding bits, and "AA" may already be there).
+        i = len(v) // 2
+        self.assertIsNone(open_sealed(c, v[:i] + ("B" if v[i] == "A" else "A") + v[i + 1:]))
         self.assertIsNone(open_sealed(Cipher(b"z" * 32), v))
         self.assertIsNone(open_sealed(c, seal(c, {"s": "x", "exp": time.time() - 1})))
 
