@@ -232,4 +232,21 @@ describe("images: updates, filters and bulk remove", () => {
     await toast(/couldn't check/i);
     expect(within(row("postgres:16")).getByText("Couldn't check")).toBeInTheDocument();
   });
+
+  it("prunes every online host from the All hosts view", async () => {
+    localStorage.setItem("kowan_host", "all");
+    const twoOnline = [{ id: "local", name: "local", type: "local", mode: "", address: "", online: true, lastSeen: "", createdAt: "" },
+      { id: "h-b", name: "agent-b", type: "agent", mode: "", address: "", online: true, lastSeen: "", createdAt: "" },
+      { id: "h-off", name: "off", type: "agent", mode: "", address: "", online: false, lastSeen: "", createdAt: "" }];
+    const { user } = renderApp("/images", { api: {
+      "GET /hosts": twoOnline,
+      "POST /hosts/:h/prune/:kind": (r: { params: Record<string, string> }) => (r.params.h === "h-b" ? reply(502, { error: "agent gone" }) : { spaceReclaimed: 1024 * 1024 }),
+    } });
+    await user.click(await screen.findByRole("button", { name: /prune unused/i }, { timeout: 10_000 }));
+    const d = await dialog(/prune images/i);
+    expect(within(d).getByRole("combobox", { name: /^host/i })).toHaveTextContent(/every online host \(2\)/i);
+    await press(user, /^prune$/i, d);
+    await toast(/images pruned, 1 host failed/i);
+    expect(requests("POST", "/hosts/:h/prune/:kind").map((r) => r.path).sort()).toEqual(["/hosts/h-b/prune/images", "/hosts/local/prune/images"]);
+  });
 });

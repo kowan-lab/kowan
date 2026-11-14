@@ -17,6 +17,7 @@ import {
   type DeploymentFormValue,
 } from "../DeploymentForm";
 import type { Deployment } from "../../types";
+import { useFeatures } from "../../lib/features";
 import { errorMessage } from "../../utils";
 import { deployInFlight, useLifecycle } from "./shared";
 
@@ -32,6 +33,7 @@ export default function DeploymentConfig({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const features = useFeatures();
   const life = useLifecycle(d);
   const [form, setForm] = useState<DeploymentFormValue>(() => deploymentFormFromDeployment(d));
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function DeploymentConfig({
   });
 
   const submit = async (redeploy: boolean) => {
-    const msg = validateDeploymentForm(form);
+    const msg = validateDeploymentForm(form, { confirmWarnings: features.confirmComposeWarnings });
     if (msg) {
       setError(msg);
       return;

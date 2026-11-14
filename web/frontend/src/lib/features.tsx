@@ -8,18 +8,19 @@ import { getFeatures } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import EmptyState from "../components/EmptyState";
 
-export type FeatureId = "templates" | "networkMap" | "gitops" | "systemContainers";
+export type FeatureId = "templates" | "networkMap" | "gitops" | "systemContainers" | "confirmComposeWarnings";
 export type Features = Record<FeatureId, boolean>;
 
 export const FEATURE_INFO: { id: FeatureId; label: string; note: string }[] = [
   { id: "templates", label: "Templates", note: "The catalog of ready apps to deploy." },
   { id: "networkMap", label: "Network map", note: "The graph of containers, networks, ports and domains." },
   { id: "gitops", label: "GitOps", note: "Configuration exported to git and synced back; off also stops its sync and webhooks." },
+  { id: "confirmComposeWarnings", label: "Confirm compose warnings", note: "Before deploying a compose file with warnings, ask to tick \"Deploy with N warnings\". Off: the warnings still show under the editor, but do not stop the deploy." },
   { id: "systemContainers", label: "Kowan's own containers", note: "The server, the agents and their helpers (updates, scans, backups) in Workloads, the dashboard, Logs and search. Off by default." },
 ];
 
 // Until the state loads: the server's defaults.
-const DEFAULTS: Features = { templates: true, networkMap: true, gitops: true, systemContainers: false };
+const DEFAULTS: Features = { templates: true, networkMap: true, gitops: true, systemContainers: false, confirmComposeWarnings: true };
 
 export function useFeatures(): Features {
   const { user } = useAuth();

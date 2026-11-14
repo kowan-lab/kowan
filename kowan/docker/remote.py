@@ -17,6 +17,7 @@ same objects a ``LocalClient`` would return. Streaming ops
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Awaitable, Callable, Dict, List
 
 from .. import agentproto
@@ -33,7 +34,18 @@ from ..models import (
     VolumeCreateOptions,
     VolumeListing,
 )
+from ..errors import BadGateway
 from .base import AsyncByteStream, ExecStream, Ops
+
+# Unary agent calls that may take long (a deploy pulls images, a prune walks
+# the disk): no timeout. Every other unary call gets UNARY_TIMEOUT seconds.
+UNARY_TIMEOUT = 45.0
+LONG_OPS = frozenset({
+    "build_image", "compose_up", "compose_down", "swarm_deploy", "swarm_remove", "create_container",
+    "remove_container", "remove_image", "remove_volume", "install_plugin", "prune_containers", "prune_images",
+    "prune_volumes", "prune_networks", "prune_build_cache", "stop_container", "restart_container",
+    "container_exec_status", "exec", "update_service_image", "create_volume",
+})
 
 # Dial callback: an async callable returning a fresh mux Stream to the agent.
 Dial = Callable[[], Awaitable[Any]]
@@ -61,10 +73,21 @@ class RemoteClient(Ops):
     # -- helpers -------------------------------------------------------------
 
     async def _call(self, op: str, args: Dict[str, Any] | None = None) -> Any:
-        """Open a stream, run a unary op, return the decoded meta, close the stream."""
+        """Open a stream, run a unary op, return the decoded meta, close the stream.
+
+        A quick op (a list, an inspect) that the agent does not answer in
+        ``UNARY_TIMEOUT`` fails, so the request behind it ends with an error
+        instead of hanging; long ops (deploys, builds, prunes) wait."""
         stream = await self._dial()
         try:
-            meta, body = await agentproto.call(stream, op, args or {})
+            call = agentproto.call(stream, op, args or {})
+            if op in LONG_OPS:
+                meta, body = await call
+            else:
+                try:
+                    meta, body = await asyncio.wait_for(call, timeout=UNARY_TIMEOUT)
+                except asyncio.TimeoutError:
+                    raise BadGateway(f"the agent did not answer {op} in {int(UNARY_TIMEOUT)} s") from None
             # Unary ops never carry a body; if the agent unexpectedly sent one,
             # close it so the stream isn't left half-open.
             if body is not None:

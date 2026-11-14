@@ -838,6 +838,9 @@ export interface ContainerUpdateResult {
    * deployment was updated (redeployed) instead of the container alone. */
   deploymentId?: string;
   deployment?: string;
+  /** Set when the container is a swarm task: its service was updated, and
+   *  swarm replaces the task with a new container. */
+  swarmService?: string;
 }
 
 // App-template catalog (GET /templates). A template is a container spec or a
@@ -1678,6 +1681,9 @@ export interface ImportResult {
   ok: boolean;
   id?: string;
   error?: string;
+  /** Migrate with deploy: the deploy started (or why it did not). */
+  deploying?: boolean;
+  deployError?: string;
 }
 
 // Disk cleanup (/hosts/{id}/cleanup)
@@ -1920,4 +1926,36 @@ export interface SystemHealth {
   hosts: { id: string; name: string; type: string; tags: string[]; lastSeen: string; online: boolean; pingMs: number | null; error: string; crashWatch: boolean }[];
   loops: { name: string; description: string; lastRun: string; everySeconds: number; late: boolean }[];
   work: { runbooksRunning: number; pulls: number; websockets: number; crashSnapshotsTaken: number };
+}
+
+// ── Migrate (kowan/importer/fromdocker.py) ─────────────────────────────────
+
+/** GET /import/docker: a workload Kowan only discovered. */
+export interface MigratableWorkload {
+  workload: string;
+  host: string;
+  hostName: string;
+  kind: "stack" | "ctr";
+  name: string;
+  containers: number;
+  running: number;
+  swarm: boolean;
+  /** Compose labels name its files on the host. */
+  hasFiles: boolean;
+}
+
+/** POST /import/docker/scan: the deployment a workload would become. */
+export interface MigrateCandidate {
+  workload: string;
+  host: string;
+  name: string;
+  type: "compose" | "container";
+  /** files: the original compose read on the host; rebuilt: from the containers. */
+  source: "files" | "rebuilt" | "container";
+  path?: string;
+  strategy: "standalone" | "swarm";
+  compose?: string;
+  spec?: ContainerSpec;
+  variables?: KeyValue[];
+  warnings: string[];
 }
