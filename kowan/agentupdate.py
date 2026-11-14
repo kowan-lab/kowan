@@ -23,7 +23,7 @@ _DEFAULT_DOCKER_REGISTRY = "registry-1.docker.io"
 
 def _agent_image_default() -> str:
     """The agent image name used when the running container doesn't report one."""
-    return os.environ.get("KOWAN_AGENT_IMAGE", "").strip() or "ghcr.io/kowan-lab/kowan-agent"
+    return (str(__import__("kowan.tunables", fromlist=["value"]).value("agent_image")).strip() or "ghcr.io/kowan-lab/kowan-agent")
 
 
 def _split_ref(ref: str) -> Tuple[str, str, str]:

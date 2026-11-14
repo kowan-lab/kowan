@@ -80,8 +80,8 @@ parsing, so they never break the YAML and positions stay exact.
 | `secret-field-missing` | error | | `[[name.field]]`: no such field |
 | `secret-field-ambiguous` | error | | bare `[[name]]` on a multi-field secret without `value` |
 
-Host checks run only when the host answers within `KOWAN_COMPOSE_HOST_TIMEOUT`
-(5s). Bind paths are checkable only for the local host when the server itself
+Host checks run only when the host answers within the host timeout (5s,
+Settings > Advanced). Bind paths are checkable only for the local host when the server itself
 is not containerised; otherwise the rule is skipped.
 
 ## Where it runs
@@ -95,7 +95,7 @@ is not containerised; otherwise the rule is skipped.
 * **Server**: create, update and deploy of an inline-compose deployment
   re-validate; any `error` returns `400 {error, diagnostics, ...}`. Warnings
   never block. Git-sourced compose is validated by GitOps plans, not by this
-  gate. `KOWAN_COMPOSE_VALIDATE=0` disables the gate.
+  gate. The **Validate compose files** toggle in Settings > Advanced turns the gate off.
 
 Code: `kowan/compose/` (`positions.py`, `structural.py`, `lint.py`,
 `validate.py`, `patch.py`), `kowan/api/compose_validate.py`.

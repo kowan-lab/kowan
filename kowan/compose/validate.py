@@ -27,7 +27,10 @@ from .structural import schema_lite, validate_cli, yaml_error
 
 log = logging.getLogger("kowan.compose")
 
-_HOST_TIMEOUT = float(os.environ.get("KOWAN_COMPOSE_HOST_TIMEOUT", "5"))
+def _host_timeout() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("compose_host_timeout"))
 
 # Compose project / deployment labels (kept local to avoid importing the
 # deployment service, which imports a lot).
@@ -182,7 +185,7 @@ async def host_facts(
         path_exists = os.path.exists
     try:
         ops = svc.docker.ops(host)
-        containers = await asyncio.wait_for(ops.list_containers(True), timeout=_HOST_TIMEOUT)
+        containers = await asyncio.wait_for(ops.list_containers(True), timeout=_host_timeout())
     except Exception as err:  # noqa: BLE001 - offline host / timeout
         log.debug("compose validate: host %s unavailable: %s", host_id, err)
         return None, None, path_exists

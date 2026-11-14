@@ -172,6 +172,54 @@ export async function saveNetworkAccess(body: { uiAllow: string[]; edgeAllow: st
   return data;
 }
 
+export interface GeneralSettings {
+  externalUrl: string;
+  /** The address this browser uses now: a suggestion for an empty field. */
+  currentOrigin: string;
+  /** KOWAN_EXTERNAL_URL is still in the server's environment (no longer read). */
+  envSet: boolean;
+  warnings?: string[];
+}
+
+export async function getGeneralSettings(): Promise<GeneralSettings> {
+  const { data } = await api.get<GeneralSettings>("/settings/general");
+  return data;
+}
+
+export async function saveGeneralSettings(body: { externalUrl: string }): Promise<GeneralSettings> {
+  const { data } = await api.put<GeneralSettings>("/settings/general", body);
+  return data;
+}
+
+export type TunableGroup = "retention" | "monitoring" | "mcp" | "advanced";
+
+/** A server setting that used to be an environment variable. */
+export interface Tunable {
+  key: string;
+  group: TunableGroup;
+  label: string;
+  help: string;
+  kind: "duration" | "int" | "bool" | "text" | "origins";
+  value: string;
+  default: string;
+  /** A value is saved (otherwise the default applies). */
+  custom: boolean;
+  env: string;
+  /** The old variable is still in the server environment (no longer read). */
+  envSet: boolean;
+}
+
+export async function listTunables(): Promise<Tunable[]> {
+  const { data } = await api.get<{ settings: Tunable[] }>("/settings/tunables");
+  return data.settings;
+}
+
+/** Save several at once; `null` restores the default. All or nothing. */
+export async function saveTunables(values: Record<string, string | null>): Promise<Tunable[]> {
+  const { data } = await api.put<{ settings: Tunable[] }>("/settings/tunables", { values });
+  return data.settings;
+}
+
 export async function deleteUser(id: string): Promise<void> {
   await api.delete(`/users/${id}`);
 }

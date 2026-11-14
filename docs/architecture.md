@@ -138,21 +138,17 @@ stats, exec) is implemented but has little end-to-end coverage; some external
 providers (cloud secret managers) are implemented but not tested against the
 real services.
 
-## Environment variables: retention and performance
+## Environment variables: performance
 
 | Variable | Default | Effect |
 |---|---|---|
-| `KOWAN_AUDIT_RETENTION` | `90d` | Delete `audit_log` entries older than this. |
-| `KOWAN_ALERT_RETENTION` | `30d` | Delete **resolved** alerts older than this (active ones stay). |
-| `KOWAN_WORKFLOW_RUNS_KEEP` | `100` | Runs kept per workflow (the most recent; a run still `running` is never deleted). |
 | `KOWAN_UVLOOP` | (on) | `0` turns uvloop off and uses the standard asyncio loop. |
-| `KOWAN_RECONCILE_INTERVAL` | `5s` | How often the reconcile loop checks that enabled deployments are live. |
-| `KOWAN_RECONCILE_COOLDOWN` | `2m` | Minimum gap between two reconcile-driven redeploys of one deployment. |
 
-Durations accept Go's format (`720h`, `1h30m`), days (`90d`) or whole seconds;
-`0` turns a retention cleanup off. Pruning runs about once an hour in the monitor's
-loop. `orjson` and `uvloop` are optional: without them the stdlib `json` and
-`asyncio` are used.
+Retention, the monitor and reconcile intervals and the other tunables are
+settings edited in the UI (Settings > Data retention and Settings > Advanced),
+applied at once with no restart (`kowan/tunables.py`). Pruning runs about once
+an hour in the monitor's loop. `orjson` and `uvloop` are optional: without
+them the stdlib `json` and `asyncio` are used.
 
 ## Control-plane backup
 

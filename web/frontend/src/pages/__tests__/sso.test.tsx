@@ -110,7 +110,7 @@ describe("sso providers page", () => {
 
   it("warns when the external URL is unset and shows the empty state", async () => {
     renderApp("/sso", { api: { "GET /sso/providers": listing({ providers: [], externalUrl: "" }) } });
-    expect(await screen.findByText(/KOWAN_EXTERNAL_URL is not set/i, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText(/server address is not set/i, {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText(/no identity providers/i)).toBeInTheDocument();
   });
 

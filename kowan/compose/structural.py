@@ -34,7 +34,10 @@ from .diagnostics import (
 )
 from .positions import ParsedYaml
 
-_TIMEOUT = float(os.environ.get("KOWAN_COMPOSE_VALIDATE_TIMEOUT", "10"))
+def _timeout() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("compose_validate_timeout"))
 
 # Cached "is `docker compose` usable here?" (None = not probed yet).
 _cli_ok: Optional[bool] = None
@@ -69,7 +72,7 @@ async def _run_cli(text: str, env: Optional[Mapping[str, str]]) -> Tuple[int, st
             stderr=asyncio.subprocess.STDOUT,
         )
         try:
-            out, _ = await asyncio.wait_for(proc.communicate(text.encode()), timeout=_TIMEOUT)
+            out, _ = await asyncio.wait_for(proc.communicate(text.encode()), timeout=_timeout())
         except asyncio.TimeoutError:
             proc.kill()
             raise

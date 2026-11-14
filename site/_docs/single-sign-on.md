@@ -7,10 +7,10 @@ Single sign-on lets people sign in to Kowan with your identity provider instead 
 
 ## Before you start
 
-Set `KOWAN_EXTERNAL_URL` to the address people open Kowan at, for example `https://kowan.example.com`, and restart the server. Kowan builds the redirect URI from it:
+In **Settings → Server address**, set **External URL** to the address people open Kowan at, for example `https://kowan.example.com`. Kowan builds the redirect URI from it:
 
 ```text
-<KOWAN_EXTERNAL_URL>/api/v1/auth/sso/<provider id>/callback
+<external URL>/api/v1/auth/sso/<provider id>/callback
 ```
 
 Serve Kowan over HTTPS. When the external URL starts with `https://`, the sign-in cookies are marked secure. The issuer URL of an OpenID Connect provider must use HTTPS too (plain HTTP is accepted only for `localhost`).
@@ -93,8 +93,9 @@ You can turn on **SSO only** once at least one provider is enabled and the break
 
 To set up single sign-on without the console, for example in a provisioning script:
 
+The external URL is not part of the environment: set it in **Settings → Server address**.
+
 ```bash
-KOWAN_EXTERNAL_URL=https://kowan.example.com
 KOWAN_SSO_PROVIDERS='[{"name":"kc","type":"oidc","label":"Keycloak",
   "issuer":"https://kc.example.com/realms/main","clientId":"kowan",
   "clientSecretEnv":"KC_SECRET","scopes":"openid profile email",
@@ -108,10 +109,10 @@ KOWAN_SSO_BREAK_GLASS_USER=admin
 | Variable | What it does |
 |---|---|
 | `KOWAN_SSO_PROVIDERS` | A JSON array of providers. `clientSecretEnv` names another variable that holds the secret. `type` is `oidc` or `github`. |
-| `KOWAN_SSO_ONLY` | `true` or `false`: sets **SSO only** at startup. |
-| `KOWAN_SSO_BREAK_GLASS_USER` | The break-glass username. |
+| `KOWAN_SSO_ONLY` | `true` or `false`: the first value of **SSO only**. |
+| `KOWAN_SSO_BREAK_GLASS_USER` | The first break-glass username. |
 
-Kowan applies these at every start, matching providers by `name`, and marks them **env** in the console. Change them in the environment, since the values there win at the next restart.
+Kowan applies `KOWAN_SSO_PROVIDERS` at every start, matching providers by `name`, and marks them **env** in the console. `KOWAN_SSO_ONLY` and `KOWAN_SSO_BREAK_GLASS_USER` only give the first value on a server where nothing is saved yet. After that, **Settings → Single sign-on** owns them and the variables are ignored.
 
 Besides the settings above, a provider's `config` accepts `extraAuthParams` (extra parameters for the authorization request) and `tokenAuthMethod` (`client_secret_basic` or `client_secret_post`; by default Kowan picks the one the provider supports).
 
@@ -125,7 +126,7 @@ Successful and failed sign-ins are recorded in the [audit log](audit-log.md) as 
 
 | Message on the sign-in page | What to check |
 |---|---|
-| Single sign-on is not configured | Set `KOWAN_EXTERNAL_URL` and restart. |
+| Single sign-on is not configured | Set the external URL in **Settings → Server address**. |
 | The sign-in took too long or was started in another browser | Start again within 10 minutes, in the same browser. |
 | The identity provider's response could not be verified | The issuer URL, the client ID and the server's clock. |
 | The identity provider refused the sign-in code | The client secret and the redirect URI registered at the provider. |

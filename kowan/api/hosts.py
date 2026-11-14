@@ -404,11 +404,11 @@ def _request_origin(request: web.Request) -> str:
 def _agent_image() -> str:
     """The agent image name used in join commands.
 
-    Override with ``KOWAN_AGENT_IMAGE`` (e.g. a registry-qualified tag like
+    Override from Settings → Advanced (agent image) (e.g. a registry-qualified tag like
     ``ghcr.io/you/kowan-agent:latest``) so the command works on hosts that must
     pull the image. Defaults to ``ghcr.io/kowan-lab/kowan-agent``.
     """
-    return os.environ.get("KOWAN_AGENT_IMAGE", "").strip() or "ghcr.io/kowan-lab/kowan-agent"
+    return (str(__import__("kowan.tunables", fromlist=["value"]).value("agent_image")).strip() or "ghcr.io/kowan-lab/kowan-agent")
 
 
 def _docker_run(svc, request: web.Request, host: Host) -> str:

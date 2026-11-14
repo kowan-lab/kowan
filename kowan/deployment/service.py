@@ -91,9 +91,19 @@ _MAX_CONCURRENT_DEPLOYS = 3
 # live, and the minimum gap between two reconcile-driven redeploys of the SAME
 # deployment (so a flapping/crash-looping container can't trigger a tight redeploy
 # loop — the operator's "don't continuously redeploy" concern).
-# Durations like the other settings: "5", "15s", "2m" (kowan.config.env_duration).
-_RECONCILE_INTERVAL = env_duration("KOWAN_RECONCILE_INTERVAL", timedelta(seconds=5)).total_seconds()
-_RECONCILE_COOLDOWN = env_duration("KOWAN_RECONCILE_COOLDOWN", timedelta(seconds=120)).total_seconds()
+# Both are settings (Settings → Advanced), read at each use.
+
+
+def _reconcile_interval() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("reconcile_interval"))
+
+
+def _reconcile_cooldown() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("reconcile_cooldown"))
 
 # Per-target runtime states reported by status().
 STATE_RUNNING = "running"
@@ -380,13 +390,14 @@ class DeploymentService:
     # has a deploy in flight, and applies a per-deployment cooldown so a
     # crash-looping container cannot drive a tight redeploy loop.
 
-    async def run_reconcile_loop(self, interval: float = _RECONCILE_INTERVAL) -> None:
-        """Background loop: every ``interval`` seconds run one reconcile pass until
-        cancelled (server cleanup cancels it). Never dies on a pass error."""
-        log.info("deployment reconcile loop started (interval=%ss)", interval)
+    async def run_reconcile_loop(self, interval: Optional[float] = None) -> None:
+        """Background loop: every ``interval`` seconds (default: the setting, read
+        each time) run one reconcile pass until cancelled (server cleanup cancels
+        it). Never dies on a pass error."""
+        log.info("deployment reconcile loop started")
         try:
             while True:
-                await asyncio.sleep(interval)
+                await asyncio.sleep(interval if interval is not None else _reconcile_interval())
                 try:
                     await self.reconcile_once()
                 except asyncio.CancelledError:
@@ -413,7 +424,7 @@ class DeploymentService:
         # with every deployment ever seen. No await since the listing: a
         # deployment created meanwhile cannot be dropped.
         ids = {d.id for d in deployments}
-        for dep_id in [k for k, t in self._reconcile_at.items() if k not in ids or now - t >= _RECONCILE_COOLDOWN]:
+        for dep_id in [k for k, t in self._reconcile_at.items() if k not in ids or now - t >= _reconcile_cooldown()]:
             del self._reconcile_at[dep_id]
         for dep_id in [k for k in self._deploy_errs if k not in ids]:
             del self._deploy_errs[dep_id]
@@ -433,12 +444,12 @@ class DeploymentService:
             if task is not None and not task.done():
                 continue
             # Per-deployment cooldown: never reconcile-redeploy the same one more
-            # than once per _RECONCILE_COOLDOWN, so a flapping container can't loop.
+            # than once per reconcile cooldown, so a flapping container can't loop.
             # (Never reconciled: no cooldown. A default of 0 would mean "just
             # now" for the first minutes after the host boots, as monotonic
             # time starts there.)
             last = self._reconcile_at.get(dep.id)
-            if last is not None and now - last < _RECONCILE_COOLDOWN:
+            if last is not None and now - last < _reconcile_cooldown():
                 continue
             try:
                 if not await self._needs_reconcile(dep, listings):

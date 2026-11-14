@@ -89,14 +89,14 @@ The server does its routine work on its own, on a fixed rhythm:
 
 | Task | How often | Setting |
 |---|---|---|
-| Check every host, sample container and host metrics, evaluate [alert](alerts-and-notifications.md) rules | Every 15 seconds | `KOWAN_MONITOR_INTERVAL` |
-| Keep those metric samples | 7 days | `KOWAN_METRICS_RETENTION` |
+| Check every host, sample container and host metrics, evaluate [alert](alerts-and-notifications.md) rules | Every 15 seconds | Monitoring interval |
+| Keep those metric samples | 7 days | Resource history |
 | Record each workload's [resource history](resource-history.md) | 5-minute buckets, kept 30 days | |
-| Redeploy deployments with auto-heal on whose containers are missing or stopped | Checked every 5 seconds, at most once every 120 seconds per deployment | `KOWAN_RECONCILE_INTERVAL`, `KOWAN_RECONCILE_COOLDOWN` |
-| Delete old audit log entries, resolved alerts and workflow runs | About once an hour | `KOWAN_AUDIT_RETENTION` (90 days), `KOWAN_ALERT_RETENTION` (30 days), `KOWAN_WORKFLOW_RUNS_KEEP` (100 runs per workflow) |
-| Look for a new Kowan release | Every 6 hours | `KOWAN_RELEASE_REPOSITORY` |
+| Redeploy deployments with auto-heal on whose containers are missing or stopped | Checked every 5 seconds, at most once every 120 seconds per deployment | Reconcile interval, Reconcile cooldown |
+| Delete old audit log entries, resolved alerts and workflow runs | About once an hour | Audit log (90 days), Resolved alerts (30 days), Workflow runs (100 per workflow) |
+| Look for a new Kowan release | Every 6 hours | Release repository |
 
-`KOWAN_MONITOR_INTERVAL`, `KOWAN_METRICS_RETENTION`, `KOWAN_AUDIT_RETENTION` and `KOWAN_ALERT_RETENTION` accept durations such as `15s`, `720h`, `1h30m` or `90d`, or a whole number of seconds; `0` turns the audit log or alert cleanup off. `KOWAN_RECONCILE_INTERVAL` and `KOWAN_RECONCILE_COOLDOWN` accept the same formats. See [Configuration](configuration.md).
+These are settings, not environment variables. Change them in **Settings → Data retention** and **Settings → Advanced**; they apply at once. Durations are written like `15s`, `15m`, `2h` or `90d`; `0` turns the audit log or alert cleanup off. See [Configuration](configuration.md).
 
 The server also follows the logs of every workload that keeps them, on every host, and listens to Docker events from all hosts. The web console updates from those events as they happen, with periodic refreshes only as a safety net.
 

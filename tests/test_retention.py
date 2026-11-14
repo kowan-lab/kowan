@@ -10,6 +10,7 @@ from kowan.config import load_server_config
 from kowan.models import Alert, AuditEntry, WorkflowRun
 from kowan.store import Store
 from kowan.store.retention import prune_retention
+from kowan import tunables
 
 NOW = datetime(2026, 10, 25, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -195,7 +196,7 @@ class TestMonitorSchedulesRetention(unittest.TestCase):
 
         m = mon.Monitor(_Svc())
         clock = [1000.0]
-        with mock.patch.object(mon.time, "monotonic", lambda: clock[0]):
+        with mock.patch.object(mon.time, "monotonic", lambda: clock[0]), tunables.override(workflow_runs_keep="7"):
             asyncio.run(m._tick())
             self.assertEqual([c[0] for c in calls], ["audit", "alerts", "runs"])
             self.assertIn(("runs", 7), calls)

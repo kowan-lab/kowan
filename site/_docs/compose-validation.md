@@ -75,7 +75,7 @@ A variable counts as set when it is one of the deployment's stack variables. A v
 
 The port, container name and bind path checks look at the target host. They exclude the deployment's own containers, so a redeploy never conflicts with itself.
 
-- They run only when the host answers within 5 seconds (`KOWAN_COMPOSE_HOST_TIMEOUT`). An offline host skips them silently.
+- They run only when the host answers within 5 seconds (the host timeout in **Settings → Advanced**). An offline host skips them silently.
 - Bind paths can be checked only when the deployment targets the server's own host and the Kowan server runs directly on it, not in a container. With the usual [container install](installation.md), this check is skipped.
 
 ## Validate from the API
@@ -95,11 +95,11 @@ The port, container name and bind path checks look at the target host. They excl
 
 ## Settings
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `KOWAN_COMPOSE_VALIDATE` | `1` | Set to `0` to turn off the server-side check on create, edit, deploy, rollback, promotion and import. The deployment form still shows findings and blocks on errors, and GitOps plans are still checked, so this mainly affects the API and `kowanctl`. |
-| `KOWAN_COMPOSE_HOST_TIMEOUT` | `5` | Seconds to wait for the target host before skipping the host checks. |
-| `KOWAN_COMPOSE_VALIDATE_TIMEOUT` | `10` | Seconds to wait for `docker compose config`. |
+Three settings in **Settings → Advanced** control the check. They apply at once, with no restart.
+
+- **Validate compose files** (on by default). Turn it off to stop the server-side check on create, edit, deploy, rollback, promotion and import. The deployment form still shows findings and blocks on errors, and GitOps plans are still checked, so this mainly affects the API and `kowanctl`.
+- **Compose host timeout** (5s). How long to wait for the target host before skipping the host checks.
+- **Compose validate timeout** (10s). How long to wait for `docker compose config`.
 
 !!! warning
     Turning the gate off lets a file with errors reach the host, where `docker compose` fails or starts something you did not intend. Use it only to get past a check you are sure is wrong.

@@ -62,13 +62,11 @@ The Docker socket, `/var/run/docker.sock`
 
 ## Set the external URL
 
-If you will add other servers or use single sign-on, tell Kowan the address people and agents use to reach it:
+If you will add other servers or use single sign-on, tell Kowan the address people and agents use to reach it. Sign in as an admin, go to **Settings → Server address** and enter it in **External URL**, for example `https://kowan.example.com`. It applies at once, with no restart.
 
-```bash
--e KOWAN_EXTERNAL_URL=https://kowan.example.com
-```
+Kowan uses it in the commands it gives you for new agents and in sign-in redirects. When you save, Kowan tries the address and warns you if it does not answer, or if it uses plain `http://`, since then sign-in cookies are not marked secure. Every other setting is optional; see [Configuration](configuration.md).
 
-Kowan uses it in the commands it gives you for new agents and in sign-in redirects. Every other setting is optional; see [Configuration](configuration.md).
+If you upgrade a server that had `KOWAN_EXTERNAL_URL` set, its value becomes the setting on the first start. After that the variable is ignored, and you can remove it.
 
 ## Serve Kowan over HTTPS
 

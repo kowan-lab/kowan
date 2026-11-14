@@ -18,8 +18,9 @@ Admin:
 
 Env bootstrap (applied at startup, providers marked ``managed: env``):
 ``KOWAN_SSO_PROVIDERS`` (JSON array of provider objects, ``clientSecret`` may be
-given as ``clientSecretEnv`` naming another variable), ``KOWAN_SSO_ONLY`` and
-``KOWAN_SSO_BREAK_GLASS_USER``.
+given as ``clientSecretEnv`` naming another variable). ``KOWAN_SSO_ONLY`` and
+``KOWAN_SSO_BREAK_GLASS_USER`` only give the first values: once saved, the
+console owns them.
 """
 
 from __future__ import annotations
@@ -214,7 +215,7 @@ async def _start(request: web.Request) -> web.StreamResponse:
         return _login_error("unknown_provider")
     redirect = redirect_uri(svc, p.id)
     if not redirect:
-        log.error("sso: KOWAN_EXTERNAL_URL is not set; cannot build the redirect URI")
+        log.error("sso: the external URL is not set (Settings → General); cannot build the redirect URI")
         return _login_error("not_configured")
     state, nonce, verifier = new_token(), new_token(), new_code_verifier()
     try:
@@ -613,9 +614,10 @@ def bootstrap_from_env(svc: Any, environ: Optional[dict] = None) -> None:
             else:
                 p.client_secret = secret
                 svc.store.update_sso_provider(p, keep_secret=not secret)
-    if env.get("KOWAN_SSO_BREAK_GLASS_USER"):
+    # First values only: once saved, the console owns them (Settings → Single sign-on).
+    if env.get("KOWAN_SSO_BREAK_GLASS_USER") and not svc.store.setting_exists(SETTING_BREAK_GLASS):
         svc.store.set_setting(SETTING_BREAK_GLASS, env["KOWAN_SSO_BREAK_GLASS_USER"].strip())
-    if env.get("KOWAN_SSO_ONLY") is not None and env.get("KOWAN_SSO_ONLY") != "":
+    if (env.get("KOWAN_SSO_ONLY") or "") != "" and not svc.store.setting_exists(SETTING_SSO_ONLY):
         svc.store.set_setting(SETTING_SSO_ONLY, "true" if _truthy(env.get("KOWAN_SSO_ONLY")) else "false")
 
 

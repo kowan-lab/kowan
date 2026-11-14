@@ -222,4 +222,4 @@ Three prompts are ready to use: `diagnose_container` (a container and optional h
 - Sessions live in the server's memory and expire after 12 hours without use. After a server restart, clients start a new session.
 - A long tool call, such as an image pull, holds its request until it finishes. The server sends no progress updates.
 - There is no OAuth sign-in flow: the client must send the API key as a header, or use `kowanctl mcp`.
-- A web page can call the endpoint only from Kowan's own origin, `KOWAN_EXTERNAL_URL`, or an origin listed in `KOWAN_MCP_ALLOWED_ORIGINS`. Clients that are not browsers are not affected. See [Configuration](configuration.md).
+- A web page can call the endpoint only from Kowan's own origin, the external URL set in **Settings → Server address**, or an origin listed under **AI assistants → Browser access → Allowed web origins**. Clients that are not browsers are not affected. See [Configuration](configuration.md).

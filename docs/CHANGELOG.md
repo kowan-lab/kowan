@@ -2,6 +2,15 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.19 — 2026-11-14
+
+- **Server settings move from variables to the web UI.** They apply at once, with no restart:
+  - **Settings → Server address:** the URL people and agents reach Kowan at, used for single sign-on, join commands and secure cookies. Saving checks that the address answers.
+  - **Settings → Data retention:** how long resource history, the audit log, resolved alerts and workflow runs are kept, and how often resources are sampled.
+  - **AI assistants → Browser access:** the other web pages allowed to call the MCP endpoint.
+  - **Settings → Advanced:** reconcile timings, Git and compose-check timeouts, the scanner and agent images, and where Kowan looks for new versions.
+- **Your variables keep working.** On the first start, each old variable (`KOWAN_EXTERNAL_URL`, `KOWAN_AUDIT_RETENTION`, `KOWAN_AGENT_IMAGE`…) becomes the saved setting. After that it is ignored, and the page tells you which ones you can remove. `KOWAN_SSO_ONLY` and `KOWAN_SSO_BREAK_GLASS_USER` now work the same way: they no longer override the console at every start.
+
 ## 0.1.18 — 2026-11-14
 
 - **A plain-HTTP registry is recognised again.** Saving a registry written as `https://` that only answers over HTTP now says to write it as `http://`, also on systems with a newer OpenSSL, where the check used to fail with a TLS error.

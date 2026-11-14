@@ -1,9 +1,11 @@
 ---
 title: Configuration
-description: Every environment variable the Kowan server and agents read, with defaults: external URL, keys, network allowlists, retention, SSO and tuning.
+description: Every environment variable the Kowan server and agents read, with defaults: keys, network allowlists, retention, SSO and tuning.
 ---
 
 Kowan works without configuration. Everything you can change is an environment variable: set it on the server container to configure the control plane, and on an agent container to configure that host. A variable you leave unset keeps the default shown here.
+
+The external URL is not a variable: an admin sets it from **Settings → Server address**. `KOWAN_EXTERNAL_URL` only fills it in on the first start, when nothing is saved yet.
 
 ## Set a variable
 
@@ -14,7 +16,6 @@ docker run -d --name kowan --restart unless-stopped \
   -p 5081:5081 \
   -v kowan-data:/data \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -e KOWAN_EXTERNAL_URL=https://kowan.example.com \
   -e KOWAN_TRUSTED_PROXIES=172.18.0.0/16 \
   ghcr.io/kowan-lab/kowan:latest
 ```
@@ -26,7 +27,6 @@ services:
   server:
     image: ghcr.io/kowan-lab/kowan:latest
     environment:
-      KOWAN_EXTERNAL_URL: https://kowan.example.com
       KOWAN_TRUSTED_PROXIES: 172.18.0.0/16
 ```
 
@@ -52,14 +52,11 @@ Switches
 
 | Variable | Default | Description |
 |---|---|---|
-| `KOWAN_EXTERNAL_URL` | none | The URL people and agents use to reach Kowan, such as `https://kowan.example.com`. Kowan puts it in the join commands for new agents and in single sign-on redirects, and accepts it as an origin for the MCP endpoint. Without it, join commands use the address you opened Kowan at. |
 | `KOWAN_ADDR` | `:5081` | Address and port the server listens on, as `host:port`. `:5081` listens on every interface. |
 | `KOWAN_DATA_DIR` | `/data` | Where Kowan keeps its database, keys and Compose stacks. The image sets `/data`; run from source, the default is `./data`. |
 | `KOWAN_TLS_CERT` | none | Path to a PEM certificate. With `KOWAN_TLS_KEY` also set, the server serves HTTPS itself instead of plain HTTP. |
 | `KOWAN_TLS_KEY` | none | Path to the PEM private key of that certificate. |
 | `KOWAN_DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the socket of the Docker Engine on the server's own host. Set it for rootless Docker or Podman, which put their socket elsewhere. |
-| `KOWAN_RELEASE_REPOSITORY` | `ghcr.io/kowan-lab/kowan` | Image repository Kowan checks every 6 hours for a newer release, which it announces in the notification bell. Set it empty or to `off` to turn the check off. |
-| `KOWAN_AGENT_IMAGE` | `ghcr.io/kowan-lab/kowan-agent` | Agent image in the `docker run` commands Kowan gives you for new servers. Set it when your servers pull the agent from a mirror. |
 | `KOWAN_SERVER_CONTAINER` | none | Name or ID of the Kowan server container. Set it only if the server update in **Settings** cannot find its own container: by default Kowan looks for its hostname, then for a container named `kowan-server`. |
 
 ### First admin and keys
@@ -84,7 +81,6 @@ Switches
 | `KOWAN_TRUSTED_PROXIES` | none | Reverse proxies allowed to state the client's address. Kowan ignores the client-address header from anyone else, so a client cannot pose as another address in the audit log or the allowlists. |
 | `KOWAN_PROXY_HEADER` | `X-Forwarded-For` | The header your trusted proxies use: `X-Forwarded-For` or `X-Real-IP`. Kowan reads only that one. |
 | `KOWAN_SERVER_SCRIPTS` | on | `off` disables workflow script steps, which run bash on the server. |
-| `KOWAN_MCP_ALLOWED_ORIGINS` | none | Extra origins, comma-separated, allowed to call the MCP endpoint from a web page. Clients that are not browsers send no origin and are not affected. See [AI assistants](mcp.md). |
 
 Admins can narrow the two allowlists further from **Settings > Network access**, but never widen them. See [Network access](network-access.md).
 
@@ -93,13 +89,10 @@ Admins can narrow the two allowlists further from **Settings > Network access**,
 | Variable | Default | Description |
 |---|---|---|
 | `KOWAN_SSO_PROVIDERS` | none | A JSON array of sign-in providers that Kowan creates or updates at startup, matched by `name`. |
-| `KOWAN_SSO_ONLY` | unchanged | `true` turns SSO-only mode on at startup, `false` turns it off. When unset, the setting in the console applies. |
-| `KOWAN_SSO_BREAK_GLASS_USER` | value of `KOWAN_ADMIN_USER` | The local account that can still sign in with a password in SSO-only mode. |
 
-Single sign-on also needs `KOWAN_EXTERNAL_URL`. To keep the client secret out of the JSON, put it in another variable and name that variable in `clientSecretEnv`:
+Single sign-on also needs the external URL, set in **Settings → Server address**. To keep the client secret out of the JSON, put it in another variable and name that variable in `clientSecretEnv`:
 
 ```bash
-KOWAN_EXTERNAL_URL=https://kowan.example.com
 KOWAN_SSO_PROVIDERS='[{"name":"kc","type":"oidc","label":"Keycloak",
   "issuer":"https://kc.example.com/realms/main","clientId":"kowan",
   "clientSecretEnv":"KC_SECRET","scopes":"openid profile email",
@@ -110,40 +103,22 @@ KC_SECRET=your-client-secret
 
 See [Single sign-on](single-sign-on.md) for the provider fields and role mappings.
 
-### Retention
+### Performance
 
 | Variable | Default | Description |
 |---|---|---|
-| `KOWAN_AUDIT_RETENTION` | `90d` | Audit log entries older than this are deleted. `0` keeps them forever. |
-| `KOWAN_ALERT_RETENTION` | `30d` | Resolved alerts older than this are deleted. Open alerts are always kept. `0` keeps them forever. |
-| `KOWAN_WORKFLOW_RUNS_KEEP` | `100` | Runs kept per workflow, newest first. A run still in progress is never deleted. `0` keeps them all. |
-| `KOWAN_METRICS_RETENTION` | `168h` | How long the host metric samples behind the charts (CPU, memory, container counts) are kept. |
-
-Retained container logs are kept per workload, for the number of days you choose in the console. See [Logs](logs.md).
-
-### Vulnerability scanning
-
-| Variable | Default | Description |
-|---|---|---|
-| `KOWAN_TRIVY_IMAGE` | `aquasec/trivy:0.75.0` | Scanner image Kowan runs to scan images. |
-| `KOWAN_TRIVY_CACHE_VOLUME` | `kowan-trivy-cache` | Volume that keeps the vulnerability database on each host between scans. |
-| `KOWAN_TRIVY_CONTAINER_PREFIX` | `kowan-trivy-` | Name prefix of the short-lived scan containers. |
-
-See [Vulnerability scanning](vulnerability-scanning.md).
-
-### Tuning
-
-| Variable | Default | Description |
-|---|---|---|
-| `KOWAN_MONITOR_INTERVAL` | `15s` | How often Kowan checks every host, evaluates alert rules and records a metric sample. |
-| `KOWAN_RECONCILE_INTERVAL` | `5` seconds | How often Kowan checks that enabled deployments are still running, and redeploys one whose containers are missing or stopped. |
-| `KOWAN_RECONCILE_COOLDOWN` | `120` seconds | Minimum time between two automatic redeploys of the same deployment, so a container that keeps crashing cannot cause a redeploy loop. |
-| `KOWAN_GIT_TIMEOUT` | `120` seconds | How long a Git command, such as cloning a deployment's repository, may run before it fails. |
-| `KOWAN_GITOPS_TICK` | `15` seconds | How often Kowan looks for [GitOps](gitops.md) syncs that are due. |
-| `KOWAN_COMPOSE_VALIDATE` | on | `off` stops the server from refusing to save or deploy an inline Compose file that has validation errors. See [Compose validation](compose-validation.md). |
-| `KOWAN_COMPOSE_HOST_TIMEOUT` | `5` seconds | How long Compose validation waits for a host to answer before it skips the checks against that host. |
-| `KOWAN_COMPOSE_VALIDATE_TIMEOUT` | `10` seconds | Time allowed for the `docker compose config` check of a Compose file. |
 | `KOWAN_UVLOOP` | on | `off` makes the server use the standard Python event loop instead of uvloop. |
+
+## Settings that used to be variables
+
+These are no longer environment variables. An admin edits them in the console, and a change applies at once, with no restart. Durations are written like `30s`, `15m`, `2h` or `90d`.
+
+- **Settings → Data retention**: resource history, audit log, resolved alerts, workflow runs and the monitoring interval. See [Audit log](audit-log.md), [Alerts and notifications](alerts-and-notifications.md) and [Resource history](resource-history.md). Retained container logs are kept per workload, for the number of days you choose there. See [Logs](logs.md).
+- **AI assistants → Browser access**: the allowed web origins, one per line. See [AI assistants](mcp.md).
+- **Settings → Advanced**: the reconcile interval and cooldown, the GitOps tick, the Git timeout, the Compose validation switch and timeouts, the Trivy image, cache volume and container prefix, the agent image and the release repository. See [Compose validation](compose-validation.md) and [Vulnerability scanning](vulnerability-scanning.md).
+- **Settings → Single sign-on**: SSO only and the break-glass user. `KOWAN_SSO_PROVIDERS` is still a variable.
+
+Each old variable is read only once. On a server where nothing is saved yet for that setting, the variable's value becomes the setting, so an install keeps its behavior after you upgrade. After that the variable is ignored, and the console says it can be removed.
 
 ## Agent variables
 

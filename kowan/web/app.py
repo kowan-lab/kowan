@@ -457,7 +457,9 @@ def create_app(
     svc.attach("netpolicy", netpolicy)
     from .headers import security_headers_middleware
 
-    https_external = (getattr(svc.config, "external_url", "") or "").lower().startswith("https://")
+    def https_external() -> bool:
+        return (getattr(svc.config, "external_url", "") or "").lower().startswith("https://")
+
     middlewares = [
         request_id_middleware,
         security_headers_middleware(https_external),

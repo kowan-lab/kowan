@@ -73,7 +73,7 @@ class TestGitCommands(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(gs.GitError) as cm:
                 await gs.ls_remote("https://github.com/a/b.git", "main")
             self.assertIn("not installed", str(cm.exception))
-        with mock.patch.object(gs, "_GIT_TIMEOUT", 0.01), \
+        with mock.patch.object(gs, "_git_timeout", lambda: 0.01), \
                 mock.patch.dict(os.environ, {"GIT_ALLOW_PROTOCOL": "https"}):
             with self.assertRaises(gs.GitError):
                 # A black-hole address: the connect hangs until the timeout.

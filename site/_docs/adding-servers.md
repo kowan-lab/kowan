@@ -21,7 +21,7 @@ Both modes give the same features. If the connection drops, the side that opened
 ## Before you start
 
 - The new server needs Docker Engine, on x86-64 (amd64) or ARM64.
-- **Edge:** set `KOWAN_EXTERNAL_URL` on the Kowan server to the address agents use to reach it (see [Installation](installation.md)). Without it, the join command uses the address in your browser, which is wrong if you opened Kowan as `localhost`.
+- **Edge:** set the external URL in **Settings → Server address** to the address agents use to reach the Kowan server (see [Installation](installation.md)). Without it, the join command uses the address in your browser, which is wrong if you opened Kowan as `localhost`.
 - **Direct:** make sure the Kowan server can reach the new server on port 9001, and that both clocks are correct: the connection is refused when they differ by more than 2 minutes.
 
 Only admins can add, rename and remove hosts.
@@ -144,7 +144,7 @@ docker logs kowan-agent
 - **Edge agent cannot connect:** check that the server URL is reachable from the new server, that a reverse proxy in front of Kowan passes WebSocket connections, and that the address is allowed by `KOWAN_EDGE_ALLOW_CIDRS` if you set it.
 - **Edge agent rejects the certificate:** the server URL uses `https://` with a certificate the agent cannot verify. Use a certificate from a public authority, such as Let's Encrypt.
 - **Direct host never comes online:** check that port 9001 is reachable from the Kowan server, that the address in Kowan includes the port, that `KOWAN_AGENT_ALLOW_CIDRS` includes the server's address, and that the two clocks agree.
-- **Wrong server address in the join command:** set `KOWAN_EXTERNAL_URL` on the server, then show the join command again.
+- **Wrong server address in the join command:** set the external URL in **Settings → Server address**, then show the join command again.
 
 ## Next steps
 

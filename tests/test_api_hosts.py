@@ -6,6 +6,7 @@ import unittest
 from unittest import mock
 
 from tests.apicase import ServerCase
+from kowan import tunables
 
 
 class TestHostsApi(ServerCase):
@@ -28,7 +29,7 @@ class TestHostsApi(ServerCase):
         self.svc.config.external_url = "https://kowan.example.com/"
         _, cmd = await self.call("GET", f"/hosts/{hid}/edge-command", "admin", expect=200)
         self.assertIn("KOWAN_SERVER_URL=https://kowan.example.com ", cmd["dockerRun"])
-        with mock.patch.dict("os.environ", {"KOWAN_AGENT_IMAGE": "registry.example.com/agent:1"}):
+        with tunables.override(agent_image="registry.example.com/agent:1"):
             _, cmd = await self.call("GET", f"/hosts/{hid}/edge-command", "admin", expect=200)
         self.assertTrue(cmd["dockerRun"].endswith("registry.example.com/agent:1"))
         await self.call("GET", "/hosts/local/edge-command", "admin", expect=400)

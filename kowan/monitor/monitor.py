@@ -80,14 +80,6 @@ EVENT_TYPE_NOTICE = "notice"
 # a single slow host cannot stall a whole tick.
 _STATS_TIMEOUT = 5.0
 
-# _DEFAULT_METRICS_RETENTION_SECS is the fallback retention window for metric
-# samples when the configured retention is non-positive (168h).
-_DEFAULT_METRICS_RETENTION_SECS = 168 * 3600
-
-# _DEFAULT_INTERVAL_SECS is the fallback tick interval when the configured
-# interval is non-positive.
-_DEFAULT_INTERVAL_SECS = 15.0
-
 # _METRICS_PRUNE_EVERY bounds how often (in ticks) the monitor prunes metric
 # samples older than the retention window. With the default 15s interval this is
 # roughly hourly.
@@ -151,26 +143,53 @@ class Monitor:
     background asyncio task) to run the loop; :meth:`stop` requests shutdown.
     """
 
+    @property
+    def _interval(self) -> float:
+        if self._interval_override is not None:
+            return self._interval_override
+        from kowan import tunables
+
+        return float(tunables.value("monitor_interval"))
+
+    @_interval.setter
+    def _interval(self, secs: float) -> None:
+        """Tests: a fixed tick interval instead of the setting."""
+        self._interval_override = secs
+
+    @property
+    def _retention(self) -> float:
+        from kowan import tunables
+
+        return float(tunables.value("metrics_retention"))
+
+    @property
+    def _audit_retention(self) -> float:
+        from kowan import tunables
+
+        return float(tunables.value("audit_retention"))
+
+    @property
+    def _alert_retention(self) -> float:
+        from kowan import tunables
+
+        return float(tunables.value("alert_retention"))
+
+    @property
+    def _workflow_runs_keep(self) -> int:
+        from kowan import tunables
+
+        return int(tunables.value("workflow_runs_keep"))
+
     def __init__(self, svc: Any) -> None:
         self._svc = svc
         self._store = svc.store
         self._provider = svc.docker
         self._bus = svc.bus
 
-        cfg = getattr(svc, "config", None)
-        interval = _duration_secs(getattr(cfg, "monitor_interval", None), _DEFAULT_INTERVAL_SECS)
-        retention = _duration_secs(getattr(cfg, "metrics_retention", None), _DEFAULT_METRICS_RETENTION_SECS)
-        self._interval: float = interval if interval > 0 else _DEFAULT_INTERVAL_SECS
-        self._retention: float = retention if retention > 0 else _DEFAULT_METRICS_RETENTION_SECS
-
-        # Retention for audit_log / resolved alerts / workflow runs (env
-        # KOWAN_AUDIT_RETENTION / KOWAN_ALERT_RETENTION / KOWAN_WORKFLOW_RUNS_KEEP).
-        # Missing config -> defaults; an explicit non-positive value disables.
-        from kowan.store import retention as _ret
-
-        self._audit_retention = getattr(cfg, "audit_retention", _ret.DEFAULT_AUDIT_RETENTION)
-        self._alert_retention = getattr(cfg, "alert_retention", _ret.DEFAULT_ALERT_RETENTION)
-        self._workflow_runs_keep = getattr(cfg, "workflow_runs_keep", _ret.DEFAULT_WORKFLOW_RUNS_KEEP)
+        self._interval_override: Optional[float] = None
+        # Interval and retention windows are settings (Settings → Data retention),
+        # read at each use so a change applies on the next tick. A zero audit /
+        # alert / workflow-run retention keeps everything.
         self._last_retention: Optional[float] = None
 
         # tick_count counts elapsed ticks; used to schedule periodic pruning.
@@ -810,15 +829,6 @@ class Monitor:
 
 
 # --- small pure helpers ---
-
-
-def _duration_secs(value: Any, default: float) -> float:
-    """Coerce a config duration (``timedelta``, number of seconds, or None) into
-    seconds. Non-positive/None yields ``default``."""
-    if value is None:
-        return default
-    total = value.total_seconds() if hasattr(value, "total_seconds") else float(value)
-    return total if total > 0 else default
 
 
 def _fmt_g(v: float) -> str:

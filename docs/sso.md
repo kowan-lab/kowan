@@ -8,9 +8,9 @@ in `kowan/authn/`.
 
 ## Set-up
 
-1. Set `KOWAN_EXTERNAL_URL` to the URL users open Kowan at, e.g.
-   `https://kowan.example.com`. The redirect URI is
-   `<KOWAN_EXTERNAL_URL>/api/v1/auth/sso/<provider id>/callback` (shown, with a
+1. Set the external URL in *Settings → Server address* to the URL users open
+   Kowan at, e.g. `https://kowan.example.com`. The redirect URI is
+   `<external URL>/api/v1/auth/sso/<provider id>/callback` (shown, with a
    copy button, in *Admin → Single sign-on*).
 2. Register a confidential client at the IdP with that redirect URI
    (authorization code flow, PKCE S256 allowed).
@@ -86,8 +86,10 @@ exist.
 
 ## Environment bootstrap
 
+The external URL is not an environment variable: set it in *Settings → Server
+address*. `KOWAN_EXTERNAL_URL` only seeds it on a server where nothing is saved yet.
+
 ```bash
-KOWAN_EXTERNAL_URL=https://kowan.example.com
 KOWAN_SSO_PROVIDERS='[{"name":"kc","type":"oidc","label":"Keycloak",
   "issuer":"https://kc.example.com/realms/main","clientId":"kowan",
   "clientSecretEnv":"KC_SECRET","scopes":"openid profile email",
@@ -99,6 +101,8 @@ KOWAN_SSO_BREAK_GLASS_USER=admin
 ```
 
 Providers are upserted by `name` at startup and marked `managed: env`.
+`KOWAN_SSO_ONLY` and `KOWAN_SSO_BREAK_GLASS_USER` only give the first value on a
+server where nothing is saved yet; after that Settings > Single sign-on owns them.
 
 ## REST
 

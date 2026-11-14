@@ -8,7 +8,7 @@
 update and deploy: it validates an inline compose file for the deployment's
 target host and returns a ``400 {error, diagnostics}`` response when there is
 at least one ``error`` diagnostic (warnings never block). Setting
-``KOWAN_COMPOSE_VALIDATE=0`` disables the gate (escape hatch).
+Settings → Advanced → Validate compose files turns the gate off (escape hatch).
 """
 
 from __future__ import annotations
@@ -63,7 +63,9 @@ async def _validate(request: web.Request) -> web.Response:
 
 
 def gate_enabled() -> bool:
-    return os.environ.get("KOWAN_COMPOSE_VALIDATE", "1").strip().lower() not in ("0", "false", "no", "off")
+    from kowan import tunables
+
+    return bool(tunables.value("compose_validate"))
 
 
 async def deployment_gate(

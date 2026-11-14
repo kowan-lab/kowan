@@ -11,9 +11,10 @@
 # the volume up: losing secret.key makes stored secrets unrecoverable. Set
 # KOWAN_JWT_SECRET / KOWAN_SECRET_KEY only if you manage keys yourself.
 #
-# KOWAN_EXTERNAL_URL is the URL users and agents reach this server at. Set it
-# before attaching agents on other hosts, so the join commands shown in the
-# UI point at a reachable address instead of localhost.
+# The URL users and agents reach this server at is set in the UI, under
+# Settings > Server address. Set it before attaching agents on other hosts, so
+# the join commands shown in the UI point at a reachable address instead of
+# localhost.
 #
 # Data (SQLite database, keys, compose stacks) lives in the named volume
 # "kowan-data"; remove it to start from scratch.
@@ -29,7 +30,7 @@ services:
     ports:
       - "5081:5081"
     # environment:
-    #   # Externally-reachable base URL; used for agent join commands and SSO.
+    #   # Seeds Settings > Server address on the first start only; ignored after.
     #   KOWAN_EXTERNAL_URL: "https://kowan.example.com"
     #   # Headless bootstrap instead of the setup screen:
     #   KOWAN_ADMIN_USER: "admin"

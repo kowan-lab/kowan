@@ -107,7 +107,7 @@ To redeploy a deployment from CI, you don't need a workflow: deployments have th
 
 ## Runs
 
-The **Runs** tab lists each run with its status, trigger and start time. Select a run to see the output of every step. Kowan keeps the last 100 runs of each workflow; change this with `KOWAN_WORKFLOW_RUNS_KEEP` (see [Configuration](configuration.md)).
+The **Runs** tab lists each run with its status, trigger and start time. Select a run to see the output of every step. Kowan keeps the last 100 runs of each workflow; change this with **Workflow runs** in **Settings → Data retention** (see [Configuration](configuration.md)).
 
 ## Permissions
 

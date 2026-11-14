@@ -49,8 +49,6 @@ log = logging.getLogger("kowan.mcp.http")
 MCP_PATH = "/mcp"
 SESSION_HEADER = "Mcp-Session-Id"
 VERSION_HEADER = "MCP-Protocol-Version"
-# Comma-separated extra origins allowed to call /mcp from a browser.
-ALLOWED_ORIGINS_ENV = "KOWAN_MCP_ALLOWED_ORIGINS"
 
 _LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
@@ -72,7 +70,7 @@ def origin_allowed(request: web.Request, external_url: str = "") -> bool:
 
     Same-origin means the Origin's host:port equals the Host the request was
     sent to (or the first X-Forwarded-Host behind a proxy), the configured
-    KOWAN_EXTERNAL_URL, an entry of KOWAN_MCP_ALLOWED_ORIGINS, or both sides are
+    external URL (Settings → General), an allowed origin from the AI assistants settings, or both sides are
     loopback (the Vite dev proxy on :5173 talking to :5081). Bearer auth is the
     primary defence; this stops a rebinding page from even reaching it.
     """
@@ -95,7 +93,9 @@ def origin_allowed(request: web.Request, external_url: str = "") -> bool:
     if xfh and o_netloc == xfh:
         return True
     norm = f"{o.scheme}://{o_netloc}"
-    allowed = [external_url] + os.environ.get(ALLOWED_ORIGINS_ENV, "").split(",")
+    from kowan import tunables
+
+    allowed = [external_url] + list(tunables.value("mcp_allowed_origins"))
     for a in allowed:
         a = (a or "").strip().rstrip("/")
         if not a:

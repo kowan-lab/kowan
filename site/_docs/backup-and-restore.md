@@ -93,7 +93,7 @@ Agents keep their tokens, since those are in the database. If the server's addre
 - **Edge agents** connect to the address in their `KOWAN_SERVER_URL`. Show each host's join command on the new server and run it again on that host, after `docker rm -f kowan-agent`.
 - **Direct agents** are reached at the address stored in Kowan, so nothing changes on their side, except `KOWAN_AGENT_ALLOW_CIDRS` if you limited it to the old server's address.
 
-Set `KOWAN_EXTERNAL_URL` on the new server to its own address. See [Adding servers](adding-servers.md).
+The external URL is a setting, so the backup brings the old server's address with it. On the new server, change it in **Settings → Server address** to the new address. See [Adding servers](adding-servers.md).
 
 ## Copy the whole data volume
 

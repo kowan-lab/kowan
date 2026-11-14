@@ -53,12 +53,21 @@ def is_newer(candidate: str, current: str) -> bool:
 
 
 class Releases:
-    def __init__(self, svc: Any, repository: str = DEFAULT_REPOSITORY, fetch: Optional[Fetch] = None) -> None:
+    def __init__(self, svc: Any, repository: Optional[str] = None, fetch: Optional[Fetch] = None) -> None:
         self._svc = svc
-        self.repository = (repository or "").strip()
+        # None: follow the setting (Settings → Advanced), read at each check.
+        self._fixed = None if repository is None else (repository or "").strip()
         self._fetch = fetch or self._registry_tags
-        self._cache: Optional[Tuple[float, str, str]] = None
+        self._cache: Optional[Tuple[float, str, str, str]] = None
         self._task: Optional[asyncio.Task] = None
+
+    @property
+    def repository(self) -> str:
+        if self._fixed is not None:
+            return self._fixed
+        from kowan import tunables
+
+        return str(tunables.value("release_repository")).strip()
 
     @property
     def enabled(self) -> bool:
@@ -73,7 +82,8 @@ class Releases:
         if not self.enabled:
             return "", ""
         now = time.monotonic()
-        if not refresh and self._cache and self._cache[0] > now:
+        repo = self.repository
+        if not refresh and self._cache and self._cache[0] > now and self._cache[3] == repo:
             return self._cache[1], self._cache[2]
         try:
             version, err = newest(await asyncio.wait_for(self._fetch(self.repository), 20)), ""
@@ -82,7 +92,7 @@ class Releases:
         except Exception as e:  # noqa: BLE001 - offline, registry down, rate limited
             version, err = "", f"check {self.repository}: {e or type(e).__name__}"
         # A failure is retried sooner than a success.
-        self._cache = (now + (CACHE_TTL if not err else 60.0), version, err)
+        self._cache = (now + (CACHE_TTL if not err else 60.0), version, err, repo)
         return version, err
 
     async def status(self, refresh: bool = False) -> dict:

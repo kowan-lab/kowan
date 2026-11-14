@@ -11,9 +11,7 @@ The server checks the published Kowan releases every 6 hours, starting 2 minutes
 
 **Settings → General → Server updates** shows the version that is **Running**, the **Latest release** and the **Previous** version kept for rollback. Click **Check** to ask the registry again right away.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `KOWAN_RELEASE_REPOSITORY` | `ghcr.io/kowan-lab/kowan` | The image repository whose version tags are the releases. Empty or `off` turns the release check off. |
+The image repository whose version tags are the releases is **Release repository** in **Settings → Advanced** (`ghcr.io/kowan-lab/kowan` by default). Leave it empty to turn the release check off.
 
 Release images are published as `ghcr.io/kowan-lab/kowan` (server) and `ghcr.io/kowan-lab/kowan-agent` (agent), with three kinds of tag: the exact version (`0.1.12`), the minor version (`0.1`) and `latest`. The [changelog](changelog.md) lists what changed in each release.
 

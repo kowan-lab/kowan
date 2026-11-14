@@ -51,7 +51,7 @@ class TestFeatures(ServerCase):
         gs = self.svc.gitops
         gs.tick = mock.AsyncMock()
         features.update(self.svc.store, {"gitops": False})
-        with mock.patch.object(gitops_service, "_LOOP_TICK", 0):
+        with mock.patch.object(gitops_service, "_loop_tick", lambda: 0):
             task = asyncio.ensure_future(gs.run_loop())
             await asyncio.sleep(0.05)
             self.assertEqual(gs.tick.await_count, 0)

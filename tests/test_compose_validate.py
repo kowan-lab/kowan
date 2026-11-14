@@ -11,6 +11,7 @@ from kowan.compose.lint import image_tag, mask_secret_tokens, published_ports
 from kowan.compose.patch import apply_patch_data
 from kowan.compose.positions import parse
 from kowan.compose.structural import cli_available, locate, schema_lite
+from kowan import tunables
 
 
 def run(text, **kw):
@@ -353,7 +354,7 @@ class TestComposeAPI(unittest.IsolatedAsyncioTestCase):
         self.svc.store.update_deployment(stored)
         r = await self.client.post(f"/api/v1/deployments/{dep['id']}/deploy", headers=self.H)
         self.assertEqual(r.status, 400)
-        with mock.patch.dict("os.environ", {"KOWAN_COMPOSE_VALIDATE": "0"}):
+        with tunables.override(compose_validate="false"):
             r = await self.client.post(f"/api/v1/deployments/{dep['id']}/deploy", headers=self.H)
             self.assertEqual(r.status, 202)
 

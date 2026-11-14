@@ -44,10 +44,7 @@ The warning needs no setup. To be alerted at a fixed level instead, create a **M
 
 The **Overview** of a single host shows the host's CPU and memory over the last hour. These come from separate samples, one per host at the same interval, kept 7 days by default.
 
-| Variable | Default | Effect |
-|---|---|---|
-| `KOWAN_MONITOR_INTERVAL` | `15s` | How often Kowan samples container stats and checks alert rules. |
-| `KOWAN_METRICS_RETENTION` | `168h` | How long the host samples are kept (7 days). |
+Two settings in **Settings → Data retention** control them: **Monitoring interval** (15s by default) is how often Kowan samples container stats and checks alert rules, and **Resource history** (7d by default) is how long the host samples are kept. Changes apply at once.
 
 The 30-day workload history and the 5-minute points are fixed. See [Configuration](configuration.md).
 

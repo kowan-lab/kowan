@@ -65,7 +65,7 @@ Kowan encrypts stored secrets, registry credentials, notification channel creden
 
 Kowan serves plain HTTP on port 5081 unless you give it a certificate with `KOWAN_TLS_CERT` and `KOWAN_TLS_KEY`. In most setups, put it behind a reverse proxy that terminates HTTPS. See [Installation](installation.md).
 
-Kowan's responses carry a strict Content Security Policy, forbid framing, and send no referrer. Kowan adds HSTS when it serves HTTPS itself or when `KOWAN_EXTERNAL_URL` starts with `https://`.
+Kowan's responses carry a strict Content Security Policy, forbid framing, and send no referrer. Kowan adds HSTS when it serves HTTPS itself or when the external URL in **Settings → Server address** starts with `https://`.
 
 ## Network allowlists
 
@@ -81,7 +81,7 @@ Every change through the console, the API, `kowanctl` or an AI assistant, and ev
 
 ## Hardening checklist
 
-1. Serve Kowan over HTTPS and set `KOWAN_EXTERNAL_URL`.
+1. Serve Kowan over HTTPS and set the external URL in **Settings → Server address**.
 2. Restrict who can reach it with `KOWAN_UI_ALLOW_CIDRS`, and list your proxy in `KOWAN_TRUSTED_PROXIES`.
 3. Give each person the lowest role they need, and use teams to scope operators.
 4. Use single sign-on with SSO-only mode, and keep a break-glass admin with a strong password.

@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-# Pinned scanner image. Override with KOWAN_TRIVY_IMAGE (e.g. a mirror).
+# Pinned scanner image. Override from Settings → Advanced (e.g. a mirror).
 DEFAULT_TRIVY_IMAGE = "aquasec/trivy:0.75.0"
 # Named volume holding Trivy's DB/cache on each host.
 DEFAULT_CACHE_VOLUME = "kowan-trivy-cache"
@@ -41,15 +41,15 @@ _TS_PREFIX = re.compile(rb"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\
 
 
 def trivy_image() -> str:
-    return os.environ.get("KOWAN_TRIVY_IMAGE", "").strip() or DEFAULT_TRIVY_IMAGE
+    return _setting("trivy_image") or DEFAULT_TRIVY_IMAGE
 
 
 def cache_volume() -> str:
-    return os.environ.get("KOWAN_TRIVY_CACHE_VOLUME", "").strip() or DEFAULT_CACHE_VOLUME
+    return _setting("trivy_cache_volume") or DEFAULT_CACHE_VOLUME
 
 
 def container_prefix() -> str:
-    return os.environ.get("KOWAN_TRIVY_CONTAINER_PREFIX", "").strip() or DEFAULT_CONTAINER_PREFIX
+    return _setting("trivy_container_prefix") or DEFAULT_CONTAINER_PREFIX
 
 
 def scanner_version_from_image(image: str) -> str:
@@ -197,3 +197,9 @@ def sum_counts(items: Iterable[Optional[Dict[str, int]]]) -> Dict[str, int]:
             if k in tot:
                 tot[k] += int(v or 0)
     return tot
+
+
+def _setting(key: str) -> str:
+    from kowan import tunables
+
+    return str(tunables.value(key)).strip()

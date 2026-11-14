@@ -1,12 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Box, Button, Callout, Divider, Icon, InputToggle, Text, TextInput, UploadArea } from "@/ui/kit";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { changeOwnPassword, downloadBackup, restoreBackup, updateFeatures } from "../api/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { changeOwnPassword, downloadBackup, getGeneralSettings, restoreBackup, saveGeneralSettings, updateFeatures } from "../api/client";
 import { FEATURE_INFO, useFeatures, type Features } from "../lib/features";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
+import TunablesCard from "../components/settings/TunablesCard";
 import { ThemePanel } from "../components/shell/ThemePicker";
 import UpdatePanel from "../components/updates/UpdatePanel";
 import { notify } from "../ui/toast";
@@ -298,6 +299,7 @@ export default function Settings() {
           <ThemePanel />
         </div>
       </SectionCard>
+      {isAdmin && <ServerAddressCard />}
       {isAdmin && (
         <SectionCard
           title="Server updates"
@@ -308,7 +310,21 @@ export default function Settings() {
         </SectionCard>
       )}
       {isAdmin && <FeaturesCard />}
+      {isAdmin && (
+        <TunablesCard
+          groups={["retention", "monitoring"]}
+          title="Data retention"
+          description="How long Kowan keeps history, and how often it samples resources. Container logs have their own retention, per workload."
+        />
+      )}
       {isAdmin && <BackupCard />}
+      {isAdmin && (
+        <TunablesCard
+          groups={["advanced"]}
+          title="Advanced"
+          description="Timings and images most servers never change. Each change applies at once."
+        />
+      )}
     </Box>
   );
 }
@@ -336,6 +352,86 @@ function FeaturesCard() {
           />
         ))}
       </div>
+    </SectionCard>
+  );
+}
+
+/** The address people and agents reach this server at (admins). */
+function ServerAddressCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["settings", "general"], queryFn: getGeneralSettings });
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const saved = q.data?.externalUrl ?? "";
+  useEffect(() => setValue(saved), [saved]);
+
+  const save = useMutation({
+    mutationFn: (externalUrl: string) => saveGeneralSettings({ externalUrl }),
+    onSuccess: (next) => {
+      qc.setQueryData(["settings", "general"], next);
+      qc.invalidateQueries({ queryKey: ["sso-providers"] });
+      setError("");
+      setWarnings(next.warnings ?? []);
+      notify({ color: "green", title: "Saved", message: next.externalUrl ? `Kowan is reached at ${next.externalUrl}` : "External URL cleared" });
+    },
+    onError: (e) => setError(errorMessage(e, "Could not save the address")),
+  });
+
+  const trimmed = value.trim().replace(/\/$/, "");
+  const suggestion = q.data?.currentOrigin ?? "";
+  return (
+    <SectionCard
+      title="Server address"
+      description="The URL people and agents open Kowan at. Single sign-on builds its redirect address from it, join commands point agents to it, and over https it turns on secure cookies."
+    >
+      <form
+        className="flex max-w-[640px] flex-col gap-[12px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(trimmed);
+        }}
+      >
+        <TextInput
+          label="External URL"
+          placeholder={suggestion || "https://kowan.example.com"}
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          disabled={q.isLoading || save.isPending}
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError("");
+          }}
+          errorText={error || undefined}
+          description={
+            !saved && suggestion && !value ? (
+              <>
+                Not set: join commands use the address of whoever opens them.{" "}
+                <button type="button" className="font-medium text-signal underline-offset-2 hover:underline" onClick={() => setValue(suggestion)}>
+                  Use {suggestion}
+                </button>
+              </>
+            ) : undefined
+          }
+        />
+        {warnings.map((w) => (
+          <Callout key={w} color="warning" title="Check the address">
+            {w}
+          </Callout>
+        ))}
+        {q.data?.envSet && (
+          <Text size="sm" color="muted">
+            KOWAN_EXTERNAL_URL is still in the server environment. It is no longer read: remove it.
+          </Text>
+        )}
+        <Box direction="row" wrap justify="end">
+          <Button color="info" type="submit" loading={save.isPending} disabled={q.isLoading || trimmed === saved}>
+            Save
+          </Button>
+        </Box>
+      </form>
     </SectionCard>
   );
 }

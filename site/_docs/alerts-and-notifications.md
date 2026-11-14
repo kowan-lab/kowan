@@ -131,9 +131,6 @@ See [REST API](api.md) for authentication.
 
 ## Settings
 
-| Variable | Default | Effect |
-|---|---|---|
-| `KOWAN_MONITOR_INTERVAL` | `15s` | How often Kowan checks the rules and samples container stats. |
-| `KOWAN_ALERT_RETENTION` | `30d` | Resolved alerts older than this are deleted; open alerts stay. `0` keeps them all. |
+Two settings in **Settings → Data retention** apply here. **Monitoring interval** (15s by default) is how often Kowan checks the rules and samples container stats. **Resolved alerts** (30d by default) is how long resolved alerts are kept; open alerts stay, and `0` keeps them all. Changes apply at once, with no restart.
 
 See [Configuration](configuration.md) for every setting.

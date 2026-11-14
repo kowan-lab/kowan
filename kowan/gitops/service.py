@@ -36,7 +36,10 @@ from .resources import scan_tree
 
 log = logging.getLogger("kowan.gitops")
 
-_LOOP_TICK = float(os.environ.get("KOWAN_GITOPS_TICK", "15"))
+def _loop_tick() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("gitops_tick"))
 MIN_INTERVAL = 30
 
 
@@ -234,10 +237,10 @@ class GitOpsService:
         return n
 
     async def run_loop(self) -> None:
-        log.info("gitops loop started (tick=%ss)", _LOOP_TICK)
+        log.info("gitops loop started")
         try:
             while True:
-                await asyncio.sleep(_LOOP_TICK)
+                await asyncio.sleep(_loop_tick())
                 try:
                     from kowan import features
 

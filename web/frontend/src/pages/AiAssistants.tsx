@@ -5,6 +5,7 @@ import { getToken } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
+import TunablesCard from "../components/settings/TunablesCard";
 
 /**
  * Setup page for Kowan's built-in MCP server (endpoint POST /mcp, see
@@ -119,6 +120,14 @@ export default function AiAssistants() {
           </Tabs.Panel>
         </Tabs>
       </SectionCard>
+
+      {isAdmin && (
+        <TunablesCard
+          groups={["mcp"]}
+          title="Browser access"
+          description="Desktop and command-line clients connect with an API key from anywhere. A web page needs its origin listed here."
+        />
+      )}
 
       <SectionCard title="Tools available to you" description={`What an assistant with ${/^[aeiou]/i.test(user?.role ?? "") ? "an" : "a"} ${user?.role ?? "user"} key can call.`} noBodyPadding>
         {tools.isError ? (

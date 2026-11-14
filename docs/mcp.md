@@ -172,7 +172,7 @@ block.
   64 KiB with a note saying what was cut.
 - **Origin check (DNS rebinding).** Requests that carry an `Origin` header are accepted only from
   the same origin (the `Host` or `X-Forwarded-Host` the request was sent to), from
-  `KOWAN_EXTERNAL_URL`, from an entry of `KOWAN_MCP_ALLOWED_ORIGINS` (comma-separated), or when
+  the external URL (*Settings → Server address*), from an entry of *AI assistants → Browser access → Allowed web origins* (one per line), or when
   both sides are loopback (the dev proxy). Anything else gets `403`. Clients that are not
   browsers send no `Origin` and are not affected.
 - **Sessions** are random 256-bit ids, bound to the principal that created them. They are kept

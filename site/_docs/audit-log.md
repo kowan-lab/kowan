@@ -54,10 +54,6 @@ The key must have the Admin role. AI assistants using an admin key can read the 
 
 ## Retention
 
-Kowan keeps audit entries for 90 days and deletes older ones every hour. To change that, set `KOWAN_AUDIT_RETENTION` on the server to a duration such as `30d`, `180d` or `720h`. Set it to `0` to keep entries forever.
-
-```bash
--e KOWAN_AUDIT_RETENTION=365d
-```
+Kowan keeps audit entries for 90 days and deletes older ones every hour. To change that, open **Settings → Data retention** and edit **Audit log**. Use a duration such as `30d`, `180d` or `90d`. Set it to `0` to keep entries forever. The change applies at once, with no restart.
 
 The audit log lives in Kowan's database, so a [server backup](backup-and-restore.md) includes it. See [Configuration](configuration.md) for the other settings.

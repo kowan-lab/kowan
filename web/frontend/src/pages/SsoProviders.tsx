@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -296,8 +297,10 @@ export default function SsoProviders() {
       />
 
       {!externalUrl && (
-        <Callout color="warning" title="KOWAN_EXTERNAL_URL is not set">
-          The redirect URI is derived from it. Set it to the URL users open Kowan at (e.g. https://kowan.example.com) and restart.
+        <Callout color="warning" title="The server address is not set">
+          The redirect URI is built from it. Set it in{" "}
+          <Link to="/settings" className="font-medium text-signal underline-offset-2 hover:underline">Settings → Server address</Link>{" "}
+          to the URL users open Kowan at, for example https://kowan.example.com.
         </Callout>
       )}
 
@@ -367,7 +370,7 @@ export default function SsoProviders() {
                         {form.id && <CopyButton value={redirectFor(form.id)} />}
                       </Box>
                     ) : (
-                      <Text size="sm" color="muted">Set KOWAN_EXTERNAL_URL first.</Text>
+                      <Text size="sm" color="muted">Set the server address in Settings first.</Text>
                     )}
                     {!form.id && <Text size="xs" color="muted">The final URI (with the provider id) is shown after saving.</Text>}
                   </Box>

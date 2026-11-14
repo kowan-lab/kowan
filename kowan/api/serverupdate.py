@@ -33,7 +33,7 @@ log = logging.getLogger("kowan.api.serverupdate")
 def register(app: web.Application, svc) -> None:
     from kowan.releases import Releases
 
-    releases = Releases(svc, svc.config.release_repository)
+    releases = Releases(svc)
     svc.attach("releases", releases)
 
     async def _start(_app: web.Application) -> None:

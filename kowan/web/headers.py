@@ -35,7 +35,9 @@ _STATIC = {
 }
 
 
-def security_headers_middleware(https_external: bool):
+def security_headers_middleware(https_external):
+    """``https_external`` is read per response: the external URL can change
+    from the settings while the server runs."""
     @web.middleware
     async def middleware(request: web.Request, handler):
         resp = await handler(request)
@@ -44,7 +46,7 @@ def security_headers_middleware(https_external: bool):
             return resp
         for k, v in _STATIC.items():
             resp.headers.setdefault(k, v)
-        if https_external or request.secure:
+        if request.secure or https_external():
             resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return resp
 

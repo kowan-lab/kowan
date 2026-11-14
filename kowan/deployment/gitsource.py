@@ -48,7 +48,10 @@ DEFAULT_PATH = "docker-compose.yml"
 # allowed: a deployment must not be able to read arbitrary server directories.
 ALLOWED_PROTOCOLS = "http:https:ssh:git"
 
-_GIT_TIMEOUT = float(os.environ.get("KOWAN_GIT_TIMEOUT", "120"))
+def _git_timeout() -> float:
+    from kowan import tunables
+
+    return float(tunables.value("git_timeout"))
 _MAX_COMPOSE_BYTES = 1 << 20  # 1 MiB is plenty for a compose file
 
 
@@ -411,10 +414,10 @@ async def _run_git(args: List[str], auth: Optional[GitAuth], cwd: Optional[str] 
     except FileNotFoundError as err:
         raise GitError("git is not installed on the server") from err
     try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=_GIT_TIMEOUT)
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=_git_timeout())
     except asyncio.TimeoutError as err:
         proc.kill()
-        raise GitError(f"git {args[0]} timed out after {_GIT_TIMEOUT:.0f}s") from err
+        raise GitError(f"git {args[0]} timed out after {_git_timeout():.0f}s") from err
     text = out.decode("utf-8", "replace").strip()
     if proc.returncode != 0:
         raise GitError(f"git {args[0]}: {text[-800:] or 'exit ' + str(proc.returncode)}")

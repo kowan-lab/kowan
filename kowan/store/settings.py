@@ -31,3 +31,11 @@ class _SettingsMixin(_Base):
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, value),
         )
+
+    def setting_exists(self, key: str) -> bool:
+        """Whether a row is saved for key (even an empty value)."""
+        return self._one("SELECT 1 FROM settings WHERE key = ?", (key,)) is not None
+
+    def delete_setting(self, key: str) -> None:
+        """Remove key, so its reader falls back to the default."""
+        self._execute("DELETE FROM settings WHERE key = ?", (key,))

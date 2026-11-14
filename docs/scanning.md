@@ -19,10 +19,9 @@ docker run --rm \
   reads the image from that daemon (no registry pull, local images work);
 - the named volume `kowan-trivy-cache` keeps Trivy's vulnerability DB, so it
   is downloaded once per host and re-used (the first scan takes longer);
-- the scanner image is pinned (`aquasec/trivy:0.75.0`); override with
-  `KOWAN_TRIVY_IMAGE`. `KOWAN_TRIVY_CACHE_VOLUME` and
-  `KOWAN_TRIVY_CONTAINER_PREFIX` (default `kowan-trivy-`) rename the volume and
-  the scan containers;
+- the scanner image is pinned (`aquasec/trivy:0.75.0`); override it in
+  Settings > Advanced, where the cache volume and the container prefix
+  (default `kowan-trivy-`) can also be renamed;
 - scan containers carry `kowan.support=true` (hidden from the Containers list)
   and are removed when the scan ends; one scan runs at a time per host.
 

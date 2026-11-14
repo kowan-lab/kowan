@@ -110,6 +110,8 @@ def _registrars() -> list:
     from .api import teams as teams_api
     from .api import sso as sso_api
     from .api import netaccess as netaccess_api
+    from .api import general as general_api
+    from .api import tunables as tunables_api
     from .api import uptime as uptime_api
     from .api import logarchive as logarchive_api
     from .api import workloadres as workloadres_api
@@ -125,6 +127,10 @@ def _registrars() -> list:
         authapi.register,
         # Settings > Network access (UI-managed address allowlists).
         netaccess_api.register,
+        # Settings > General (the external URL).
+        general_api.register,
+        # Settings > Data retention / Advanced, AI assistants > allowed origins.
+        tunables_api.register,
         # hosts CRUD + edge enrollment.
         hosts.register,
         # Docker ops surfaces (each mounts its own routes against the provider).
@@ -235,6 +241,16 @@ async def build_app(config: ServerConfig) -> tuple[web.Application, Services]:
 
     db_path = str(Path(config.data_dir) / "kowan.db")
     store = Store(db_path)
+
+    # The external URL is a setting; KOWAN_EXTERNAL_URL only seeds it once.
+    from . import externalurl
+
+    config.external_url = externalurl.load(store, config.external_url)
+
+    # Retention, intervals, images...: settings seeded once from the old variables.
+    from . import tunables
+
+    tunables.load(store, config)
 
     # Secrets cipher: resolve the master key (env / key file / generate) and
     # attach it so secret + auth-provider CRUD and [[name]] interpolation work.

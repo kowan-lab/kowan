@@ -12,7 +12,7 @@ const SSO_ERRORS: Record<string, string> = {
   state_expired: "The sign-in took too long or was started in another browser. Try again.",
   state_mismatch: "The sign-in response did not match this browser session. Try again.",
   unknown_provider: "That sign-in provider is not available.",
-  not_configured: "Single sign-on is not configured: the server needs KOWAN_EXTERNAL_URL.",
+  not_configured: "Single sign-on is not configured: an admin must set the server address in Settings.",
   invalid_id_token: "The identity provider's response could not be verified.",
   token_exchange_failed: "The identity provider refused the sign-in code.",
   provider_unreachable: "The identity provider could not be reached.",

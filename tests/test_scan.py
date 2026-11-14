@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from kowan.scan import gate, trivy
 from kowan.scan.service import ScanService, is_fresh, pick_target
 from kowan.store import Store
+from kowan import tunables
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "trivy_report.json")
 
@@ -185,10 +186,11 @@ class TestService(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.store = Store(os.path.join(self.tmp.name, "t.db"))
-        os.environ["KOWAN_TRIVY_CONTAINER_PREFIX"] = "kowan-f1-trivy-"
+        self._prefix = tunables.override(trivy_container_prefix="kowan-f1-trivy-")
+        self._prefix.__enter__()
 
     def tearDown(self):
-        os.environ.pop("KOWAN_TRIVY_CONTAINER_PREFIX", None)
+        self._prefix.__exit__(None, None, None)
         self.store.close()
         self.tmp.cleanup()
 
