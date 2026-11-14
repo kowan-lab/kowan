@@ -80,6 +80,12 @@ A Compose deployment has **Stack variables**: they fill the file's `${VAR}` refe
 
 Secret values are not part of the revision history: a rollback keeps the current value.
 
+### Editing many at once
+
+**Edit as .env** opens every variable as text, one `NAME=value` per line: paste a `.env` file or edit the list. A name you remove is removed; saved secrets show as `********` and stay as they are unless you type a new value; a new name that looks secret (`PASSWORD`, `TOKEN`, `KEY`…) is stored as a secret.
+
+When the Compose file uses a `${VAR}` that has no default and no variable sets yet, Kowan lists it above the variables: click it, or **Add all**, to add it.
+
 ## Change a deployment
 
 Open the deployment, edit it on the **Configuration** tab, then click **Save** or **Save and redeploy**. Viewers see the configuration read-only: environment values, the webhook and credentials in Git URLs are hidden, and a Compose file shows only each service's image, ports, dependencies, restart policy, networks and volumes.

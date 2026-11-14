@@ -146,7 +146,7 @@ class BasicProvider(Provider):
                 try:
                     resp2 = await self._probe(endpoint, skip_verify=True)
                 except Exception as err2:  # noqa: BLE001
-                    if _speaks_plain_http(err2):
+                    if _speaks_plain_http(err2) or await _answers_plain_http(host):
                         return insecure, (f"registry {host} answers in plain HTTP, not HTTPS: "
                                           f"write the URL as http://{host}")
                     return insecure, f"connect to registry {host}: {err2}"
@@ -217,6 +217,20 @@ class BasicProvider(Provider):
 
 
 def _speaks_plain_http(err: BaseException) -> bool:
-    """A TLS handshake answered by a plain-HTTP server fails with these."""
-    text = str(err).upper()
+    """A TLS handshake answered by a plain-HTTP server fails with these
+    (OpenSSL writes them as ``WRONG_VERSION_NUMBER`` or, in newer versions,
+    ``record layer failure``)."""
+    text = str(err).upper().replace(" ", "_")
     return "WRONG_VERSION_NUMBER" in text or "RECORD_LAYER_FAILURE" in text or "PACKET_LENGTH_TOO_LONG" in text
+
+
+async def _answers_plain_http(host: str) -> bool:
+    """Whether ``http://host/v2/`` answers like a registry: the sure way to
+    tell a plain-HTTP registry, whatever text the TLS error carries. Asked
+    without credentials, which must never travel over plain HTTP unasked."""
+    try:
+        resp = await httpcap.request("GET", f"http://{host}/v2/", limit=_PROBE_LIMIT, timeout=_PROBE_TIMEOUT,
+                                     follow_redirects=False)
+    except Exception:  # noqa: BLE001 - nothing there either
+        return False
+    return registry_reachable(resp.status_code, resp.headers.get("WWW-Authenticate", ""))

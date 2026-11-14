@@ -24,7 +24,6 @@ import {
   listHosts,
   listVolumePluginTypes,
   listVolumes,
-  prune,
   removeVolume,
 } from "../api/client";
 import { notify } from "../ui/toast";
@@ -40,7 +39,8 @@ import KeyValueEditor, {
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
 import EmptyState from "../components/EmptyState";
-import { useHost, isAllHosts } from "../HostContext";
+import { ALL_HOSTS, useHost, isAllHosts } from "../HostContext";
+import { pruneOn, pruneNotice } from "../lib/prune";
 import { useHostScopedList, type WithHost } from "../useHostScopedList";
 import { LIVE_REFETCH_MS } from "../lib/live";
 import type {
@@ -48,7 +48,7 @@ import type {
   VolumePluginType,
   Volume,
 } from "../types";
-import { errorMessage, formatBytes, formatDate } from "../utils";
+import { errorMessage, formatDate } from "../utils";
 
 type VolumeRow = Volume & WithHost;
 
@@ -373,13 +373,9 @@ export default function Volumes() {
   });
 
   const pruneMutation = useMutation({
-    mutationFn: () => prune(targetHost, "volumes"),
-    onSuccess: (res) => {
-      notify({
-        color: "green",
-        title: "Volumes pruned",
-        message: `Reclaimed ${formatBytes(res.spaceReclaimed)}`,
-      });
+    mutationFn: () => pruneOn(targetHost, hosts, "volumes"),
+    onSuccess: (o) => {
+      notify(pruneNotice("volumes", o));
       setPruneOpen(false);
       invalidate();
     },
@@ -402,7 +398,8 @@ export default function Volumes() {
   // inside it starts on a sensible default.
   useEffect(() => {
     if (pruneOpen) {
-      setTargetHost(defaultTargetHost(hostId, hosts));
+      // In the "All hosts" view: every online host.
+      setTargetHost(isAllHosts(hostId) ? ALL_HOSTS : defaultTargetHost(hostId, hosts));
     }
     // Only re-seed on the transition to open; hosts/hostId are read fresh here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -953,9 +950,9 @@ export default function Volumes() {
           if (targetHost === "") return;
           pruneMutation.mutate();
         }}
-        message="Remove all volumes not referenced by any container? Data in those volumes will be permanently deleted."
+        message={`Remove all volumes not referenced by any container${targetHost === ALL_HOSTS ? ", on every online host" : ""}? Data in those volumes will be permanently deleted.`}
       >
-        <HostSelectField value={targetHost} onChange={setTargetHost} />
+        <HostSelectField value={targetHost} onChange={setTargetHost} allLabel={`Every online host (${hosts.filter((h) => h.online).length})`} />
       </ConfirmModal>
     </Box>
   );

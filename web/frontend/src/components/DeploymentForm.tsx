@@ -32,8 +32,9 @@ import {
 import { ComposeBuilder } from "./ComposeBuilder";
 import type { ComposeDiagnostic } from "../types";
 import { warningsSignature } from "./compose/useComposeValidation";
+import { useFeatures } from "../lib/features";
 import FormSection from "./FormSection";
-import EnvEditor, { envRowsFromApi, envRowsProblem, envRowsToApi, type EnvRow } from "./EnvEditor";
+import EnvEditor, { composeVariables, envRowsFromApi, envRowsProblem, envRowsToApi, looksSecret, type EnvRow } from "./EnvEditor";
 
 // Short, accurate explanations of each deployment type/strategy combination,
 // shown beneath the type selector and updated with the current selection.
@@ -179,8 +180,10 @@ export function deploymentFormToInput(f: DeploymentFormValue): DeploymentInputLi
   };
 }
 
-/** Return a human-readable validation error, or null when the form is valid. */
-export function validateDeploymentForm(f: DeploymentFormValue): string | null {
+/** Return a human-readable validation error, or null when the form is valid.
+ *  `confirmWarnings` false (Settings → Features) lets compose warnings through
+ *  without ticking "Deploy with N warnings"; errors always block. */
+export function validateDeploymentForm(f: DeploymentFormValue, opts: { confirmWarnings?: boolean } = {}): string | null {
   if (f.name.trim().length === 0) return "Name is required";
   const envProblem = f.type === "compose" ? envRowsProblem(f.variables, { strictNames: true }) : envRowsProblem(f.spec.env);
   if (envProblem) return envProblem;
@@ -202,7 +205,7 @@ export function validateDeploymentForm(f: DeploymentFormValue): string | null {
     if (errors > 0) {
       return `Fix the ${errors} compose error${errors === 1 ? "" : "s"} listed under the editor first`;
     }
-    if (warnings > 0 && f.composeAck !== warningsSignature(diags)) {
+    if (opts.confirmWarnings !== false && warnings > 0 && f.composeAck !== warningsSignature(diags)) {
       return `Review the ${warnings} compose warning${warnings === 1 ? "" : "s"} and confirm to continue`;
     }
   }
@@ -393,7 +396,7 @@ export function DeploymentForm({ value, onChange, mode }: DeploymentFormProps) {
       {value.type === "compose" && (
         <>
           <Divider />
-          <StackVariables value={value.variables} onChange={(v) => set("variables", v)} git={value.source === "git"} />
+          <StackVariables value={value.variables} onChange={(v) => set("variables", v)} git={value.source === "git"} compose={value.compose} />
         </>
       )}
     </Box>
@@ -507,10 +510,11 @@ function ComposeWarningsAck({
   value: DeploymentFormValue;
   onChange: (v: DeploymentFormValue) => void;
 }) {
+  const confirm = useFeatures().confirmComposeWarnings;
   const diags = value.composeDiagnostics ?? [];
   const warnings = diags.filter((d) => d.severity === "warning").length;
   const errors = diags.filter((d) => d.severity === "error").length;
-  if (warnings === 0 || errors > 0 || value.composePending) return null;
+  if (!confirm || warnings === 0 || errors > 0 || value.composePending) return null;
   const sig = warningsSignature(diags);
   return (
     <Box style={{ marginTop: 8 }}>
@@ -529,7 +533,12 @@ function ComposeWarningsAck({
 // env). They fill the compose's ${VAR}s when it deploys, over a git repo's .env.
 // ---------------------------------------------------------------------------
 
-function StackVariables({ value, onChange, git }: { value: EnvRow[]; onChange: (v: EnvRow[]) => void; git: boolean }) {
+function StackVariables({ value, onChange, git, compose }: { value: EnvRow[]; onChange: (v: EnvRow[]) => void; git: boolean; compose: string }) {
+  // The compose's ${VAR}s with no default that no row sets yet: one click adds them.
+  const have = new Set(value.map((r) => r.key.trim()));
+  const missing = git ? [] : composeVariables(compose).filter((v) => !v.hasDefault && !have.has(v.name)).map((v) => v.name);
+  const add = (names: string[]) =>
+    onChange([...value.filter((r) => r.key.trim() || r.value), ...names.map((n) => (looksSecret(n) ? { key: n, value: "", secret: true } : { key: n, value: "" }))]);
   return (
     <FormSection
       variant="plain"
@@ -542,6 +551,17 @@ function StackVariables({ value, onChange, git }: { value: EnvRow[]; onChange: (
         </Button>
       }
     >
+      {missing.length > 0 && (
+        <Box direction="row" wrap gap={2} align="center" style={{ marginBottom: 8 }} aria-label="Variables the compose uses">
+          <Text size="sm" color="muted">The compose uses, with no value yet:</Text>
+          {missing.map((n) => (
+            <Button key={n} size="sm" variant="outline" color="neutral" iconLeft="add-rounded" onClick={() => add([n])} aria-label={`Add variable ${n}`}>
+              {n}
+            </Button>
+          ))}
+          {missing.length > 1 && <Button size="sm" variant="light" onClick={() => add(missing)}>Add all</Button>}
+        </Box>
+      )}
       <EnvEditor value={value} onChange={onChange} strictNames emptyText="No stack variables." />
     </FormSection>
   );

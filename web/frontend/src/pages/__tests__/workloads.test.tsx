@@ -78,6 +78,21 @@ describe("workload: deployment", () => {
     expect(requests("POST", "/deployments/d-shop/deploy")).toHaveLength(0);
   });
 
+  it("offers to add the variables the compose uses", async () => {
+    const compose = "services:\n  web:\n    image: nginx:${TAG}\n    environment:\n      DB_PASSWORD: ${DB_PASSWORD}\n      PORT: ${PORT:-80}\n";
+    const dep = { ...deployments[0], compose, variables: [] };
+    const { user } = await open(SHOP + "?tab=config", "shop", {
+      "GET /deployments": [dep, ...deployments.slice(1)], "GET /deployments/:id": dep,
+    });
+    const strip = await screen.findByLabelText(/variables the compose uses/i, {}, { timeout: 10_000 });
+    expect(within(strip).queryByRole("button", { name: /add variable port/i })).toBeNull(); // it has a default
+    await user.click(within(strip).getByRole("button", { name: /add all/i }));
+    expect(screen.getByRole("textbox", { name: "Name of variable 1" })).toHaveValue("TAG");
+    expect(screen.getByRole("textbox", { name: "Name of variable 2" })).toHaveValue("DB_PASSWORD");
+    expect(screen.getByRole("button", { name: "Variable 2 is a secret" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByLabelText(/variables the compose uses/i)).toBeNull();
+  });
+
   it("edits stack variables, config and secret", async () => {
     const compose = "services:\n  web:\n    image: nginx:${TAG}\n";
     const dep = { ...deployments[0], compose, variables: [{ key: "TAG", value: "1.27" }, { key: "PW", value: "[[shop-env.PW]]", secret: true }] };

@@ -22,6 +22,7 @@ import {
   validateCreatePolicies,
   type CreatePoliciesValue,
 } from "../components/deployment/CreatePolicies";
+import { useFeatures } from "../lib/features";
 
 /** Pull a human-friendly error message out of an axios error. */
 
@@ -36,6 +37,7 @@ import {
 export default function DeploymentCreate() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const features = useFeatures();
 
   // Start on the host picked in the shell (the "New workload on <host>" menu
   // promises it); "All hosts" leaves the choice to the form.
@@ -84,7 +86,7 @@ export default function DeploymentCreate() {
   });
 
   const submit = () => {
-    const msg = validateDeploymentForm(form) ?? validateCreatePolicies(policies);
+    const msg = validateDeploymentForm(form, { confirmWarnings: features.confirmComposeWarnings }) ?? validateCreatePolicies(policies);
     if (msg) {
       setError(msg);
       return;

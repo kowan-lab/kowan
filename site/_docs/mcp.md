@@ -170,6 +170,8 @@ Every tool that takes a `host` accepts a host ID or name, and defaults to `local
 | `promotion_plan` | viewer | What promoting a deployment to another would change. |
 | `list_templates` | viewer | The app templates with the inputs they ask for. |
 | `deployment_action` | operator | Deploy, redeploy, start, stop, or sync a Git deployment. |
+| `get_deployment_config` | operator | A deployment's whole compose file (or container spec), its stack variables and current revision, to change it. |
+| `update_deployment` | operator | Save a new version (compose, spec or variables) as a revision with a note, and redeploy unless `deploy=false`. Pass the revision you read as `baseRevision`: a change made meanwhile is never overwritten. |
 | `rollback_deployment` | operator | Restore an earlier revision as a new one and redeploy it. |
 | `promote_deployment` | operator | Apply the promotion plan to the target and redeploy it. |
 | `create_deployment` | operator | Create a deployment from a Compose file or a container spec, and optionally deploy it. |

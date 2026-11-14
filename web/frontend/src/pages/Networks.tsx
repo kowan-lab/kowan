@@ -24,7 +24,6 @@ import {
   listContainers,
   listHosts,
   listNetworks,
-  prune,
   removeNetwork,
 } from "../api/client";
 import ConfirmModal from "../components/ConfirmModal";
@@ -38,7 +37,8 @@ import KeyValueEditor, {
 import PageHeader from "../components/PageHeader";
 import SectionCard from "../components/SectionCard";
 import EmptyState from "../components/EmptyState";
-import { useHost, isAllHosts } from "../HostContext";
+import { ALL_HOSTS, useHost, isAllHosts } from "../HostContext";
+import { pruneOn, pruneNotice } from "../lib/prune";
 import { useHostScopedList, type WithHost } from "../useHostScopedList";
 import { LIVE_REFETCH_MS } from "../lib/live";
 import type { IPAMConfig, Network, NetworkCreateOptions } from "../types";
@@ -229,13 +229,9 @@ export default function Networks() {
   });
 
   const pruneMutation = useMutation({
-    mutationFn: () => prune(targetHost, "networks"),
-    onSuccess: () => {
-      notify({
-        color: "green",
-        title: "Networks pruned",
-        message: "Removed unused networks",
-      });
+    mutationFn: () => pruneOn(targetHost, hosts, "networks"),
+    onSuccess: (o) => {
+      notify(pruneNotice("networks", o, false));
       setPruneOpen(false);
       invalidate();
     },
@@ -310,7 +306,8 @@ export default function Networks() {
   };
 
   const openPrune = () => {
-    setTargetHost(defaultTargetHost(hostId, hosts));
+    // In the "All hosts" view: every online host.
+    setTargetHost(isAllHosts(hostId) ? ALL_HOSTS : defaultTargetHost(hostId, hosts));
     setPruneOpen(true);
   };
 
@@ -720,6 +717,7 @@ export default function Networks() {
         <HostSelectField
           value={targetHost}
           onChange={setTargetHost}
+          allLabel={`Every online host (${hosts.filter((h) => h.online).length})`}
           disabled={pruneMutation.isPending}
         />
       </ConfirmModal>

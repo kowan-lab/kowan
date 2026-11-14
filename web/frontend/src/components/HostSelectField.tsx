@@ -30,6 +30,8 @@ interface HostSelectFieldProps {
   description?: string;
   /** Disable the control (e.g. while a mutation is in flight). */
   disabled?: boolean;
+  /** Offer every online host at once (value ALL_HOSTS), with this label. */
+  allLabel?: string;
 }
 
 export default function HostSelectField({
@@ -38,15 +40,16 @@ export default function HostSelectField({
   label,
   description,
   disabled,
+  allLabel,
 }: HostSelectFieldProps) {
   const hostsQuery = useQuery({ queryKey: ["hosts"], queryFn: listHosts });
 
-  const options = (hostsQuery.data ?? []).map((h) => ({
+  const options = [...(allLabel ? [{ value: ALL_HOSTS, label: allLabel }] : []), ...(hostsQuery.data ?? []).map((h) => ({
     value: h.id,
     // Offline hosts stay selectable — a host may be only temporarily offline —
     // but we flag them so the user knows the action may not go through yet.
     label: h.online ? h.name || h.id : `${h.name || h.id} (offline)`,
-  }));
+  }))];
 
   return (
     <Select
