@@ -481,10 +481,20 @@ async def _update(request: web.Request) -> web.Response:
     changed on an enabled+deployed deployment, force a background redeploy so the
     running state converges to the new config (desired-state 'force on update')."""
     svc = _svc(request)
-    dep_id = request.match_info["id"]
-    dep = _load(svc, dep_id)
-
+    dep = _load(svc, request.match_info["id"])
     req = await _read_request(request)
+    out = await update_from_request(svc, dep, req, author=_author(request))
+    return out if isinstance(out, web.StreamResponse) else json_response(out)
+
+
+async def update_from_request(svc, dep: Deployment, req: "_Request", *, author: str, note: str = "",
+                              deploy: bool = True) -> "Deployment | web.Response":
+    """Apply an update to a deployment: validation, the compose gate, a new
+    revision when what it runs changed, and, unless ``deploy`` is false, a
+    background redeploy of an enabled, deployed one. Returns the deployment, or
+    the gate's response when the compose file is refused. Shared by the REST
+    API and the MCP ``update_deployment`` tool."""
+    dep_id = dep.id
     msg = _validate(req) or _unknown_target(svc, req)
     if msg:
         raise Validation(msg)
@@ -537,20 +547,20 @@ async def _update(request: web.Request) -> web.Response:
     authz.check_deployment(dep, authz.LEVEL_MANAGE)  # new targets must be in scope too
     secrets_changed = envsecrets.apply(svc.store, dep, dep.updated_at)
 
-    svc.store.update_deployment(dep, author=_author(request), source="edit")
+    svc.store.update_deployment(dep, author=author, source="edit", note=note)
     if had_git and dep.git is None:
-        _dep_svc(request).remove_git_checkout(dep_id)
+        svc.deployments.remove_git_checkout(dep_id)
 
     # Force on update: a runtime-affecting change to an enabled, currently-deployed
     # deployment redeploys in the background so the running state converges to the
     # new config. Paused (disabled) or not-yet-deployed records just save.
     drifted = _runtime_signature(dep) != before or secrets_changed
-    if drifted and dep.enabled and dep.status == STATUS_DEPLOYED:
+    if deploy and drifted and dep.enabled and dep.status == STATUS_DEPLOYED:
         try:
-            dep = await _dep_svc(request).dispatch_deploy(dep_id, redeploy=True)
+            dep = await svc.deployments.dispatch_deploy(dep_id, redeploy=True)
         except Conflict:
             pass  # a deploy is already applying the change
-    return json_response(dep)
+    return dep
 
 
 async def _protection(request: web.Request) -> web.Response:

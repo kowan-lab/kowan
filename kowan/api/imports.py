@@ -3,7 +3,10 @@
 Routes (under /api/v1):
   POST /import/portainer/scan  {connectionId}                               (admin)
   POST /import/compose/scan    {files: {relative path: text}}                (operator)
-  POST /import/apply           {items: [{name, host, strategy, compose | git, variables?}]} (operator)
+  POST /import/apply           {items: [{name, host, strategy, compose | git | type: container + spec,
+                                        variables?, deploy?}]} (operator)
+  GET  /import/docker          workloads Kowan only discovered, on the hosts you see (migrate)
+  POST /import/docker/scan     {workload}: the deployment it would become (kowan/importer/fromdocker.py)
 
 A scan returns candidates (nothing is stored); apply creates one deployment
 per item through the same checks as POST /deployments, without deploying.
@@ -56,6 +59,8 @@ def register(app: web.Application, svc) -> None:
     api_route(app, "POST", "/import/portainer/scan", require_role("admin")(_scan_portainer))
     api_route(app, "POST", "/import/compose/scan", require_role("operator")(_scan_compose))
     api_route(app, "POST", "/import/apply", require_role("operator")(_apply))
+    api_route(app, "GET", "/import/docker", _docker_list)
+    api_route(app, "POST", "/import/docker/scan", require_role("operator")(_docker_scan))
 
 
 def _env_text(env: Dict[str, str]) -> str:
@@ -196,10 +201,13 @@ async def _apply(request: web.Request) -> web.Response:
             results.append({"name": "", "ok": False, "error": "invalid item"})
             continue
         name = str(it.get("name") or "")
-        req: Dict[str, Any] = {"name": name, "type": "compose", "strategy": str(it.get("strategy") or "standalone"),
+        kind = str(it.get("type") or "compose")
+        req: Dict[str, Any] = {"name": name, "type": kind, "strategy": str(it.get("strategy") or "standalone"),
                                "targets": [str(it.get("host") or "")]}
         git = it.get("git")
-        if isinstance(git, dict) and git.get("repoUrl"):
+        if kind == "container":
+            req["spec"] = it.get("spec")
+        elif isinstance(git, dict) and git.get("repoUrl"):
             req["git"] = {"repoUrl": str(git.get("repoUrl")), "ref": str(git.get("ref") or "main"),
                           "path": str(git.get("path") or "docker-compose.yml"), "autoDeploy": False}
         else:
@@ -217,5 +225,76 @@ async def _apply(request: web.Request) -> web.Response:
         if isinstance(out, web.Response):  # refused: by a check or by the compose gate
             results.append({"name": name, "ok": False, "error": json.loads(out.body)["error"]})
             continue
-        results.append({"name": name, "ok": True, "id": out.id})
+        row: Dict[str, Any] = {"name": name, "ok": True, "id": out.id}
+        if it.get("deploy") is True:
+            # Migrate: deploying takes over the containers it came from (same
+            # project or container name, same volumes).
+            try:
+                await svc.deployments.dispatch_deploy(out.id)
+                row["deploying"] = True
+            except Exception as err:  # noqa: BLE001 - created; the deploy can be retried
+                row["deployError"] = str(err)
+        results.append(row)
     return json_response(results)
+
+
+async def _docker_list(request: web.Request) -> web.Response:
+    """Every stack and lone container no Kowan deployment owns, on the hosts
+    the caller sees, with Kowan's own containers left out."""
+    import asyncio
+
+    from kowan.auth import authorize as authz
+    from kowan.workloads import compose_deployments, workload_of
+
+    svc = request.app[SERVICES_KEY]
+    deps = compose_deployments(svc.store)
+    hosts = authz.filter_hosts(svc.store.list_hosts())
+
+    async def one(h: Any) -> List[Dict[str, Any]]:
+        try:
+            cs = await asyncio.wait_for(svc.docker.ops(h).list_containers(True), timeout=20)
+        except Exception:  # noqa: BLE001 - offline host
+            return []
+        rows: Dict[str, Dict[str, Any]] = {}
+        for c in cs:
+            labels = c.labels or {}
+            title = labels.get("org.opencontainers.image.title", "")
+            if (labels.get("kowan.support") == "true" or labels.get("com.docker.compose.oneoff") == "True"
+                    or title in ("kowan", "kowan-agent") or labels.get("kowan.role")):
+                continue
+            name = ((c.names or [""])[0]).lstrip("/")
+            wl, _, dep = workload_of(labels, h.id, name, deps)
+            if dep:
+                continue
+            row = rows.setdefault(wl, {"workload": wl, "host": h.id, "hostName": h.name, "kind": wl.split("~", 1)[0],
+                                       "name": wl.split("~")[-1], "containers": 0, "running": 0,
+                                       "swarm": bool(labels.get("com.docker.stack.namespace")) and not labels.get("com.docker.compose.project"),
+                                       "hasFiles": bool(labels.get("com.docker.compose.project.config_files"))})
+            row["containers"] += 1
+            row["running"] += 1 if c.state == "running" else 0
+        return list(rows.values())
+
+    out = [r for rows in await asyncio.gather(*(one(h) for h in hosts)) for r in rows]
+    out.sort(key=lambda r: (r["hostName"], r["name"]))
+    return json_response(out)
+
+
+async def _docker_scan(request: web.Request) -> web.Response:
+    from kowan.auth import authorize as authz
+    from kowan.importer.fromdocker import MigrateError, scan
+    from kowan.runbooks.model import access_target
+
+    svc = request.app[SERVICES_KEY]
+    body = await _body(request)
+    reject_unknown_fields(body, {"workload"})
+    workload = str(body.get("workload") or "")
+    try:
+        target = access_target(workload)
+    except (ValueError, KeyError):
+        raise Validation("workload must be stack~<host>~<project> or ctr~<host>~<name>") from None
+    # Migrating replaces the workload's containers: manage on it.
+    await authz.TargetAccess(svc.store, svc.docker).check([target], authz.LEVEL_MANAGE)
+    try:
+        return json_response(await scan(svc, workload))
+    except MigrateError as err:
+        raise Validation(str(err)) from None

@@ -24,6 +24,8 @@ FEATURES: Dict[str, Tuple[str, Tuple[str, ...], bool]] = {
     "networkMap": ("Network map", (r"^/api/v1/netmap$", r"^/api/v1/hosts/[^/]+/netmap$"), True),
     "gitops": ("GitOps", (r"^/api/v1/gitops(/|$)", r"^/hooks/gitops/"), True),
     "systemContainers": ("Kowan's own containers", (), False),
+    # Not a page: whether a deploy with compose warnings asks to confirm them.
+    "confirmComposeWarnings": ("Confirm compose warnings", (), True),
 }
 _PATHS = {fid: tuple(re.compile(p) for p in paths) for fid, (_, paths, _) in FEATURES.items()}
 

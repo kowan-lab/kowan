@@ -5,10 +5,11 @@
 // imported under its compose project name adopts the containers already up.
 
 import { useMemo, useState, type ChangeEvent } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Callout, Checkbox, Icon, Select, Tabs, Text, TextInput } from "@/ui/kit";
-import { applyImport, listHosts, scanComposeFolder, scanPortainer } from "../api/client";
+import { applyImport, listHosts, listMigratable, scanComposeFolder, scanPortainer } from "../api/client";
+import MigrateDialog from "../components/migrate/MigrateDialog";
 import ConnectionField from "../components/ConnectionField";
 import { useAuth } from "../auth/AuthContext";
 import PageHeader from "../components/PageHeader";
@@ -37,10 +38,39 @@ interface Row extends ImportCandidate {
   found: string;
 }
 
+/** What runs on your hosts that Kowan does not manage yet: migrate it from Docker, no Portainer needed. */
+function DockerList() {
+  const list = useQuery({ queryKey: ["migratable"], queryFn: listMigratable });
+  const [open, setOpen] = useState<string | null>(null);
+  const items = list.data ?? [];
+  return (
+    <SectionCard
+      title="Running on your hosts"
+      description="Stacks and containers Kowan found but does not manage. Kowan reads a stack's compose file on its host, or rebuilds one from its containers, and keeps its name so a deploy takes over what runs."
+    >
+      {list.isLoading && <Text size="sm" color="muted">Looking at your hosts…</Text>}
+      {list.isError && <Callout color="danger" title="Could not list them">{errorMessage(list.error, "")}</Callout>}
+      {list.data && !items.length && <Text size="sm" color="muted">Everything running is already managed by Kowan.</Text>}
+      <div className="flex flex-col">
+        {items.map((w) => (
+          <div key={w.workload} className="flex flex-wrap items-center gap-[10px] py-[8px] shadow-[inset_0_-1px_0_var(--border)] last:shadow-none">
+            <Text weight="semibold">{w.name}</Text>
+            <Badge variant="light" color="gray">{w.kind === "ctr" ? "container" : w.swarm ? "swarm stack" : "compose stack"}</Badge>
+            <Text size="sm" color="muted">{w.hostName} · {w.running}/{w.containers} running{w.hasFiles ? " · compose file on the host" : ""}</Text>
+            <Button size="sm" className="ml-auto" onClick={() => setOpen(w.workload)} aria-label={`Migrate ${w.name}`}>Migrate</Button>
+          </div>
+        ))}
+      </div>
+      {open && <MigrateDialog workload={open} onClose={() => setOpen(null)} />}
+    </SectionCard>
+  );
+}
+
 export default function Import() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [tab, setTab] = useState(isAdmin ? "portainer" : "folder");
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(params.get("from") === "docker" ? "docker" : isAdmin ? "portainer" : "folder");
   const [rows, setRows] = useState<Row[]>([]);
   const [results, setResults] = useState<ImportResult[] | null>(null);
   const hosts = useQuery({ queryKey: ["hosts"], queryFn: listHosts });
@@ -77,11 +107,12 @@ export default function Import() {
       />
       <Tabs variant="segmented" value={tab} onValueChange={(t) => { setTab(t); setRows([]); setResults(null); }}>
         <Tabs.List>
+          <Tabs.Trigger value="docker">From Docker</Tabs.Trigger>
           <Tabs.Trigger value="portainer" disabled={!isAdmin}>From Portainer</Tabs.Trigger>
           <Tabs.Trigger value="folder">From compose folders</Tabs.Trigger>
         </Tabs.List>
       </Tabs>
-      {tab === "portainer" ? <PortainerForm onScan={load} /> : <FolderForm onScan={load} />}
+      {tab === "docker" ? <DockerList /> : tab === "portainer" ? <PortainerForm onScan={load} /> : <FolderForm onScan={load} />}
 
       {rows.length > 0 && (
         <SectionCard

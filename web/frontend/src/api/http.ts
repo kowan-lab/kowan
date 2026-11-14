@@ -11,6 +11,10 @@ export interface RequestConfig {
   headers?: Record<string, string>;
   responseType?: "json" | "text" | "blob";
   signal?: AbortSignal;
+  /** Milliseconds before giving up (0: never). Reads default to READ_TIMEOUT_MS:
+   *  a host that never answers must end in an error to retry, not in a page
+   *  that loads forever. Writes and file downloads wait as long as they take. */
+  timeout?: number;
   /** Accepted for call-site compatibility; responses are not transformed. */
   transformResponse?: unknown;
 }
@@ -29,6 +33,8 @@ export class HttpError<T = unknown> extends Error {
     this.response = response;
   }
 }
+
+export const READ_TIMEOUT_MS = 60_000;
 
 interface ClientOptions {
   baseURL: string;
@@ -82,18 +88,39 @@ export function createHttp({ baseURL, authHeader, onUnauthorized }: ClientOption
       headers["Content-Type"] ??= "application/json";
     }
 
+    const timeout = config.timeout ?? (method === "GET" && config.responseType !== "blob" ? READ_TIMEOUT_MS : 0);
+    const ctl = new AbortController();
+    let timedOut = false;
+    const timer = timeout > 0 ? setTimeout(() => { timedOut = true; ctl.abort(); }, timeout) : undefined;
+    // The caller's own signal still cancels it.
+    const signal = typeof config.signal?.addEventListener === "function" ? config.signal : undefined;
+    const onAbort = () => ctl.abort();
+    if (signal?.aborted) ctl.abort();
+    signal?.addEventListener("abort", onAbort);
     let res: Response;
+    let data: T;
     try {
-      res = await fetch(buildURL(baseURL, url, config.params), { method, headers, body: payload, signal: config.signal, credentials: "same-origin" });
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") throw err;
-      throw new HttpError("Network Error");
+      try {
+        res = await fetch(buildURL(baseURL, url, config.params), { method, headers, body: payload, signal: ctl.signal, credentials: "same-origin" });
+      } catch (err) {
+        if (timedOut) throw new HttpError(`The server did not answer in ${Math.round(timeout / 1000)} s`);
+        if ((err as Error)?.name === "AbortError") throw err;
+        throw new HttpError("Network Error");
+      }
+      try {
+        data = (await readBody(res, res.status >= 200 && res.status < 300 ? config.responseType : "json")) as T;
+      } catch (err) {
+        if (timedOut) throw new HttpError(`The server did not answer in ${Math.round(timeout / 1000)} s`);
+        throw err;
+      }
+    } finally {
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
 
     const resHeaders: Record<string, string> = {};
     res.headers.forEach((v, k) => (resHeaders[k] = v));
     const ok = res.status >= 200 && res.status < 300;
-    const data = (await readBody(res, ok ? config.responseType : "json")) as T;
     const response: HttpResponse<T> = { data, status: res.status, headers: resHeaders };
 
     if (!ok) {

@@ -34,6 +34,7 @@ import { DeploymentGitSource, DeploymentHealth, DeploymentWebhook } from "../com
 import { useCanOperate } from "../components/deployment/shared";
 import { CrashList, useCrashCount } from "../components/crashes/Crashes";
 import { RunbookList } from "../components/runbooks/Runbooks";
+import MigrateDialog from "../components/migrate/MigrateDialog";
 import LogRetentionControl from "../components/logs/LogRetentionControl";
 import LogViewer, { type LogSource } from "../components/logs/LogViewer";
 import { usePolicyControls } from "../components/apps/policies";
@@ -216,6 +217,7 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
   const hostName = useHostName()(host);
   const d = app.deployment;
   const crashes = useCrashCount(app.id);
+  const [migrating, setMigrating] = useState(false);
   const configLabel = d ? "Configuration" : app.kind === "stack" ? "Compose" : "Config";
   const tabs: { id: Tab; label: string; extra?: ReactNode }[] = [
     { id: "overview", label: "Overview", extra: <span className="font-mono text-[12px] leading-none font-medium text-muted-foreground">{app.total}</span> },
@@ -260,6 +262,7 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
           <Pill tone={app.tone}>{app.label}</Pill>
           <div className="ml-auto flex flex-wrap gap-[8px]">
             {canOperate && <UpdateWorkloadButton app={app} />}
+            {canOperate && !d && !app.stale && <Btn onClick={() => setMigrating(true)}>Migrate to Kowan</Btn>}
             {canOperate && <NewVersionsButton app={app} />}
             <Btn solid onClick={() => setTab("logs")}>View logs</Btn>
             {d ? (canOperate ? <DeploymentActions deployment={d} compact /> : null) : <ContainerActions app={app} canOperate={canOperate} />}
@@ -325,6 +328,7 @@ function AppView({ app, tab, setTab }: { app: App; tab: Tab; setTab: (t: Tab, ex
         )}
       </div>
       {pc.dialogs}
+      {migrating && <MigrateDialog workload={app.id} onClose={() => setMigrating(false)} />}
     </>
   );
 }

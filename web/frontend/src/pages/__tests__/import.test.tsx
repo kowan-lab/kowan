@@ -135,3 +135,42 @@ describe("import page", () => {
     await waitFor(() => expect(currentPath()).toBe("/import"));
   });
 });
+
+describe("migrate from Docker", () => {
+  const candidate = { workload: "stack~local~blog", host: "local", name: "blog", type: "compose", source: "rebuilt", strategy: "standalone",
+    compose: "services:\n  web:\n    image: nginx:1.27\n    environment:\n      DB_PASSWORD: ${DB_PASSWORD}\n",
+    variables: [{ key: "DB_PASSWORD", value: "s3cret", secret: true }], warnings: ["check the volumes"] };
+
+  it("lists what Kowan does not manage and migrates one", async () => {
+    const { user } = renderApp("/import?from=docker", { api: {
+      "GET /import/docker": [{ workload: "stack~local~blog", host: "local", hostName: "local", kind: "stack", name: "blog", containers: 2, running: 2, swarm: false, hasFiles: false }],
+      "POST /import/docker/scan": candidate,
+      "POST /import/apply": [{ name: "blog", ok: true, id: "d-blog", deploying: true }],
+    } });
+    await user.click(await screen.findByRole("button", { name: "Migrate blog" }, { timeout: 10_000 }));
+    const d = await screen.findByRole("dialog", { name: /migrate to kowan/i });
+    expect(await within(d).findByText(/rebuilt from its containers/i)).toBeInTheDocument();
+    expect(within(d).getByText("check the volumes")).toBeInTheDocument();
+    await user.click(within(d).getByLabelText(/deploy now/i));
+    await user.click(within(d).getByRole("button", { name: /migrate and deploy/i }));
+    await waitFor(() => expect(currentPath()).toBe("/workloads/dep~d-blog"));
+    const [item] = (requests("POST", "/import/apply")[0].body as { items: Record<string, unknown>[] }).items;
+    expect(item).toMatchObject({ name: "blog", host: "local", compose: candidate.compose, deploy: true,
+      variables: [{ key: "DB_PASSWORD", value: "s3cret", secret: true }] });
+  });
+
+  it("migrates a lone container from its page", async () => {
+    const { user } = renderApp("/workloads/ctr~local~nightly-job", { api: {
+      "POST /import/docker/scan": { workload: "ctr~local~nightly-job", host: "local", name: "nightly-job", type: "container", source: "container",
+        strategy: "standalone", spec: { image: "alpine:3.22", env: [], ports: [], volumes: [] }, warnings: [] },
+      "POST /import/apply": [{ name: "nightly-job", ok: true, id: "d-job" }],
+    } });
+    await user.click(await screen.findByRole("button", { name: /migrate to kowan/i }, { timeout: 10_000 }));
+    const d = await screen.findByRole("dialog", { name: /migrate to kowan/i });
+    expect(await within(d).findByText(/from the container's settings/i)).toBeInTheDocument();
+    await user.click(within(d).getByRole("button", { name: /create deployment/i }));
+    await waitFor(() => expect(currentPath()).toBe("/workloads/dep~d-job"));
+    expect((requests("POST", "/import/apply")[0].body as { items: Record<string, unknown>[] }).items[0])
+      .toMatchObject({ type: "container", spec: { image: "alpine:3.22" }, deploy: false });
+  });
+});

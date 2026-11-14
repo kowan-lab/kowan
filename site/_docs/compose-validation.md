@@ -33,7 +33,7 @@ To work through them:
 1. Click a finding's position to jump to that line in the YAML editor. From the **Easy** editor, this switches to **YAML**.
 2. When Kowan knows a safe fix, click **Apply fix**. It edits the file in place and keeps your comments and layout.
 3. Fix the remaining errors by hand. **No problems found** means the file is clean.
-4. If warnings remain, tick **Deploy with N warnings** to confirm you reviewed them. The confirmation covers exactly that set of warnings: a new one asks again.
+4. If warnings remain, tick **Deploy with N warnings** to confirm you reviewed them. The confirmation covers exactly that set of warnings: a new one asks again. An admin can turn this confirmation off in **Settings → Features → Confirm compose warnings**: the warnings still show under the editor, but no longer stop a deploy.
 
 ## What Kowan checks
 

@@ -120,6 +120,8 @@ Every tool that takes `host` accepts a host id or name and defaults to `local`.
 | `update_container` | operator | idempotent, open-world | Pull and recreate the container if a newer image exists (`force` to always) |
 | `run_workflow` | operator | open-world | Manual workflow run |
 | `workload_action` | operator | idempotent: no | start / stop / restart every container of a workload; a deployment starts and stops through Kowan |
+| `get_deployment_config` | operator | read-only | Full compose / spec, variables and current revision, to edit |
+| `update_deployment` | operator | idempotent: no | New version as a revision (note, `baseRevision` checked, masked values refused); same path as `PUT /deployments/{id}` (`update_from_request`) |
 | `rollback_deployment` | operator | idempotent: no | Restore a revision as a new one and redeploy (`deploy=false` to only restore) |
 | `promote_deployment` | operator | idempotent: no | Apply the promotion plan to the target and redeploy it |
 | `set_log_retention` | operator | idempotent | Keep a workload's logs for `days` (1–365), or `days=0` to stop and delete them |

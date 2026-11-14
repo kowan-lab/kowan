@@ -15,7 +15,7 @@ class TestFeatures(ServerCase):
     async def test_state_and_roles(self):
         _, state = await self.call("GET", "/features", "viewer", expect=200)
         # Kowan's own containers are hidden unless shown.
-        self.assertEqual(state, {"templates": True, "networkMap": True, "gitops": True, "systemContainers": False})
+        self.assertEqual(state, {"templates": True, "networkMap": True, "gitops": True, "systemContainers": False, "confirmComposeWarnings": True})
         await self.roles("PUT", "/features", "admin", json={"templates": False})
         _, state = await self.call("PUT", "/features", json={"templates": False}, expect=200)
         self.assertFalse(state["templates"])
@@ -30,7 +30,7 @@ class TestFeatures(ServerCase):
         # A broken stored value counts as the defaults.
         self.svc.store.set_setting("features", "not json")
         self.assertEqual(features.get(self.svc.store),
-                         {"templates": True, "networkMap": True, "gitops": True, "systemContainers": False})
+                         {"templates": True, "networkMap": True, "gitops": True, "systemContainers": False, "confirmComposeWarnings": True})
 
     async def test_a_feature_that_is_off_answers_404(self):
         await self.call("GET", "/templates", "viewer", expect=200)

@@ -101,3 +101,29 @@ describe("edit and recreate", () => {
     expect(await within(await dialog(/edit and recreate/i)).findByText(/could not load the current configuration/i)).toBeInTheDocument();
   });
 });
+
+describe("a container that goes away", () => {
+  const stackCtr = { ...lone, Name: "/shop-web-1", Config: { ...lone.Config, Labels: { "com.docker.compose.project": "shop", "com.docker.compose.service": "web" } } };
+
+  it("goes back to its workload when it disappears while open", async () => {
+    let gone = false;
+    renderApp(URL, { api: { ...base,
+      "GET /hosts/:h/containers/:id": () => (gone ? reply(404, { error: "no such container" }) : stackCtr) } as never });
+    await within(pageRoot()).findAllByText("shop-web-1", {}, { timeout: 10_000 });
+    gone = true; // the page polls it: the next answer is a 404
+    // The fixtures' shop project is the d-shop deployment.
+    await waitFor(() => expect(currentPath()).toBe("/workloads/dep~d-shop"), { timeout: 9000 });
+    await toast(/shop-web-1 is gone/i);
+  }, 15_000);
+
+  it("opens the workload after updating a swarm task", async () => {
+    const { user } = renderApp(URL, { api: { ...base, "GET /hosts/:h/containers/:id": stackCtr,
+      "GET /hosts/:h/updates": [{ containerId: ID, containerName: "shop-web-1", image: "nginx:1", updateAvailable: true, checkedAt: "t" }],
+      "POST /hosts/:h/containers/:id/update": { id: "", name: "shop_web", image: "nginx:1", swarmService: "svc1", outcome: "updated" } } as never });
+    await within(pageRoot()).findAllByText("shop-web-1", {}, { timeout: 10_000 });
+    await user.click((await screen.findAllByRole("button", { name: /^update/i }))[0]);
+    await press(user, /pull and recreate/i, await dialog(/update shop-web-1/i));
+    await waitFor(() => expect(currentPath()).toBe("/workloads/dep~d-shop"), { timeout: 5000 });
+  });
+});
+

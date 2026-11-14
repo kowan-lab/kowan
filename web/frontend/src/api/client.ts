@@ -2093,8 +2093,19 @@ export async function scanPortainer(connectionId: string): Promise<import("../ty
 export async function scanComposeFolder(files: Record<string, string>): Promise<import("../types").ImportCandidate[]> {
   return (await api.post<import("../types").ImportCandidate[]>("/import/compose/scan", { files })).data;
 }
-export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; variables?: import("../types").KeyValue[] }[]): Promise<import("../types").ImportResult[]> {
+export async function applyImport(items: { name: string; host: string; strategy: string; compose?: string; git?: import("../types").ImportCandidate["git"]; variables?: import("../types").KeyValue[];
+  type?: "compose" | "container"; spec?: import("../types").ContainerSpec; deploy?: boolean }[]): Promise<import("../types").ImportResult[]> {
   return (await api.post<import("../types").ImportResult[]>("/import/apply", { items })).data;
+}
+
+/** Workloads Kowan only discovered, to migrate (no Portainer needed). */
+export async function listMigratable(): Promise<import("../types").MigratableWorkload[]> {
+  return (await api.get<import("../types").MigratableWorkload[]>("/import/docker")).data ?? [];
+}
+
+/** What migrating one would create: its original compose files, or one rebuilt from its containers. */
+export async function scanMigrate(workload: string): Promise<import("../types").MigrateCandidate> {
+  return (await api.post<import("../types").MigrateCandidate>("/import/docker/scan", { workload })).data;
 }
 
 // ---------------------------------------------------------------------------

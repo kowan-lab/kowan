@@ -794,7 +794,9 @@ async def update_swarm_service(svc: Any, ops: Any, labels: Dict[str, str], image
 
     service_id = swarm_service_of(labels)
     service = labels.get(SWARM_SERVICE_NAME_LABEL) or service_id[:12]
-    base: Dict[str, Any] = {"id": service_id, "name": service, "image": image}
+    # "id" stays the container's: the page that asked follows the workload,
+    # since swarm replaces the task with a container of a new id.
+    base: Dict[str, Any] = {"id": "", "name": service, "image": image, "swarmService": service_id}
     insecure = await _insecure_registries(ops)
     try:
         remote = await _remote_digest(svc.store, ref, registry_insecure(ref.registry, insecure))
