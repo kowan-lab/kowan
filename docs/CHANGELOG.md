@@ -2,6 +2,15 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.18 — 2026-11-14
+
+- **A plain-HTTP registry is recognised again.** Saving a registry written as `https://` that only answers over HTTP now says to write it as `http://`, also on systems with a newer OpenSSL, where the check used to fail with a TLS error.
+
+### Other changes
+
+- **Dependencies updated:** pydantic 2.14.3, markdown 3.10.3, tzdata 2026.6, and the frontend libraries.
+- **A sign-in test no longer fails at random.**
+
 ## 0.1.17 — 2026-11-14
 
 - **Migrate what already runs, straight from Docker.** A stack or container Kowan only discovered becomes a Kowan deployment, with no Portainer needed: use **Migrate to Kowan** on the workload, or **Import → From Docker**. Kowan reads a Compose stack's original files on its host, or rebuilds the file from the containers. A lone container keeps its own settings. Keeping the name lets a deploy take over what runs, with the same volumes.
