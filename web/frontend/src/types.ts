@@ -1644,6 +1644,40 @@ export interface WorkloadResources {
   growth: MemoryTrend | null;
 }
 
+/** One workload's use of a host over the chosen range. CPU is a share of the host (100 = every core). */
+export interface HostWorkloadUsage {
+  workload: string;
+  cpu: number;
+  cpuMax: number;
+  cpuNow: number;
+  mem: number;
+  memMax: number;
+  memNow: number;
+  containers: number;
+}
+
+export interface HostResources {
+  hours: number;
+  hostId: string;
+  times: string[];
+  /** Biggest memory users first. */
+  workloads: HostWorkloadUsage[];
+  /** The biggest by memory and by CPU, aligned with `times`. */
+  series: { workload: string; cpu: number[]; mem: number[] }[];
+  /** Everything else, summed. */
+  other: { cpu: number[]; mem: number[] };
+}
+
+export interface ContainerResources {
+  hours: number;
+  members: {
+    /** Container name, or service.slot for a swarm task. */
+    member: string;
+    hostId: string;
+    points: { time: string; cpu: number; cpuMax: number; mem: number; memMax: number }[];
+  }[];
+}
+
 export interface PromotionPlan {
   target: { id: string; name: string };
   changes: { what: string; from: string; to: string }[];

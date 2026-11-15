@@ -13,7 +13,7 @@ export interface LineSeries {
   color?: Color;
 }
 
-const AUTO: Color[] = ["primary", "green", "amber", "purple", "rose", "cyan", "orange", "teal"];
+export const AUTO: Color[] = ["primary", "green", "amber", "purple", "rose", "cyan", "orange", "teal"];
 const PAD = { top: 10, right: 12, bottom: 22, left: 40 };
 
 function niceMax(v: number): number {
@@ -30,7 +30,7 @@ function fmt(v: number, unit?: string): string {
 }
 
 export function LineChart({
-  labels, series, height = 220, yMin = 0, yMax, unit, step = false, area = false, legend, className, style,
+  labels, series, height = 220, yMin = 0, yMax, unit, step = false, area = false, stacked = false, legend, className, style,
 }: {
   labels: string[];
   series: LineSeries[];
@@ -40,6 +40,9 @@ export function LineChart({
   unit?: string;
   step?: boolean;
   area?: boolean;
+  /** Each series sits on top of the ones before it (filled bands); the
+   *  tooltip still shows each series' own value. */
+  stacked?: boolean;
   legend?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -59,7 +62,13 @@ export function LineChart({
   const showLegend = legend ?? series.length > 1;
   const legendH = showLegend ? 18 : 0;
   const n = Math.max(...series.map((s) => s.data.length), labels.length, 0);
-  const top = yMax ?? niceMax(Math.max(1, ...series.flatMap((s) => s.data)));
+  // What is drawn: the running sum when stacked, the values otherwise.
+  const plotted = useMemo(() => {
+    if (!stacked) return series.map((s) => s.data);
+    const acc: number[] = [];
+    return series.map((s) => s.data.map((v, i) => (acc[i] = (acc[i] ?? 0) + v)));
+  }, [series, stacked]);
+  const top = yMax ?? niceMax(Math.max(1, ...plotted.flatMap((d) => d)));
   const innerW = Math.max(0, width - PAD.left - PAD.right);
   const innerH = Math.max(0, height - PAD.top - PAD.bottom - legendH);
   const x = (i: number) => PAD.left + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
@@ -67,20 +76,28 @@ export function LineChart({
 
   const paths = useMemo(
     () =>
-      series.map((s) => {
+      plotted.map((data, si) => {
         let d = "";
-        s.data.forEach((v, i) => {
+        data.forEach((v, i) => {
           const px = x(i).toFixed(1);
           const py = y(v).toFixed(1);
           if (i === 0) d = `M${px},${py}`;
           else if (step) d += `H${px}V${py}`;
           else d += `L${px},${py}`;
         });
-        const fill = d && area ? `${d}L${x(s.data.length - 1).toFixed(1)},${y(yMin).toFixed(1)}L${x(0).toFixed(1)},${y(yMin).toFixed(1)}Z` : "";
+        let fill = "";
+        if (d && stacked) {
+          // The band between this series and the one below it.
+          const below = si > 0 ? plotted[si - 1] : data.map(() => yMin);
+          const back = below.map((v, i) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).reverse().join("");
+          fill = `${d}${back}Z`;
+        } else if (d && area) {
+          fill = `${d}L${x(data.length - 1).toFixed(1)},${y(yMin).toFixed(1)}L${x(0).toFixed(1)},${y(yMin).toFixed(1)}Z`;
+        }
         return { d, fill };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [series, width, height, top, step, area, n, legendH],
+    [plotted, width, height, top, step, area, stacked, n, legendH],
   );
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => yMin + t * (top - yMin));
@@ -131,7 +148,7 @@ export function LineChart({
           {hover !== null && (
             <g pointerEvents="none">
               <line x1={x(hover)} x2={x(hover)} y1={PAD.top + legendH} y2={PAD.top + legendH + innerH} stroke="var(--muted-foreground)" strokeDasharray="2 2" />
-              {series.map((s, i) => (s.data[hover] !== undefined ? <circle key={s.name} cx={x(hover)} cy={y(s.data[hover])} r={3} fill="var(--card)" stroke={colors[i]["--t-solid"]} strokeWidth={1.5} /> : null))}
+              {series.map((s, i) => (s.data[hover] !== undefined ? <circle key={s.name} cx={x(hover)} cy={y(plotted[i][hover])} r={3} fill="var(--card)" stroke={colors[i]["--t-solid"]} strokeWidth={1.5} /> : null))}
             </g>
           )}
         </svg>

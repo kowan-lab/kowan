@@ -31,6 +31,20 @@ CREATE TABLE IF NOT EXISTS workload_metrics (
     PRIMARY KEY (workload, host_id, time)
 );
 CREATE INDEX IF NOT EXISTS idx_workload_metrics_time ON workload_metrics (time);
+-- The same per container of a workload: "member" is the container name, or
+-- service.slot for a swarm task (stable across task replacements).
+CREATE TABLE IF NOT EXISTS container_metrics (
+    workload TEXT NOT NULL,
+    host_id  TEXT NOT NULL,
+    member   TEXT NOT NULL,
+    time     TEXT NOT NULL,
+    cpu_avg  REAL NOT NULL DEFAULT 0,
+    cpu_max  REAL NOT NULL DEFAULT 0,
+    mem_avg  INTEGER NOT NULL DEFAULT 0,
+    mem_max  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (workload, host_id, member, time)
+);
+CREATE INDEX IF NOT EXISTS idx_container_metrics_time ON container_metrics (time);
 -- The labels of a workload's containers, for access checks on its history.
 CREATE TABLE IF NOT EXISTS workload_meta (
     workload TEXT NOT NULL,
@@ -39,6 +53,8 @@ CREATE TABLE IF NOT EXISTS workload_meta (
     PRIMARY KEY (workload, host_id)
 );
 """
+
+_MEMBER_COLS = ("workload", "host_id", "member", "time", "cpu_avg", "cpu_max", "mem_avg", "mem_max")
 
 _COLS = ("workload", "host_id", "time", "samples", "containers", "cpu_avg", "cpu_max", "mem_avg", "mem_max",
          "mem_limit", "net_rx", "net_tx")
@@ -58,6 +74,54 @@ class _WorkloadMetricMixin(_Base):
                 batch,
             )
             self._conn.commit()
+
+    def add_container_metrics(self, rows: Iterable[Dict[str, Any]]) -> None:
+        batch = [tuple(r[c] for c in _MEMBER_COLS) for r in rows]
+        if not batch:
+            return
+        with self._lock:
+            self._conn.executemany(
+                f"INSERT OR REPLACE INTO container_metrics ({', '.join(_MEMBER_COLS)}) "
+                f"VALUES ({', '.join('?' * len(_MEMBER_COLS))})",
+                batch,
+            )
+            self._conn.commit()
+
+    def list_container_metrics(self, workload: str, since: str, hours: float = 24) -> List[Dict[str, Any]]:
+        """One series per container of a workload (``member`` on ``hostId``),
+        on the workload's own time axis. Hourly over two days."""
+        bucket = "substr(time, 1, 13) || ':00:00Z'" if hours > _HOURLY_AFTER_HOURS else "time"
+        rows = self._query(
+            f"SELECT {bucket} AS t, host_id, member, AVG(cpu_avg) AS cpu, MAX(cpu_max) AS cpu_max, "
+            "CAST(AVG(mem_avg) AS INTEGER) AS mem, MAX(mem_max) AS mem_max "
+            "FROM container_metrics WHERE workload = ? AND time >= ? GROUP BY t, host_id, member ORDER BY t",
+            (workload, since),
+        )
+        out: Dict[tuple, Dict[str, Any]] = {}
+        for r in rows:
+            m = out.setdefault((r["host_id"], r["member"]), {"member": r["member"], "hostId": r["host_id"], "points": []})
+            m["points"].append({"time": r["t"], "cpu": round(r["cpu"], 2), "cpuMax": round(r["cpu_max"], 2),
+                                "mem": r["mem"], "memMax": r["mem_max"]})
+        return list(out.values())
+
+    def host_workload_usage(self, host_id: str, since: str, hours: float = 24) -> List[Dict[str, Any]]:
+        """``(time, workload, cpu, mem)`` of every workload on a host, bucketed
+        like the workload history: the input of the host breakdown."""
+        bucket = "substr(time, 1, 13) || ':00:00Z'" if hours > _HOURLY_AFTER_HOURS else "time"
+        rows = self._query(
+            f"SELECT {bucket} AS t, workload, AVG(cpu_avg) AS cpu, MAX(cpu_max) AS cpu_max, "
+            "CAST(AVG(mem_avg) AS INTEGER) AS mem, MAX(mem_max) AS mem_max, MAX(containers) AS containers "
+            "FROM workload_metrics WHERE host_id = ? AND time >= ? GROUP BY t, workload ORDER BY t",
+            (host_id, since),
+        )
+        return [dict(r) for r in rows]
+
+    def host_workload_labels(self, host_id: str) -> Dict[str, Dict[str, str]]:
+        rows = self._query("SELECT workload, labels FROM workload_meta WHERE host_id = ?", (host_id,))
+        return {r["workload"]: json.loads(r["labels"] or "{}") for r in rows}
+
+    def prune_container_metrics(self, before: str) -> int:
+        return self._execute("DELETE FROM container_metrics WHERE time < ?", (before,)).rowcount
 
     def set_workload_labels(self, workload: str, host_id: str, labels: Dict[str, str]) -> None:
         self._execute(

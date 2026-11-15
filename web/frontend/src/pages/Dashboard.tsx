@@ -15,6 +15,7 @@ import { containerName, errorMessage } from "../utils";
 import { notify } from "../ui/toast";
 import { OverviewHeader, SumItem } from "../components/overview/OverviewHeader";
 import { HostResources, OfflineBanner } from "../components/overview/HostFacts";
+import HostBreakdown from "../components/overview/HostBreakdown";
 import { HostsTable, type HostRow } from "../components/overview/HostsTable";
 import { NeedsYou, buildNeeds } from "../components/overview/NeedsYou";
 import { RecentFeed } from "../components/overview/RecentFeed";
@@ -179,6 +180,7 @@ export default function Overview() {
           canOperate={canOperate}
         />
       )}
+      {focus && <HostBreakdown hostId={focus.id} memTotal={systems[0]?.data?.memTotal} />}
       {!all && !focus && !hostsQuery.isLoading && (
         <section className={`${FRAME} flex flex-wrap items-center gap-[12px] px-[16px] py-[14px] text-[14px] leading-[20px]`}>
           <span>This host no longer exists.</span>

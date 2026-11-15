@@ -2131,6 +2131,16 @@ export async function getWorkloadResources(workload: string, hours: number): Pro
   return (await api.get<import("../types").WorkloadResources>(`/resource-history/${encodeURIComponent(workload)}`, { params: { hours } })).data;
 }
 
+/** What each workload of a host used over the last `hours`, and the series of the biggest. */
+export async function getHostResources(hostId: string, hours: number, top = 6): Promise<import("../types").HostResources> {
+  return (await api.get<import("../types").HostResources>(`/resource-history/host/${encodeURIComponent(hostId)}`, { params: { hours, top } })).data;
+}
+
+/** One series per container of a workload (the last 7 days at most). */
+export async function getWorkloadContainerResources(workload: string, hours: number): Promise<import("../types").ContainerResources> {
+  return (await api.get<import("../types").ContainerResources>(`/resource-history/${encodeURIComponent(workload)}/containers`, { params: { hours } })).data;
+}
+
 // ---------------------------------------------------------------------------
 // Imports
 // ---------------------------------------------------------------------------

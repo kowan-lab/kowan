@@ -27,6 +27,8 @@ log = logging.getLogger("kowan.monitor")
 
 BUCKET_SECS = 300
 KEEP_DAYS = 30
+# Per-container history is finer, so it is kept for a shorter time.
+KEEP_CONTAINER_DAYS = 7
 # The growth check looks at this window, needs at least MIN_POINTS buckets
 # spanning MIN_SPAN, a fit at least this good, and a rise of at least
 # MIN_GROWTH_BYTES and MIN_GROWTH_RATIO of the starting memory.
@@ -63,6 +65,24 @@ class _Acc:
     net_tx: int = 0
     labels: Dict[str, str] = field(default_factory=dict)
     name: str = ""
+
+
+@dataclass
+class _MemberAcc:
+    samples: int = 0
+    cpu_sum: float = 0.0
+    cpu_max: float = 0.0
+    mem_sum: int = 0
+    mem_max: int = 0
+
+
+def member_of(labels: Dict[str, str], name: str) -> str:
+    """A container's place in its workload: the name, or ``service.slot`` for a
+    swarm task, whose name ends in a task id that changes on every replacement."""
+    task = (labels or {}).get("com.docker.swarm.task.name", "")
+    if task and "." in task:
+        return task.rsplit(".", 1)[0]
+    return name
 
 
 def memory_trend(series: Sequence[Tuple[str, int, int, int]]) -> Optional[Dict[str, Any]]:
@@ -118,6 +138,7 @@ class WorkloadHistory:
         self._bus = bus
         self._bucket: Optional[int] = None
         self._acc: Dict[Tuple[str, str], _Acc] = {}
+        self._members: Dict[Tuple[str, str, str], _MemberAcc] = {}
 
     def observe(
         self, host_id: str, running: Dict[str, Container], stats: Dict[str, ContainerStats],
@@ -137,6 +158,12 @@ class WorkloadHistory:
                 continue
             name = (c.names[0] if c.names else cid).lstrip("/")
             workload, _, _ = workload_of(c.labels or {}, host_id, name, compose_deps)
+            m = self._members.setdefault((workload, host_id, member_of(c.labels or {}, name)), _MemberAcc())
+            m.samples += 1
+            m.cpu_sum += st.cpu_percent
+            m.cpu_max = max(m.cpu_max, st.cpu_percent)
+            m.mem_sum += int(st.mem_usage)
+            m.mem_max = max(m.mem_max, int(st.mem_usage))
             a = per.setdefault(workload, _Acc(labels=dict(c.labels or {}), name=name))
             a.containers += 1
             a.cpu_sum += st.cpu_percent
@@ -166,9 +193,16 @@ class WorkloadHistory:
              "mem_max": a.mem_max, "mem_limit": a.mem_limit, "net_rx": a.net_rx, "net_tx": a.net_tx}
             for (w, h), a in self._acc.items()
         ]
-        acc, self._acc = self._acc, {}
+        members = [
+            {"workload": w, "host_id": h, "member": m, "time": at, "cpu_avg": a.cpu_sum / a.samples,
+             "cpu_max": a.cpu_max, "mem_avg": a.mem_sum // a.samples, "mem_max": a.mem_max}
+            for (w, h, m), a in self._members.items() if a.samples
+        ]
+        acc, self._acc, self._members = self._acc, {}, {}
         try:
             self._store.add_workload_metrics(rows)
+            if hasattr(self._store, "add_container_metrics"):
+                self._store.add_container_metrics(members)
             for (w, h), a in acc.items():
                 self._store.set_workload_labels(w, h, a.labels)
         except Exception as err:  # noqa: BLE001 - history is best-effort
@@ -206,7 +240,10 @@ class WorkloadHistory:
 
     def prune(self, now: Optional[datetime] = None) -> int:
         now = now or datetime.now(timezone.utc)
-        return self._store.prune_workload_metrics(_rfc3339(now - timedelta(days=KEEP_DAYS)))
+        n = self._store.prune_workload_metrics(_rfc3339(now - timedelta(days=KEEP_DAYS)))
+        if hasattr(self._store, "prune_container_metrics"):
+            n += self._store.prune_container_metrics(_rfc3339(now - timedelta(days=KEEP_CONTAINER_DAYS)))
+        return n
 
     def _publish(self, a: Alert) -> None:
         if self._bus is None:

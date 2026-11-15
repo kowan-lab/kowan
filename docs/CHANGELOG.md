@@ -2,6 +2,11 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.20 — 2026-11-15
+
+- **See what uses a host.** The overview of a host has a new **What uses this host** card: each workload's memory or CPU stacked on a chart over 6 hours to 30 days, and a table of every workload with its use now, on average and at its peak.
+- **Resources per container.** A workload with several containers shows one line each for memory or CPU under its **Resources** card, so the replica or service that weighs more stands out. Swarm tasks keep their line when they are replaced. Kept 7 days.
+
 ## 0.1.19 — 2026-11-14
 
 - **Server settings move from variables to the web UI.** They apply at once, with no restart:

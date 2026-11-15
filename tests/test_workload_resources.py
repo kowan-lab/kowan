@@ -105,8 +105,15 @@ class TestHistory(unittest.TestCase):
         hourly = self.store.list_workload_metrics("ctr~local~web", at(-60), hours=72)
         self.assertEqual([p["time"] for p in hourly], ["2026-10-20T00:00:00Z"])
         self.assertEqual(hourly[0]["memMax"], 300 * MiB)
-        # Pruning drops old rows and the labels of workloads left without history.
-        self.assertEqual(self.h.prune(T0 + timedelta(days=31)), 4)
+        # Per container: one series per member, on the same buckets.
+        members = self.store.list_container_metrics("dep~d-shop", at(-60))
+        self.assertEqual([(m["member"], len(m["points"])) for m in members], [("shop-db-1", 1)])
+        web = self.store.list_container_metrics("ctr~local~web", at(-60))[0]["points"]
+        self.assertEqual([(p["mem"], p["memMax"], p["cpuMax"]) for p in web],
+                         [(150 * MiB, 200 * MiB, 30.0), (300 * MiB, 300 * MiB, 20.0)])
+        # Pruning drops old rows (4 workload rows, 4 container rows) and the
+        # labels of workloads left without history.
+        self.assertEqual(self.h.prune(T0 + timedelta(days=31)), 8)
         self.assertEqual(self.store.workload_hosts("dep~d1"), {})
 
     def test_cpu_across_hosts_stays_a_share_of_a_host(self):
@@ -156,6 +163,31 @@ class TestHistory(unittest.TestCase):
         self.assertIn("reaches its limit in about", self.store.list_alerts(1)[0].message)
 
 
+class TestBreakdown(unittest.TestCase):
+    def test_member_of_swarm_task_and_breakdown(self):
+        from kowan.api.workloadres import breakdown
+        from kowan.monitor.workloads import member_of
+
+        self.assertEqual(member_of({"com.docker.swarm.task.name": "app_web.3.abc123"}, "app_web.3.abc123"), "app_web.3")
+        self.assertEqual(member_of({}, "shop-db-1"), "shop-db-1")
+        rows = [
+            {"t": "t1", "workload": "a", "cpu": 10, "cpu_max": 12, "mem": 100, "mem_max": 120, "containers": 1},
+            {"t": "t2", "workload": "a", "cpu": 30, "cpu_max": 40, "mem": 300, "mem_max": 310, "containers": 2},
+            {"t": "t1", "workload": "b", "cpu": 50, "cpu_max": 50, "mem": 10, "mem_max": 10, "containers": 1},
+            {"t": "t2", "workload": "c", "cpu": 1, "cpu_max": 1, "mem": 5, "mem_max": 5, "containers": 1},
+        ]
+        out = breakdown(rows, top=1)
+        self.assertEqual(out["times"], ["t1", "t2"])
+        a = out["workloads"][0]
+        self.assertEqual((a["workload"], a["mem"], a["memMax"], a["memNow"], a["cpu"], a["containers"]), ("a", 200, 310, 300, 20.0, 2))
+        # b ran in t1 only: it averages over the whole range, and is the top CPU one.
+        b = next(w for w in out["workloads"] if w["workload"] == "b")
+        self.assertEqual((b["cpu"], b["cpuNow"], b["containers"]), (25.0, 0, 0))
+        self.assertEqual([s["workload"] for s in out["series"]], ["a", "b"])
+        self.assertEqual(out["other"], {"cpu": [0, 1.0], "mem": [0, 5]})
+        self.assertEqual(breakdown([], 6), {"times": [], "workloads": [], "series": [], "other": {"cpu": [], "mem": []}})
+
+
 class TestMonitorAndAPI(ServerCase):
     async def test_monitor_records_and_api_serves(self):
         self.engine.add_container("web", labels={"team": "web"})
@@ -176,6 +208,10 @@ class TestMonitorAndAPI(ServerCase):
         for params in ({"hours": "0"}, {"hours": "721"}, {"hours": "x"}):
             await self.call("GET", "/resource-history/ctr~local~web", params=params, expect=400)
         await self.call("GET", "/resource-history/nope", expect=400)
+        _, per = await self.call("GET", "/resource-history/ctr~local~web/containers", "viewer", expect=200)
+        self.assertEqual([m["member"] for m in per["members"]], ["web"])
+        _, host = await self.call("GET", "/resource-history/host/local", "viewer", expect=200)
+        self.assertEqual({w["workload"] for w in host["workloads"]}, {"ctr~local~web", "ctr~local~other"})
 
         # A team-scoped viewer only reads its own workloads.
         _, users = await self.call("GET", "/users")
@@ -186,6 +222,10 @@ class TestMonitorAndAPI(ServerCase):
                                                   "target": "team=web", "level": "read"}, expect=201)
         await self.call("GET", "/resource-history/ctr~local~web", "viewer", expect=200)
         await self.call("GET", "/resource-history/ctr~local~other", "viewer", expect=403)
+        await self.call("GET", "/resource-history/ctr~local~other/containers", "viewer", expect=403)
+        # The host breakdown leaves out what the viewer may not read.
+        _, host = await self.call("GET", "/resource-history/host/local", "viewer", expect=200)
+        self.assertEqual([w["workload"] for w in host["workloads"]], ["ctr~local~web"])
         _, dep = await self.call("POST", "/deployments", json={
             "name": "api", "type": "container", "strategy": "standalone", "targets": ["local"],
             "spec": {"image": "nginx:1.27"}}, expect=201)

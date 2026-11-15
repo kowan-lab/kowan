@@ -4,8 +4,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Callout, LineChart, Tabs, Text } from "@/ui/kit";
-import { getWorkloadResources } from "../../api/client";
+import { AUTO, Callout, LineChart, Tabs, Text, toneVars } from "@/ui/kit";
+import { getWorkloadContainerResources, getWorkloadResources } from "../../api/client";
 import { formatBytes } from "../../utils";
 import type { MemoryTrend, WorkloadResourcePoint } from "../../types";
 import { Band } from "./ui";
@@ -156,7 +156,76 @@ export default function WorkloadResources({ workload }: { workload: string }) {
             {q.isLoading ? "Loading…" : "No history for this range yet. The monitor records CPU, memory and network every few minutes while the workload runs."}
           </Text>
         )}
+        {history && <PerContainer workload={workload} hours={h} />}
       </div>
     </Band>
+  );
+}
+
+/** Per-container history is kept for 7 days. */
+const CONTAINER_HOURS = 168;
+const MAX_LINES = 8;
+
+/** One line per container of the workload (service.slot for a swarm task),
+ *  so a single replica or service that weighs more stands out. */
+function PerContainer({ workload, hours }: { workload: string; hours: number }) {
+  const [metric, setMetric] = useState<"mem" | "cpu">("mem");
+  const h = Math.min(hours, CONTAINER_HOURS);
+  const q = useQuery({
+    queryKey: ["workload-containers", workload, h],
+    queryFn: () => getWorkloadContainerResources(workload, h),
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const members = q.data?.members ?? [];
+  if (members.length < 2) return null;
+
+  const times = [...new Set(members.flatMap((m) => m.points.map((p) => p.time)))].sort();
+  const at = new Map(times.map((t, i) => [t, i]));
+  const several = new Set(members.map((m) => m.hostId)).size > 1;
+  const ranked = members
+    .map((m) => {
+      const data = times.map(() => 0);
+      for (const p of m.points) data[at.get(p.time)!] = metric === "mem" ? Math.round(p.mem / MiB) : p.cpu;
+      return { name: several ? `${m.member} (${m.hostId.slice(0, 8)})` : m.member, data, total: data.reduce((a, v) => a + v, 0) };
+    })
+    .sort((a, b) => b.total - a.total);
+  const shown = ranked.slice(0, MAX_LINES).map((r, i) => ({ ...r, color: AUTO[i % AUTO.length] }));
+
+  return (
+    <div className="flex flex-col gap-[8px] pt-[8px] shadow-[inset_0_1px_0_var(--border)]">
+      <div className="flex flex-wrap items-center justify-between gap-[8px] pt-[8px]">
+        <span className="text-[12px] leading-[16px] text-muted-foreground">
+          Per container · {metric === "mem" ? "memory in MiB" : "CPU, share of the host"}
+          {hours > CONTAINER_HOURS ? " · last 7 days" : ""}
+          {ranked.length > MAX_LINES ? ` · the ${MAX_LINES} biggest of ${ranked.length}` : ""}
+        </span>
+        <Tabs variant="segmented" value={metric} onValueChange={(v) => setMetric(v as "mem" | "cpu")}>
+          <Tabs.List>
+            <Tabs.Trigger value="mem">Memory</Tabs.Trigger>
+            <Tabs.Trigger value="cpu">CPU</Tabs.Trigger>
+          </Tabs.List>
+        </Tabs>
+      </div>
+      {times.length < 2 ? (
+        <Text size="sm" color="muted">Recording per container: the lines appear after two 5-minute points.</Text>
+      ) : (
+      <LineChart
+        height={180}
+        unit={metric === "mem" ? "" : "%"}
+        legend={false}
+        labels={times.map((t) => pointLabel(t, h))}
+        series={shown.map(({ name, data, color }) => ({ name, data, color }))}
+      />
+      )}
+      <ul className="m-0 flex list-none flex-wrap gap-x-[16px] gap-y-[4px] p-0 text-[12px] leading-[16px]">
+        {shown.map((r) => (
+          <li key={r.name} className="flex min-w-0 items-center gap-[6px]">
+            <span aria-hidden className="size-[10px] shrink-0" style={{ background: (toneVars(r.color) as Record<string, string>)["--t-solid"] }} />
+            <span className="truncate font-mono">{r.name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
