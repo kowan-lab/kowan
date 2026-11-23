@@ -132,17 +132,24 @@ export function DeploymentWebhook({ deployment: d }: { deployment: Deployment })
   const isGit = d.type === "compose" && !!d.git?.repoUrl;
   const secret = d.git?.webhookSecret ?? "";
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["deployment", d.id] });
+  // Show the new token at once from the answer, then reload: the page may
+  // hold this deployment in the single query or in the list.
+  const refresh = (redeployToken: string) => {
+    qc.setQueryData<Deployment>(["deployment", d.id], (old) => (old ? { ...old, redeployToken } : old));
+    qc.setQueryData<Deployment[]>(["deployments"], (old) => old?.map((x) => (x.id === d.id ? { ...x, redeployToken } : x)));
+    void qc.invalidateQueries({ queryKey: ["deployment", d.id] });
+    void qc.invalidateQueries({ queryKey: ["deployments"] });
+  };
   const create = useMutation({
     mutationFn: () => createDeployHook(d.id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       notify({
         color: "green",
         title: token ? "Webhook rotated" : "Webhook created",
         message: token ? "The old URL no longer works. Update it wherever it is used." : "POST to the URL to redeploy.",
       });
       setConfirmRotate(false);
-      refresh();
+      refresh(res.token);
     },
     onError: (err) => notify({ color: "red", title: "Webhook failed", message: errorMessage(err, "Could not create the webhook") }),
   });
@@ -150,7 +157,7 @@ export function DeploymentWebhook({ deployment: d }: { deployment: Deployment })
     mutationFn: () => deleteDeployHook(d.id),
     onSuccess: () => {
       notify({ color: "gray", title: "Webhook removed", message: "The URL no longer redeploys this deployment." });
-      refresh();
+      refresh("");
     },
     onError: (err) => notify({ color: "red", title: "Remove failed", message: errorMessage(err, "Could not remove the webhook") }),
   });

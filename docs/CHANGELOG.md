@@ -2,6 +2,12 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.25 — 2026-11-23
+
+- **Kowan no longer slows down under constant Docker events.** Healthchecks send an event every few seconds for every container; each one reloaded the open lists, and a swarm stack's page reloaded every host, so a busy fleet kept the server busy without a pause. Events that change nothing are now ignored, they are batched each second, and a reload in progress is let finish.
+- **No more false image updates after a redeploy.** When an image was pushed and redeployed, Kowan compared the new container with the registry digest it had read before the push, and kept reporting an update. A container created after the last registry lookup is now checked again.
+- **A new redeploy webhook shows at once.** Creating, rotating or removing a deployment's webhook updates its card straight from the answer, without reloading the page.
+
 ## 0.1.24 — 2026-11-23
 
 - **See why a swarm service does not start.** A swarm deployment's page asks the manager for tasks that should run but have no container yet, such as a task pending because no node fits, and shows each one under its service with the swarm's reason.

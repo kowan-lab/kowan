@@ -251,6 +251,8 @@ class CacheEntry:
     error: str
     checked_at: str
     stored: float
+    # Wall-clock time of the lookup, to compare with a container's creation.
+    at: float = 0.0
 
 
 class DigestCache:
@@ -289,7 +291,7 @@ class DigestCache:
         # ref ever checked (old tags, removed images) would stay in memory.
         for k in [k for k, old in self._entries.items() if now - old.stored > (self.error_ttl if old.error else self.ttl)]:
             del self._entries[k]
-        e = CacheEntry(digest=digest, error=error, checked_at=now_rfc3339(), stored=now)
+        e = CacheEntry(digest=digest, error=error, checked_at=now_rfc3339(), stored=now, at=time.time())
         self._entries[key] = e
         return e
 
@@ -297,13 +299,15 @@ class DigestCache:
         self._entries.pop(key, None)
 
     async def resolve(
-        self, key: str, fetch: Callable[[], Awaitable[str]], refresh: bool = False
+        self, key: str, fetch: Callable[[], Awaitable[str]], refresh: bool = False, since: float = 0.0
     ) -> CacheEntry:
         """Return the cached entry for ``key`` or run ``fetch`` (once, even under
-        concurrent callers). A ``fetch`` exception is cached as an error entry."""
+        concurrent callers). A ``fetch`` exception is cached as an error entry.
+        An entry older than ``since`` (epoch seconds: a container created after
+        the lookup, from an image pushed since) is looked up again."""
         if not refresh:
             cached = self.get(key)
-            if cached is not None:
+            if cached is not None and cached.at >= since:
                 return cached
         pending = self._inflight.get(key)
         if pending is not None:
@@ -557,7 +561,7 @@ async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCac
                 return row
             # Swarm pins the tag of a service to the digest it had at deploy
             # time: the service is behind when the tag now serves another one.
-            entry = await cache.resolve(ref.key, fetch, refresh=refresh)
+            entry = await cache.resolve(ref.key, fetch, refresh=refresh, since=float(getattr(c, "created", 0) or 0))
             row["checkedAt"] = entry.checked_at
             row["remoteDigest"] = entry.digest
             row["updateAvailable"] = bool(entry.digest) and entry.digest != ref.digest
@@ -576,7 +580,7 @@ async def check_host(svc: Any, ops: Any, refresh: bool = False, cache: DigestCac
             row["error"] = "local image (no registry digest)"
             return row
 
-        entry = await cache.resolve(ref.key, fetch, refresh=refresh)
+        entry = await cache.resolve(ref.key, fetch, refresh=refresh, since=float(getattr(c, "created", 0) or 0))
         row["checkedAt"] = entry.checked_at
         row["remoteDigest"] = entry.digest
         local, avail = compare_digests(repo_digests, ref, entry.digest)

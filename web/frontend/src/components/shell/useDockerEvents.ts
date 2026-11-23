@@ -20,6 +20,14 @@ const FAMILIES: Record<string, string[]> = {
   network: ["networks", "network-inspect"],
 };
 
+/** Container events that change nothing a list shows: healthchecks alone send
+ *  exec_* every few seconds per container, which on a busy fleet would keep the
+ *  lists reloading without a pause. */
+export function changesNothing(type: string | undefined, action: string | undefined): boolean {
+  if (type !== "container" || !action) return false;
+  return action.startsWith("exec_") || ["attach", "detach", "resize", "top", "archive-path", "extract-to-dir", "export", "copy"].includes(action);
+}
+
 export function useDockerEvents(): void {
   const qc = useQueryClient();
   const hosts = useHosts();
@@ -53,16 +61,21 @@ export function useDockerEvents(): void {
       timer.current = null;
       const fams = [...pending.current];
       pending.current.clear();
-      void qc.invalidateQueries({
-        predicate: (q) => {
-          const head = String(q.queryKey[0]);
-          return fams.some((f) => head === f || head.startsWith(`${f}:`));
+      // A reload already in flight is left to finish: restarting it on every
+      // event would never let it complete.
+      void qc.invalidateQueries(
+        {
+          predicate: (q) => {
+            const head = String(q.queryKey[0]);
+            return fams.some((f) => head === f || head.startsWith(`${f}:`));
+          },
         },
-      });
+        { cancelRefetch: false },
+      );
     };
     const schedule = (fams: string[]) => {
       for (const f of fams) pending.current.add(f);
-      if (timer.current === null) timer.current = window.setTimeout(flush, 250);
+      if (timer.current === null) timer.current = window.setTimeout(flush, 1000);
     };
     // Lists poll fast unless Docker events push their changes.
     const updateLive = () => setEventsLive(docker && open.size === ids.length);
@@ -78,12 +91,13 @@ export function useDockerEvents(): void {
       };
       ws.onmessage = (m) => {
         try {
-          const ev = JSON.parse(m.data as string) as { type?: string };
+          const ev = JSON.parse(m.data as string) as { type?: string; action?: string };
           // Progress of an image pull (kowan/docker/pulls.py), not a Docker event.
           if (ev.type === "pull") {
             recordPull(ev as PullProgress);
             return;
           }
+          if (changesNothing(ev.type, ev.action)) return;
           const fams = FAMILIES[ev.type ?? ""];
           if (fams) schedule(fams);
         } catch {

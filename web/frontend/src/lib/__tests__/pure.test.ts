@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Deployment } from "../../types";
 import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge, superseded, composeServices } from "../apps";
 import { buildNeeds } from "../../components/overview/NeedsYou";
+import { changesNothing } from "../../components/shell/useDockerEvents";
 import { trouble } from "../../components/overview/model";
 import { MAX_REPLICAS, scaledInput, scaleRule } from "../scale";
 import { containerOrigin, isManaged, serviceOf, stackOf } from "../containerOrigin";
@@ -334,5 +335,17 @@ describe("formatting and misc", () => {
     const out = applyComposePatch(text, [{ op: "set", path: ["services", "web", "restart"], value: "unless-stopped" }] as never);
     expect(out).toContain("restart: unless-stopped");
     expect(applyComposePatch("not: [valid", [{ op: "set", path: ["a"], value: 1 }] as never)).toBeNull();
+  });
+});
+
+describe("docker events that reload the lists", () => {
+  it("skips healthcheck execs and other no-op container events", () => {
+    expect(changesNothing("container", "exec_start")).toBe(true);
+    expect(changesNothing("container", "exec_die")).toBe(true);
+    expect(changesNothing("container", "attach")).toBe(true);
+    expect(changesNothing("container", "die")).toBe(false);
+    expect(changesNothing("container", "health_status")).toBe(false);
+    expect(changesNothing("image", "pull")).toBe(false);
+    expect(changesNothing("container", undefined)).toBe(false);
   });
 });

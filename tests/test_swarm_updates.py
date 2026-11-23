@@ -77,6 +77,26 @@ class TestHelpers(unittest.TestCase):
         self.assertFalse(registry_insecure("10.175.0.1:5000", ["not-a-cidr/x"]))
 
 
+class TestCacheVersusNewContainers(unittest.TestCase):
+    def test_a_container_newer_than_the_lookup_is_checked_again(self):
+        # The image was pushed and redeployed after the cached lookup: the old
+        # registry digest must not report the new task as behind.
+        cache = DigestCache()
+        answers = iter([OLD, NEW])
+
+        async def fetch():
+            return next(answers)
+
+        async def run():
+            first = await cache.resolve("reg.lan:5000/web:1", fetch)
+            same = await cache.resolve("reg.lan:5000/web:1", fetch, since=first.at - 60)
+            again = await cache.resolve("reg.lan:5000/web:1", fetch, since=first.at + 60)
+            return first, same, again
+
+        first, same, again = asyncio.run(run())
+        self.assertEqual((first.digest, same.digest, again.digest), (OLD, OLD, NEW))
+
+
 class TestSwarmCheck(unittest.TestCase):
     def rows(self, containers, remote=NEW, insecure=()):
         seen = []
