@@ -23,7 +23,7 @@ export function useHostScopedList<T>(
   base: string,
   hostId: string,
   fetchOne: (hostId: string) => Promise<T[]>,
-  opts?: { refetchInterval?: number | (() => number) },
+  opts?: { refetchInterval?: number | (() => number); enabled?: boolean },
 ) {
   const aggregated = isAllHosts(hostId);
 
@@ -71,7 +71,7 @@ export function useHostScopedList<T>(
     },
     // In aggregated mode, wait until the host list has loaded so the fan-out has
     // its targets.
-    enabled: !aggregated || !hostsQuery.isLoading,
+    enabled: (opts?.enabled ?? true) && (!aggregated || !hostsQuery.isLoading),
     refetchInterval: opts?.refetchInterval,
   });
 

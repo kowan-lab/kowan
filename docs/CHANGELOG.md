@@ -2,6 +2,10 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.23 — 2026-11-23
+
+- **A swarm deployment's page lists all its tasks.** The containers of a swarm stack on worker nodes now show on its page, not only those on the manager it targets.
+
 ## 0.1.22 — 2026-11-23
 
 - **Swarm nodes can pull from private registries.** Deploying a swarm stack now hands the registry credentials stored in Kowan to the nodes that pull its images (`docker stack deploy --with-registry-auth`), so a service placed on a worker no longer fails to pull.

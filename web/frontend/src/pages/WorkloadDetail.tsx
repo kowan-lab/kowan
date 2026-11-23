@@ -14,14 +14,15 @@ import {
   logsWebSocketURL,
 } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { useHost } from "../HostContext";
+import { ALL_HOSTS, useHost } from "../HostContext";
+import { useHostScopedList } from "../useHostScopedList";
 import { useHostName } from "../lib/hostsQuery";
 import { appHref, appIdForContainer, buildApps, containerCount, isReplaced, isSwarm, liveFirst, KIND_LABEL, parseAppId, servicesOf, composeServices, type App, type AppContainer, type AppIdParts } from "../lib/apps";
 import { errorStatus, LIVE_REFETCH_MS, liveUnlessGone } from "../lib/live";
 import { updateKey, useContainerUpdates } from "../lib/updates";
 import { notify } from "../ui/toast";
 import { errorMessage, formatDate, sortPorts, timeAgo } from "../utils";
-import type { DockerEvent } from "../types";
+import type { Container, DockerEvent } from "../types";
 import DeploymentActions from "../components/deployment/DeploymentActions";
 import DeploymentActivity from "../components/deployment/DeploymentActivity";
 import DeploymentHistory from "../components/deployment/DeploymentHistory";
@@ -60,6 +61,8 @@ type Tab = (typeof TABS)[number];
 
 const ICON = "size-[16px] shrink-0";
 
+const listAllContainers = (hostId: string) => listContainers(hostId, true);
+
 export default function AppDetail() {
   const { appId = "" } = useParams<{ appId: string }>();
   const parts = parseAppId(appId);
@@ -77,10 +80,8 @@ export default function AppDetail() {
   const host = parts?.kind === "deployment" ? depQ.data?.targets?.[0] ?? "" : parts?.hostId ?? "";
   const hostsQ = useQuery({ queryKey: ["hosts"], queryFn: listHosts });
   const hostName = useHostName();
-  const ctrsQ = useQuery({
-    // Same key as useHostScopedList's single-host list: one cache with the Containers page.
-    queryKey: ["containers:all", "host", host],
-    queryFn: () => listContainers(host, true),
+  // A swarm stack's tasks run on every node: read them all, not only the manager's.
+  const ctrsQ = useHostScopedList<Container>("containers:all", depQ.data?.strategy === "swarm" ? ALL_HOSTS : host, listAllContainers, {
     enabled: !!host,
     refetchInterval: LIVE_REFETCH_MS,
   });
