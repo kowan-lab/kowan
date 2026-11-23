@@ -251,6 +251,23 @@ class TestSwarm(ServiceCase):
             await self.s.destroy("d1")
 
 
+class TestSwarmStackTasks(ServiceCase):
+    async def test_tasks_are_found_by_stack_and_never_reconciled(self):
+        # A stack's tasks carry the stack and swarm service labels, not the compose ones.
+        self.save(dep(id="d2", name="am-flow", type="compose", strategy="swarm", spec=None, status="deployed",
+                      compose="services:\n  ui:\n    image: x\n"))
+        self.s._ops_for_host = lambda host_id: (self.host, SimpleNamespace(name="manager"))  # type: ignore[assignment]
+        self.host.containers = [Container(
+            id="t1", names=["/am-flow_ui.1.abc"], state="running", status="Up 1 hour",
+            labels={"com.docker.stack.namespace": "am-flow", "com.docker.swarm.service.name": "am-flow_ui"})]
+        [t] = await self.s.status("d2")
+        self.assertEqual((t.state, t.container_id), ("running", "t1"))
+        self.assertEqual([x.service for x in await self.s.services("d2", "h1")], ["ui"])
+        # The swarm keeps its replicas itself: even with nothing on the manager, no redeploy.
+        self.host.containers = []
+        self.assertFalse(await self.s._needs_reconcile(self.store.get_deployment("d2"), {}))
+
+
 class TestLifecycle(ServiceCase):
     async def test_destroy_paths(self):
         mine = Container(id="c1", names=["/app"], labels={"kowan.deployment.id": "d1"})

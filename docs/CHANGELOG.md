@@ -2,6 +2,12 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.21 — 2026-11-23
+
+- **Swarm deployments find their tasks.** After deploying a swarm stack, Kowan now sees its containers: the deployment shows as running with its services, instead of "not deployed".
+- **One workload per swarm stack.** Tasks running on the swarm's worker nodes belong to their Kowan deployment, instead of showing up as separate stacks on each node.
+- **Swarm stacks are no longer redeployed in a loop.** The swarm keeps its replicas itself, so Kowan leaves a swarm deployment alone.
+
 ## 0.1.20 — 2026-11-15
 
 - **See what uses a host.** The overview of a host has a new **What uses this host** card: each workload's memory or CPU stacked on a chart over 6 hours to 30 days, and a table of every workload with its use now, on average and at its peak.

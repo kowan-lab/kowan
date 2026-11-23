@@ -123,6 +123,20 @@ STATE_ERROR = "error"
 # name and the service name within the project. Used to discover/group
 # compose-managed containers for status reporting.
 COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
+# A swarm stack's tasks carry the stack and service, not the compose labels.
+SWARM_STACK_LABEL = "com.docker.stack.namespace"
+SWARM_SERVICE_LABEL = "com.docker.swarm.service.name"
+
+
+def _in_project(labels: Dict[str, str], project: str) -> bool:
+    """Whether a container belongs to compose project or swarm stack ``project``."""
+    return labels.get(COMPOSE_PROJECT_LABEL) == project or labels.get(SWARM_STACK_LABEL) == project
+
+
+def _service_of(labels: Dict[str, str], project: str) -> str:
+    """The compose service of a container, or the service of a swarm task
+    (its swarm name is ``<stack>_<service>``)."""
+    return labels.get(COMPOSE_SERVICE_LABEL) or labels.get(SWARM_SERVICE_LABEL, "").removeprefix(project + "_")
 COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
 
 
@@ -470,7 +484,11 @@ class DeploymentService:
         A host that cannot be reached (an agent updating, or not yet back after
         a server restart) says nothing about its containers: redeploying there
         would only fail and leave the deployment marked as errored.
+        A swarm stack is never redeployed: the swarm keeps its replicas itself,
+        and its tasks may all run on other nodes than the manager.
         """
+        if dep.strategy == DeploymentStrategySwarm:
+            return False
         targets = await self.status(dep.id, listings)
         if not targets:
             return False
@@ -1125,9 +1143,9 @@ class DeploymentService:
             seen: Dict[str, bool] = {}
             for c in containers:
                 labels = c.labels or {}
-                if labels.get(COMPOSE_PROJECT_LABEL) != dep.resource_name():
+                if not _in_project(labels, dep.resource_name()):
                     continue
-                svc_name = labels.get(COMPOSE_SERVICE_LABEL, "")
+                svc_name = _service_of(labels, dep.resource_name())
                 if svc_name == "" or seen.get(svc_name):
                     continue
                 seen[svc_name] = True
@@ -1144,9 +1162,7 @@ class DeploymentService:
         project label matching the resource name)."""
         for c in containers:
             labels = c.labels or {}
-            if labels.get(LabelDeploymentID) == dep.id:
-                return c
-            if labels.get(COMPOSE_PROJECT_LABEL) == dep.resource_name():
+            if labels.get(LabelDeploymentID) == dep.id or _in_project(labels, dep.resource_name()):
                 return c
         return None
 
@@ -1161,10 +1177,7 @@ class DeploymentService:
         ids: List[str] = []
         for c in containers:
             labels = c.labels or {}
-            if (
-                labels.get(LabelDeploymentID) == dep.id
-                or labels.get(COMPOSE_PROJECT_LABEL) == dep.resource_name()
-            ):
+            if labels.get(LabelDeploymentID) == dep.id or _in_project(labels, dep.resource_name()):
                 ids.append(c.id)
         return ids
 

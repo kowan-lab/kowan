@@ -173,8 +173,13 @@ function ownerDeployment(
   if (origin.kind === "deployment") return deployments?.find((d) => d.id === origin.deploymentId);
   const project = stackOf(labels);
   if (!project || !deployments) return undefined;
+  // A swarm stack's tasks run on any node of the cluster, not only its target.
+  const swarm = !!labels["com.docker.stack.namespace"];
   return deployments.find(
-    (d) => d.type === "compose" && (d.targets?.[0] ?? "") === hostId && resourceName(d) === project,
+    (d) =>
+      d.type === "compose" &&
+      resourceName(d) === project &&
+      (swarm ? d.strategy === "swarm" : (d.targets?.[0] ?? "") === hostId),
   );
 }
 
@@ -532,7 +537,7 @@ export function buildApps(opts: {
           id: appId({ kind: "deployment", deploymentId: d.id }),
           kind: "deployment",
           name: d.name,
-          hostIds: host ? [host] : [],
+          hostIds: [...new Set([...(host ? [host] : []), ...cs.map((c) => c.hostId)])],
           containers: sortCs,
           managed: true,
           deployment: d,

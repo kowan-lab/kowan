@@ -1,6 +1,7 @@
 // Pure helpers: workload grouping, ids and status text; log filters and
 // highlighting; formatting; safe redirects; container origin; small maps.
 import { describe, expect, it } from "vitest";
+import type { Deployment } from "../../types";
 import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge, superseded, composeServices } from "../apps";
 import { buildNeeds } from "../../components/overview/NeedsYou";
 import { trouble } from "../../components/overview/model";
@@ -182,6 +183,11 @@ describe("formatting and misc", () => {
       ["db", 1, "g", svcs[1].containers[0].label],
       ["web", 2, "r", "Degraded · 1/2"],
     ]);
+    // A Kowan swarm deployment owns its tasks on every node, not only on its target.
+    const onWorker = { ...swarm("mon_web.3.u", "web"), _hostId: "worker" };
+    const dep = { id: "d1", name: "mon", type: "compose", strategy: "swarm", targets: ["local"], compose: "" } as unknown as Deployment;
+    const owned = buildApps({ containers: [cs[0], onWorker], fallbackHost: "local", deployments: [dep], scopeHosts: null });
+    expect(owned.map((a) => [a.kind, a.total, a.hostIds])).toEqual([["deployment", 2, ["local", "worker"]]]);
     const [lone] = buildApps({ containers: [c({ names: ["/solo"] })], fallbackHost: "local", deployments: [], scopeHosts: null });
     expect(servicesOf(lone)).toBeNull();
   });

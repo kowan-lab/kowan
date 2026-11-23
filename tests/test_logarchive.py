@@ -57,7 +57,12 @@ class TestHelpers(unittest.TestCase):
         # deployment (namespace = its resource name) stays its deployment.
         swarm = {"com.docker.stack.namespace": "mon", "com.docker.swarm.service.name": "mon_grafana"}
         self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {}), ("stack~h~mon", "mon", ""))
-        self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {("h", "mon"): "d3"}), ("dep~d3", "mon", "d3"))
+        self.assertEqual(workload_of(swarm, "h", "mon_grafana.1.x", {("*", "mon"): "d3"}), ("dep~d3", "mon", "d3"))
+        # ... on any node of the swarm, not only the manager it targets.
+        self.assertEqual(workload_of(swarm, "worker", "mon_grafana.2.y", {("*", "mon"): "d3"}), ("dep~d3", "mon", "d3"))
+        # A compose project of the same name on another host stays its own.
+        self.assertEqual(workload_of({"com.docker.compose.project": "mon"}, "h", "n", {("*", "mon"): "d3"}),
+                         ("stack~h~mon", "mon", ""))
         # A swarm service outside any stack groups its tasks as its own stack.
         lone = {"com.docker.swarm.service.name": "wrapper"}
         self.assertEqual(workload_of(lone, "h", "wrapper.1.x", {}), ("stack~h~wrapper", "wrapper", ""))

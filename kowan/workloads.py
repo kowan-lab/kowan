@@ -23,11 +23,13 @@ def stack_of(labels: Dict[str, str]) -> str:
 
 def compose_deployments(store: Any) -> Dict[Tuple[str, str], str]:
     """``(host, compose project) -> deployment id`` for compose deployments,
-    whose containers carry the project label but not the deployment one."""
-    return {
-        (d.targets[0], d.resource_name()): d.id
-        for d in store.list_deployments() if d.type == "compose" and d.targets
-    }
+    whose containers carry the project label but not the deployment one. A
+    swarm stack's tasks run on any node, so it is keyed ``("*", stack)``."""
+    out: Dict[Tuple[str, str], str] = {}
+    for d in store.list_deployments():
+        if d.type == "compose" and d.targets:
+            out[("*" if d.strategy == "swarm" else d.targets[0], d.resource_name())] = d.id
+    return out
 
 
 def workload_of(labels: Dict[str, str], host_id: str, name: str, compose_deps: Dict[Tuple[str, str], str]) -> Tuple[str, str, str]:
@@ -36,7 +38,8 @@ def workload_of(labels: Dict[str, str], host_id: str, name: str, compose_deps: D
     dep = labels.get(LABEL_DEPLOYMENT, "")
     project = stack_of(labels)
     if not dep and project:
-        dep = compose_deps.get((host_id, project), "")
+        swarm = bool(labels.get(LABEL_SWARM_STACK))
+        dep = compose_deps.get(("*" if swarm else host_id, project), "")
     if dep:
         return f"dep~{dep}", project, dep
     if project:
