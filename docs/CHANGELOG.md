@@ -2,6 +2,10 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.22 — 2026-11-23
+
+- **Swarm nodes can pull from private registries.** Deploying a swarm stack now hands the registry credentials stored in Kowan to the nodes that pull its images (`docker stack deploy --with-registry-auth`), so a service placed on a worker no longer fails to pull.
+
 ## 0.1.21 — 2026-11-23
 
 - **Swarm deployments find their tasks.** After deploying a swarm stack, Kowan now sees its containers: the deployment shows as running with its services, instead of "not deployed".

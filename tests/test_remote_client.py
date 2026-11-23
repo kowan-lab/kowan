@@ -6,6 +6,8 @@ Every op, its arguments, results, streams and errors must survive the agent
 protocol, so the remote path behaves exactly like the local one."""
 
 import asyncio
+import base64
+import json
 import unittest
 
 from kowan import agentproto
@@ -93,8 +95,14 @@ class TestRemoteOnly(RemoteCase):
         try:
             await self.client.compose_up("shop", "services:\n  web:\n    image: nginx\n")
             await self.client.compose_down("shop")
-            await self.client.swarm_deploy("st", "services: {}\n")
+            token = base64.urlsafe_b64encode(json.dumps(
+                {"username": "u", "password": "p", "serveraddress": "https://reg.example.com/v2/"}).encode()).decode()
+            await self.client.swarm_deploy("st", "services: {}\n", [token])
             await self.client.swarm_remove("st")
+            stack = next(c for c in cli.calls() if c["argv"][:2] == ["stack", "deploy"])
+            # The nodes get the stored login: the CLI sends them its config's auths.
+            self.assertIn("--with-registry-auth", stack["argv"])
+            self.assertEqual(stack["dockerConfig"]["auths"]["reg.example.com"]["auth"], base64.b64encode(b"u:p").decode())
             argv = [c["argv"] for c in cli.calls()]
             self.assertTrue(any(a[:3] == ["compose", "-p", "shop"] for a in argv), argv)
             self.assertTrue(any(a[:2] == ["stack", "deploy"] for a in argv), argv)

@@ -26,8 +26,10 @@ for i, a in enumerate(argv):
             files[argv[i + 1]] = open(argv[i + 1]).read()
         except OSError:
             files[argv[i + 1]] = None
+cfg = os.path.join(os.environ.get("DOCKER_CONFIG", ""), "config.json")
+docker_config = json.load(open(cfg)) if os.environ.get("DOCKER_CONFIG") and os.path.exists(cfg) else None
 with open({log!r}, "a") as f:
-    f.write(json.dumps({{"argv": argv, "files": files}}) + "\n")
+    f.write(json.dumps({{"argv": argv, "files": files, "dockerConfig": docker_config}}) + "\n")
 code, out = 0, ""
 if os.path.exists({code!r}):
     spec = open({code!r}).read().split(" ", 1)

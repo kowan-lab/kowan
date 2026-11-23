@@ -1772,14 +1772,26 @@ class LocalClient(Ops):
             raise
         return _swarm_nodes_from_engine(raw)
 
-    async def swarm_deploy(self, stack: str, compose_yaml: str) -> str:
+    async def swarm_deploy(self, stack: str, compose_yaml: str, auths: Optional[List[str]] = None) -> str:
         path, cleanup = _write_temp_compose(compose_yaml)
+        config = tempfile.mkdtemp(prefix="kowan-docker-config-") if auths else ""
         try:
+            env = None
+            if config:
+                # The CLI sends the nodes the logins of its own config: give it
+                # Kowan's registry credentials on top of the host's.
+                with open(os.path.join(config, "config.json"), "w", encoding="utf-8") as f:
+                    json.dump(_docker_config_with(auths or []), f)
+                env = {**os.environ, "DOCKER_CONFIG": config}
             out, code = await _run_command(
-                "docker", "stack", "deploy", "-c", path, stack, "--detach=true"
+                "docker", "stack", "deploy", "-c", path, stack, "--detach=true", "--with-registry-auth", env=env
             )
         finally:
             cleanup()
+            if config:
+                import shutil
+
+                shutil.rmtree(config, ignore_errors=True)
         if code != 0:
             raise BadGateway(f"docker: stack deploy: {out}")
         return out
@@ -2903,6 +2915,36 @@ def _container_spec_from_inspect(insp: Dict[str, Any]) -> models.ContainerSpec:
 # ---------------------------------------------------------------------------
 # Compose temp-file helper
 # ---------------------------------------------------------------------------
+
+
+def _docker_config_with(auths: List[str]) -> Dict[str, Any]:
+    """The host CLI's config.json plus an ``auths`` entry per ``X-Registry-Auth``
+    token (base64 JSON with username/password or identitytoken and serveraddress)."""
+    base_dir = os.environ.get("DOCKER_CONFIG") or os.path.join(os.path.expanduser("~"), ".docker")
+    try:
+        with open(os.path.join(base_dir, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    entries = cfg.setdefault("auths", {})
+    for token in auths:
+        try:
+            data = json.loads(base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)))
+        except (ValueError, TypeError):
+            continue
+        server = re.sub(r"^https?://", "", str(data.get("serveraddress") or "")).split("/")[0]
+        if not server:
+            continue
+        if data.get("identitytoken"):
+            entries[server] = {"identitytoken": data["identitytoken"]}
+        elif data.get("username"):
+            raw = f"{data['username']}:{data.get('password', '')}".encode()
+            entries[server] = {"auth": base64.b64encode(raw).decode()}
+    # shortcut: a credsStore would hide these auths; drop it for this one run. Upgrade with credHelpers per server if a host relies on its store.
+    cfg.pop("credsStore", None)
+    return cfg
 
 
 def _write_temp_compose(compose_yaml: str):

@@ -51,7 +51,7 @@ class FakeHost:
         self._step("swarm_active")
         return "inactive_swarm" not in self.fail
 
-    async def swarm_deploy(self, stack, text):
+    async def swarm_deploy(self, stack, text, auths=None):
         self._step("swarm_deploy", stack, text)
 
     async def swarm_remove(self, stack):
@@ -266,6 +266,34 @@ class TestSwarmStackTasks(ServiceCase):
         # The swarm keeps its replicas itself: even with nothing on the manager, no redeploy.
         self.host.containers = []
         self.assertFalse(await self.s._needs_reconcile(self.store.get_deployment("d2"), {}))
+
+
+class TestStackAuth(ServiceCase):
+    async def test_stack_gets_the_logins_of_its_registries(self):
+        async def auth_for(store, image):
+            return {"reg.example.com/app:1": "tok-reg", "redis:7": ""}.get(image, "")
+        self.save(dep(id="d2", name="st", type="compose", strategy="swarm", spec=None,
+                      compose="services:\n  a:\n    image: reg.example.com/app:1\n  b:\n    image: redis:7\n"
+                              "  c:\n    image: reg.example.com/app:1\n"))
+        self.host.swarm_deploy = mock.AsyncMock()  # type: ignore[method-assign]
+        with mock.patch("kowan.registry.docker_auth_for", auth_for):
+            await self.s.deploy("d2")
+        self.assertEqual(self.host.swarm_deploy.await_args.args[2], ["tok-reg"])
+
+    def test_docker_config_merges_tokens(self):
+        import base64 as b64
+        import json as js
+
+        from kowan.docker.local import _docker_config_with
+
+        def tok(**d):
+            return b64.urlsafe_b64encode(js.dumps(d).encode()).decode().rstrip("=")
+        cfg = _docker_config_with([tok(username="u", password="p", serveraddress="reg.example.com:5000"),
+                                   tok(identitytoken="it", serveraddress="https://acr.example.com"),
+                                   tok(username="x"), "not-base64!"])
+        self.assertEqual(cfg["auths"]["reg.example.com:5000"], {"auth": b64.b64encode(b"u:p").decode()})
+        self.assertEqual(cfg["auths"]["acr.example.com"], {"identitytoken": "it"})
+        self.assertNotIn("credsStore", cfg)
 
 
 class TestLifecycle(ServiceCase):

@@ -18,7 +18,7 @@ same objects a ``LocalClient`` would return. Streaming ops
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .. import agentproto
 from ..models import (
@@ -427,9 +427,9 @@ class RemoteClient(Ops):
         meta = await self._call("list_swarm_nodes")
         return [SwarmNode.model_validate(m) for m in (meta or [])]
 
-    async def swarm_deploy(self, stack: str, compose_yaml: str) -> str:
+    async def swarm_deploy(self, stack: str, compose_yaml: str, auths: Optional[List[str]] = None) -> str:
         return await self._call(
-            "swarm_deploy", {"stack": stack, "compose": compose_yaml}
+            "swarm_deploy", {"stack": stack, "compose": compose_yaml, "auths": list(auths or [])}
         ) or ""
 
     async def swarm_remove(self, stack: str) -> str:

@@ -461,8 +461,10 @@ class Ops(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def swarm_deploy(self, stack: str, compose_yaml: str) -> str:
-        """Deploy a swarm stack (``docker stack deploy``); return combined output."""
+    async def swarm_deploy(self, stack: str, compose_yaml: str, auths: Optional[List[str]] = None) -> str:
+        """Deploy a swarm stack (``docker stack deploy --with-registry-auth``);
+        ``auths`` are ``X-Registry-Auth`` tokens of the stack's registries,
+        handed to the nodes that pull its images. Return combined output."""
         raise NotImplementedError
 
     @abc.abstractmethod

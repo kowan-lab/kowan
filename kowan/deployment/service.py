@@ -643,6 +643,18 @@ class DeploymentService:
             raise
         await self._record_target_error(dep.id, host_id, "")
 
+    async def _stack_auths(self, compose: str) -> List[str]:
+        """Registry logins for a stack's images: the nodes pull them, not the
+        manager, so they need the stored credentials handed over."""
+        from .promotion import compose_images
+
+        try:
+            images = set(compose_images(compose).values())
+        except Exception:  # noqa: BLE001 - the deploy reports a bad file
+            return []
+        auths = await asyncio.gather(*(registry.docker_auth_for(self.store, i) for i in images))
+        return sorted({a for a in auths if a})
+
     async def _deploy_swarm_target(self, dep: Deployment, host_id: str) -> None:
         """Deploy the swarm stack on the resolved manager host."""
         from .compose import synthesize_swarm_compose
@@ -681,7 +693,7 @@ class DeploymentService:
             raise Validation(f"resolve secrets for {dep.name!r}: {err}") from err
 
         try:
-            await ops.swarm_deploy(dep.resource_name(), compose)
+            await ops.swarm_deploy(dep.resource_name(), compose, await self._stack_auths(compose))
         except Exception as err:
             raise Validation(f"swarm deploy on host {host_id!r}: {err}") from err
 
