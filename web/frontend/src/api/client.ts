@@ -1262,6 +1262,21 @@ export async function deploymentStatus(
  * deployments this is a single entry; for compose deployments it is one entry
  * per compose service.
  */
+/** A swarm task that should run but has no running container: pending, rejected... */
+export interface WaitingTask {
+  service: string;
+  slot: number;
+  state: string;
+  message: string;
+  error: string;
+  since: string;
+}
+
+/** A swarm deployment's tasks waiting to run, with the swarm's reason. */
+export async function deploymentWaiting(id: string): Promise<WaitingTask[]> {
+  return (await api.get<WaitingTask[]>(`/deployments/${id}/waiting`)).data;
+}
+
 export async function deploymentServices(
   id: string,
   hostId: string,

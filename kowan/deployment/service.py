@@ -1125,6 +1125,17 @@ class DeploymentService:
                 t.state = STATE_NOT_DEPLOYED
         return [t]
 
+    async def waiting_tasks(self, dep_id: str) -> List[Dict[str, Any]]:
+        """A swarm deployment's tasks that should run but do not: pending
+        (no node fits yet), rejected, failed... with the swarm's reason. They
+        have no container, so the container lists cannot show them."""
+        dep = self.store.get_deployment(dep_id)
+        if dep.strategy != DeploymentStrategySwarm:
+            return []
+        ops, _ = self._ops_for_host(_swarm_target(dep))
+        tasks = await ops.swarm_tasks(dep.resource_name())
+        return [t for t in tasks if t.get("state") != "running"]
+
     # -- Services ------------------------------------------------------------
 
     async def services(

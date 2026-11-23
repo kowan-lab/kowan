@@ -84,6 +84,7 @@ def register(app: web.Application, svc) -> None:
     api_route(app, "GET", "/deployments/{id}", _get)
     api_route(app, "GET", "/deployments/{id}/status", _status)
     api_route(app, "GET", "/deployments/{id}/services", _services)
+    api_route(app, "GET", "/deployments/{id}/waiting", _waiting)
     api_route(app, "GET", "/deployments/{id}/logs", handle_logs)  # websocket
     api_route(app, "GET", "/deployments/{id}/revisions", _revisions)
     api_route(app, "GET", "/deployments/{id}/revisions/{n}", _revision)
@@ -367,6 +368,15 @@ async def _services(request: web.Request) -> web.Response:
 
     services = await _dep_svc(request).services(dep_id, host_id)
     return json_response(services or [])
+
+
+async def _waiting(request: web.Request) -> web.Response:
+    """GET /deployments/{id}/waiting -> swarm tasks that should run but have no
+    running container yet (pending, rejected...), with the swarm's reason."""
+    svc = _svc(request)
+    dep_id = request.match_info["id"]
+    _load(svc, dep_id)
+    return json_response(await _dep_svc(request).waiting_tasks(dep_id))
 
 
 # ---------------------------------------------------------------------------

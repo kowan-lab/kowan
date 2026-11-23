@@ -421,6 +421,9 @@ class RemoteClient(Ops):
     async def swarm_active(self) -> bool:
         return bool(await self._call("swarm_active"))
 
+    async def swarm_tasks(self, stack: str) -> List[Dict[str, Any]]:
+        return list(await self._call("swarm_tasks", {"stack": stack}) or [])
+
     async def list_swarm_nodes(self) -> List[Any]:
         from ..models import SwarmNode
 

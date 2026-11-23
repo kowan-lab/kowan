@@ -151,5 +151,43 @@ class TestLocalClientListSwarmNodes(unittest.TestCase):
             asyncio.run(client.list_swarm_nodes())
 
 
+
+class TestLocalClientSwarmTasks(unittest.TestCase):
+    def test_tasks_of_a_stack_with_their_reason(self):
+        import json as js
+        calls = []
+
+        async def fake(method, path, params=None, **kw):
+            calls.append((path, js.loads(params["filters"])))
+            if path == "/services":
+                return [{"ID": "s1", "Spec": {"Name": "flow_motion"}}, {"ID": "s2", "Spec": {"Name": "flow_ui"}}]
+            return [
+                {"ServiceID": "s1", "Slot": 1, "Status": {"State": "pending", "Message": "pending task scheduling",
+                                                          "Err": "no suitable node (port 10007 in use)", "Timestamp": "t"}},
+                {"ServiceID": "s2", "Slot": 1, "Status": {"State": "running", "Message": "started"}},
+            ]
+
+        client = LocalClient(socket_path="/nonexistent.sock")
+        client._request_json = fake  # type: ignore[assignment]
+        tasks = asyncio.run(client.swarm_tasks("flow"))
+        self.assertEqual(calls[0], ("/services", {"label": ["com.docker.stack.namespace=flow"]}))
+        self.assertEqual(calls[1][1], {"service": ["s1", "s2"], "desired-state": ["running"]})
+        self.assertEqual(tasks[0], {"service": "motion", "slot": 1, "state": "pending", "message": "pending task scheduling",
+                                    "error": "no suitable node (port 10007 in use)", "since": "t"})
+        self.assertEqual(tasks[1]["state"], "running")
+
+    def test_no_services_or_not_a_manager(self):
+        async def none(method, path, **kw):
+            return []
+
+        async def not_manager(method, path, **kw):
+            raise BadGateway("docker: GET /services: 503 This node is not a swarm manager")
+
+        client = LocalClient(socket_path="/nonexistent.sock")
+        client._request_json = none  # type: ignore[assignment]
+        self.assertEqual(asyncio.run(client.swarm_tasks("flow")), [])
+        client._request_json = not_manager  # type: ignore[assignment]
+        self.assertEqual(asyncio.run(client.swarm_tasks("flow")), [])
+
 if __name__ == "__main__":
     unittest.main()

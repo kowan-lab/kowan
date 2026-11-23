@@ -1772,6 +1772,32 @@ class LocalClient(Ops):
             raise
         return _swarm_nodes_from_engine(raw)
 
+    async def swarm_tasks(self, stack: str) -> List[Dict[str, Any]]:
+        label = json.dumps({"label": [f"com.docker.stack.namespace={stack}"]})
+        try:
+            services = await self._request_json("GET", "/services", params={"filters": label}) or []
+            if not services:
+                return []
+            names = {s.get("ID"): (s.get("Spec") or {}).get("Name", "") for s in services}
+            flt = json.dumps({"service": list(names), "desired-state": ["running"]})
+            tasks = await self._request_json("GET", "/tasks", params={"filters": flt}) or []
+        except BadGateway as exc:
+            if _is_not_swarm_manager(exc):
+                return []
+            raise
+        out: List[Dict[str, Any]] = []
+        for t in tasks:
+            st = t.get("Status") or {}
+            out.append({
+                "service": str(names.get(t.get("ServiceID"), "")).removeprefix(stack + "_"),
+                "slot": t.get("Slot") or 0,
+                "state": st.get("State", ""),
+                "message": st.get("Message", ""),
+                "error": st.get("Err", ""),
+                "since": st.get("Timestamp", ""),
+            })
+        return out
+
     async def swarm_deploy(self, stack: str, compose_yaml: str, auths: Optional[List[str]] = None) -> str:
         path, cleanup = _write_temp_compose(compose_yaml)
         config = tempfile.mkdtemp(prefix="kowan-docker-config-") if auths else ""

@@ -451,6 +451,13 @@ class Ops(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def swarm_tasks(self, stack: str) -> List[Dict[str, Any]]:
+        """The tasks a stack wants running (``service``, ``slot``, ``state``,
+        ``message``, ``error``, ``since``), including those still waiting for a
+        node, which have no container yet. Empty off a swarm manager."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def list_swarm_nodes(self) -> List[Any]:
         """List the swarm's nodes (a ``List[SwarmNode]``).
 

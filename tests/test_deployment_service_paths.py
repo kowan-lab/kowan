@@ -296,6 +296,18 @@ class TestStackAuth(ServiceCase):
         self.assertNotIn("credsStore", cfg)
 
 
+class TestWaitingTasks(ServiceCase):
+    async def test_only_tasks_not_running_of_a_swarm_deployment(self):
+        self.save(dep(id="d2", name="flow", type="compose", strategy="swarm", spec=None, compose="services: {}\n"))
+        self.host.swarm_tasks = mock.AsyncMock(return_value=[  # type: ignore[attr-defined]
+            {"service": "motion", "state": "pending", "error": "no suitable node"},
+            {"service": "ui", "state": "running"}])
+        self.assertEqual([t["service"] for t in await self.s.waiting_tasks("d2")], ["motion"])
+        self.host.swarm_tasks.assert_awaited_with("flow")
+        self.save(dep(id="d3", name="plain"))
+        self.assertEqual(await self.s.waiting_tasks("d3"), [])
+
+
 class TestLifecycle(ServiceCase):
     async def test_destroy_paths(self):
         mine = Container(id="c1", names=["/app"], labels={"kowan.deployment.id": "d1"})

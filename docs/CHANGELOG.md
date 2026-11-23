@@ -2,6 +2,11 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.24 — 2026-11-23
+
+- **See why a swarm service does not start.** A swarm deployment's page asks the manager for tasks that should run but have no container yet, such as a task pending because no node fits, and shows each one under its service with the swarm's reason.
+- **The host of each container.** A workload's container list has a Host column, so the node running each swarm task is in plain sight.
+
 ## 0.1.23 — 2026-11-23
 
 - **A swarm deployment's page lists all its tasks.** The containers of a swarm stack on worker nodes now show on its page, not only those on the manager it targets.

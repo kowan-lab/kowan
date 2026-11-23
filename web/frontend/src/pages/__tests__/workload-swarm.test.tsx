@@ -15,14 +15,25 @@ const api = {
   "GET /hosts": nodes,
   "GET /deployments": [...deployments, flow],
   "GET /deployments/:id": flow,
+  "GET /deployments/:id/waiting": [{ service: "motion", slot: 1, state: "pending", message: "pending task scheduling", error: "no suitable node (port 10007 in use)", since: "" }],
   "GET /hosts/:id/containers": (req: MockRequest) => (req.params.id === "w1" ? [task("t2", "sync", "w1")] : [task("t1", "ui", "local")]),
 };
 
 describe("a swarm deployment", () => {
   it("lists its tasks on every node, not only on the manager", async () => {
-    renderApp("/workloads/dep~d-flow", { api });
+    const { user } = renderApp("/workloads/dep~d-flow", { api });
     await screen.findByRole("heading", { name: "flow" }, { timeout: 10_000 });
     expect(await within(pageRoot()).findByText("sync", {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(within(pageRoot()).getByText("ui")).toBeInTheDocument();
+    // Each container says which node runs it.
+    await user.click(within(pageRoot()).getByRole("button", { name: "Expand sync" }));
+    const row = within(pageRoot()).getByRole("link", { name: "flow_sync.1.t2" }).closest("tr")!;
+    expect(within(row).getByText("worker-1")).toBeInTheDocument();
+  });
+
+  it("shows a task waiting for a node, with the swarm's reason", async () => {
+    renderApp("/workloads/dep~d-flow", { api });
+    expect(await within(pageRoot()).findByText("motion", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await within(pageRoot()).findByText(/Pending · no suitable node \(port 10007 in use\)/)).toBeInTheDocument();
   });
 });

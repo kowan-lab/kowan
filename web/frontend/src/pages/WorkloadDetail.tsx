@@ -5,6 +5,7 @@ import { ChevronRight, CircleAlert, ExternalLink, HeartPulse, RotateCcw, ScrollT
 import { Menu, Skeleton } from "@/ui/kit";
 import {
   containerAction,
+  deploymentWaiting,
   getContainerSpec,
   getDeployment,
   listContainers,
@@ -463,6 +464,23 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
     ...g,
     containers: liveFirst(g.containers),
   }));
+  // A swarm task waiting for a node has no container: ask the manager, and give
+  // its service a row that says why.
+  const waiting = useQuery({
+    queryKey: ["deployment-waiting", d?.id],
+    queryFn: () => deploymentWaiting(d!.id),
+    enabled: d?.strategy === "swarm" && !app.stale,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+  for (const t of waiting.data ?? []) {
+    const why = `${t.state.charAt(0).toUpperCase()}${t.state.slice(1)}${t.error || t.message ? ` · ${t.error || t.message}` : ""}`;
+    const g = groups.find((x) => x.name === t.service);
+    if (g) {
+      g.tone = "a";
+      g.label = `${g.label} · ${why}`;
+    } else groups.push({ name: t.service, containers: [], tone: "a", label: why });
+  }
   // Services of the compose file with no container at all still get a row.
   if (d?.type === "compose" && d.strategy !== "swarm" && !app.stale) {
     const have = new Set(groups.map((g) => g.name));
@@ -491,6 +509,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
       // Private window or blocked storage: the fold lasts until the page reloads.
     }
   };
+  const hostName = useHostName();
   const row = (c: AppContainer, nested: boolean) => {
     const ports = sortPorts(c.container.ports)
       .map((p) => (p.publicPort ? `${p.publicPort} → ${p.privatePort}` : `${p.privatePort}`))
@@ -504,6 +523,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
           <Link to={ctrHref(c)} onClick={(e) => e.stopPropagation()} className={cn("no-underline hover:underline", isReplaced(c) ? "text-muted-foreground opacity-70" : "font-semibold text-foreground")}>{c.name}</Link>
         </td>
         <td className={TD}><Pill tone={c.tone}>{c.label}</Pill>{c.update?.updateAvailable && <Pill tone="a" className="ml-[6px]">Update</Pill>}</td>
+        <td className={cn(TD, "whitespace-nowrap max-sm:hidden")}>{hostName(c.hostId)}</td>
         <td className={cn(TD, "max-w-[360px] truncate font-mono max-sm:hidden", isReplaced(c) && "text-muted-foreground opacity-70")} title={c.container.image}>{c.container.image}</td>
         <td className={cn(TD, "font-mono max-sm:hidden")}>{ports.join(", ") || "—"}</td>
         <td className={cn(TD, "text-right")}>
@@ -552,6 +572,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
                 <tr>
                   <th className={TH}>Container</th>
                   <th className={TH}>State</th>
+                  <th className={cn(TH, "max-sm:hidden")}>Host</th>
                   {/* Image and ports wait for the container page on a phone. */}
                   <th className={cn(TH, "max-sm:hidden")}>Image</th>
                   <th className={cn(TH, "max-sm:hidden")}>Ports</th>
@@ -580,7 +601,7 @@ function Overview({ app, pc, onLogs }: { app: App; pc: ReturnType<typeof usePoli
                         </td>
                         {/* The service's state sits in the State column, under its containers' own. */}
                         <td className={TD}><Pill tone={g.tone}>{g.label}</Pill></td>
-                        <td colSpan={2} className={cn(TD, "max-sm:hidden")} />
+                        <td colSpan={3} className={cn(TD, "max-sm:hidden")} />
                         <td className={cn(TD, "text-right")}>
                           {d && !app.stale && <ScaleControl deployment={d} service={g.name} canOperate={canOperate} />}
                         </td>
