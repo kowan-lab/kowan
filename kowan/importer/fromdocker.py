@@ -118,8 +118,15 @@ def service_from_inspect(insp: Dict[str, Any], image_cfg: Dict[str, Any], projec
         dest, ro = m.get("Destination", ""), not m.get("RW", True)
         if m.get("Type") == "volume":
             real = m.get("Name", "")
-            short = _short(real, project)
-            volumes[short] = {"external": True, "name": real}
+            if re.fullmatch(r"[0-9a-f]{64}", real):
+                # An anonymous volume (an image VOLUME): its random name exists
+                # only on this host, so the deployment gets a volume of its own.
+                short = re.sub(r"[^a-z0-9]+", "-", dest.lower()).strip("-") or "data"
+                volumes.setdefault(short, {})
+                warnings.append(f"{name}: {dest} was an anonymous volume; the deployment starts it empty as volume {short!r}")
+            else:
+                short = _short(real, project)
+                volumes[short] = {"external": True, "name": real}
             mounts.append(f"{short}:{dest}" + (":ro" if ro else ""))
         elif m.get("Type") == "bind":
             mounts.append(f"{m.get('Source', '')}:{dest}" + (":ro" if ro else ""))
@@ -134,7 +141,9 @@ def service_from_inspect(insp: Dict[str, Any], image_cfg: Dict[str, Any], projec
         warnings.append(f"{name}: shares another container's network ({mode}); set network_mode by hand")
     else:
         nets = sorted(((insp.get("NetworkSettings") or {}).get("Networks") or {}).keys())
-        own = [n for n in nets if n not in (f"{project}_default", "bridge")]
+        # ingress and docker_gwbridge are the swarm's own: Docker attaches a task
+        # to them, and nothing else may ("not manually attachable").
+        own = [n for n in nets if n not in (f"{project}_default", "bridge", "ingress", "docker_gwbridge")]
         if own:
             svc["networks"] = [_short(n, project) for n in own]
             for n in own:

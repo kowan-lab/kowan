@@ -2,6 +2,11 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.26 — 2026-11-24
+
+- **A swarm stack migrated to Compose deploys.** Kowan no longer copies the swarm's own `ingress` and `docker_gwbridge` networks into the compose file it rebuilds, which made `compose up` fail with "network ingress not manually attachable".
+- **Anonymous volumes no longer break a migrated stack.** A volume Docker created for an image's `VOLUME`, with its random name, was kept as an external volume that exists only on the old host. It now becomes a volume of the deployment, which starts empty, and the import says so.
+
 ## 0.1.25 — 2026-11-23
 
 - **Kowan no longer slows down under constant Docker events.** Healthchecks send an event every few seconds for every container; each one reloaded the open lists, and a swarm stack's page reloaded every host, so a busy fleet kept the server busy without a pause. Events that change nothing are now ignored, they are batched each second, and a reload in progress is let finish.

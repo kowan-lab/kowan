@@ -43,6 +43,25 @@ class TestRebuild(unittest.TestCase):
         self.assertNotIn("container_name", web)
         self.assertEqual(warnings, [])
 
+    def test_swarm_only_networks_are_left_out(self):
+        # A swarm task with published ports sits on ingress, which only the swarm may attach.
+        image = {"Env": ["PATH=/bin"], "Cmd": ["serve"], "Labels": {}}
+        task = _insp("shop-web-1", "web", NetworkSettings={"Networks": {"shop_default": {}, "ingress": {}, "docker_gwbridge": {}}})
+        doc = yaml.safe_load(rebuild_compose([(task, image)], "shop")[0])
+        self.assertNotIn("networks", doc)
+        self.assertNotIn("networks", doc["services"]["web"])
+
+    def test_an_anonymous_volume_becomes_a_volume_of_the_deployment(self):
+        # Its random name exists only on the old host: as external it fails elsewhere.
+        image = {"Env": ["PATH=/bin"], "Cmd": ["serve"], "Labels": {}}
+        anon = "34ba1967f33f63b55754e7505f67155d7497ae68751d59eb75ee9a8e7e56923e"
+        task = _insp("shop-cache-1", "cache", Mounts=[{"Type": "volume", "Name": anon, "Destination": "/data", "RW": True}])
+        text, _, warnings = rebuild_compose([(task, image)], "shop")
+        doc = yaml.safe_load(text)
+        self.assertEqual(doc["services"]["cache"]["volumes"], ["data:/data"])
+        self.assertEqual(doc["volumes"], {"data": {}})
+        self.assertTrue(any("anonymous volume" in w for w in warnings))
+
     def test_relative_paths_become_absolute(self):
         compose = "services:\n  web:\n    image: x\n    build: .\n    volumes:\n      - ./data:/data\n      - named:/n\n"
         out, warnings = absolutize(compose, "/opt/shop")
