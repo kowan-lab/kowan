@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.first.outputs.page_url || steps.retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -35,5 +35,14 @@ jobs:
         with:
           path: build/site
           include-hidden-files: true  # site/.nojekyll
-      - id: deployment
+      # GitHub's artifact API can list a just-uploaded artifact only a few
+      # seconds later ("No artifacts named github-pages"): wait, retry once.
+      - run: sleep 15
+      - id: first
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - if: steps.first.outcome == 'failure'
+        run: sleep 45
+      - id: retry
+        if: steps.first.outcome == 'failure'
         uses: actions/deploy-pages@v5
