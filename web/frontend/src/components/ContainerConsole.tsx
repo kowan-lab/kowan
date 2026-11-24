@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { Box, Text } from "@/ui/kit";
+import { Box, Button, Select, Text, TextInput } from "@/ui/kit";
 import { execWebSocketURL } from "../api/client";
 import type { Container } from "../types";
 
@@ -15,6 +15,18 @@ interface TabProps {
   hostId: string;
   container: Container;
   active: boolean;
+}
+
+/** The shells Portainer offers; "custom" runs a command typed by hand. */
+export const SHELLS = ["/bin/bash", "/bin/sh", "/bin/ash"] as const;
+const SHELL_KEY = "kowan-console-shell";
+
+function savedShell(): string {
+  try {
+    return localStorage.getItem(SHELL_KEY) || "/bin/sh";
+  } catch {
+    return "/bin/sh"; // private mode
+  }
 }
 
 /** Terminal colours from the active theme tokens. */
@@ -36,6 +48,22 @@ export default function ContainerConsole({
   running,
 }: TabProps & { running: boolean }) {
   const mountRef = useRef<HTMLDivElement>(null);
+  // The command to run: a shell from the list or a custom one, kept per browser.
+  const [cmd, setCmd] = useState<string>(savedShell);
+  const [custom, setCustom] = useState(() => ((SHELLS as readonly string[]).includes(savedShell()) ? "" : savedShell()));
+  const isCustom = !(SHELLS as readonly string[]).includes(cmd);
+  const [customOpen, setCustomOpen] = useState(isCustom);
+  const choose = (next: string) => {
+    setCmd(next);
+    setCustomOpen(!(SHELLS as readonly string[]).includes(next));
+    try {
+      localStorage.setItem(SHELL_KEY, next);
+    } catch {
+      /* private mode */
+    }
+  };
+  const argv = cmd.trim().split(/\s+/).filter(Boolean);
+  const cmdKey = argv.join(" ");
 
   useEffect(() => {
     if (!running) return;
@@ -82,7 +110,7 @@ export default function ContainerConsole({
     let closed = false;
 
     try {
-      socket = new WebSocket(execWebSocketURL(hostId, container.id, ["/bin/sh"], true));
+      socket = new WebSocket(execWebSocketURL(hostId, container.id, cmdKey ? cmdKey.split(" ") : ["/bin/sh"], true));
       socket.binaryType = "arraybuffer";
     } catch {
       term.writeln("\r\n\x1b[31mUnable to open exec session.\x1b[0m");
@@ -136,7 +164,7 @@ export default function ContainerConsole({
       }
       term.dispose();
     };
-  }, [running, container.id, hostId]);
+  }, [running, container.id, hostId, cmdKey]);
 
   // Coming back to the tab: refit to the now-visible size.
   useEffect(() => {
@@ -152,7 +180,41 @@ export default function ContainerConsole({
   }
 
   return (
-    <Box direction="row" wrap gap={2} style={{ flex: 1, minHeight: 0, alignItems: "stretch", marginBottom: 8 }}>
+    <Box direction="column" gap={2} style={{ flex: 1, minHeight: 0, marginBottom: 8 }}>
+      <form
+        className="flex flex-wrap items-center gap-[8px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (custom.trim()) choose(custom.trim());
+        }}
+      >
+        <Select
+          aria-label="Shell"
+          size="sm"
+          width={170}
+          value={customOpen ? "custom" : cmd}
+          onChange={(v) => (v === "custom" ? setCustomOpen(true) : v && choose(v))}
+          options={[...SHELLS.map((sh) => ({ value: sh, label: sh })), { value: "custom", label: "Custom command" }]}
+        />
+        {customOpen && (
+          <>
+            <TextInput
+              aria-label="Custom command"
+              size="sm"
+              width={260}
+              placeholder="/usr/bin/fish -l"
+              spellCheck={false}
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+            />
+            <Button size="sm" type="submit" disabled={!custom.trim() || custom.trim() === cmd}>
+              Connect
+            </Button>
+          </>
+        )}
+        <Text size="xs" color="muted">Changing it opens a new session.</Text>
+      </form>
+    <Box direction="row" wrap gap={2} style={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
       <Box
         ref={mountRef}
         style={{
@@ -164,6 +226,7 @@ export default function ContainerConsole({
           border: "1px solid var(--border)",
         }}
       />
+    </Box>
     </Box>
   );
 }

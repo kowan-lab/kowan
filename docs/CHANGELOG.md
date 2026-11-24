@@ -2,6 +2,12 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.28 — 2026-11-24
+
+- **Search and filter workloads by state.** The workload list has a search box (name, container, image) and a state filter; both stay in the address.
+- **Choose the shell of a container console.** `/bin/bash`, `/bin/sh`, `/bin/ash` or a command of your own; the choice is remembered in the browser.
+- **Kowan's own tooltips in the workload list**, instead of the browser's. A port with the same number on both sides is written once again (`8790`).
+
 ## 0.1.27 — 2026-11-24
 
 - **A tidier workload table.** A lone container is one row, with nothing to unfold. State and age have their own columns, and the table sorts by workload, state, age, containers, host or kind. Kind is narrower, ports read `host:container` with what they mean on hover (three inline, the rest in a tooltip), and the container squares tell how many there are and in what state.

@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ContainerConsole from "../ContainerConsole";
 import { socket } from "../../test/api";
@@ -66,6 +66,22 @@ describe("container console", () => {
     unmount();
     expect(ws.readyState).toBe(3);
     expect(term.written.some((w) => typeof w === "string" && /session closed/.test(w))).toBe(false);
+  });
+
+  it("runs the chosen shell, remembers it, and runs a custom command", async () => {
+    localStorage.removeItem("kowan-console-shell");
+    const { user } = renderWithProviders(<ContainerConsole hostId="local" container={containers[0]} active running />);
+    await act(async () => { await Promise.resolve(); });
+    expect(new URL(socket("/exec")!.url).searchParams.getAll("cmd")).toEqual(["/bin/sh"]);
+    await user.click(screen.getByRole("combobox", { name: "Shell" }));
+    await user.click(await screen.findByRole("option", { name: "/bin/bash" }));
+    await waitFor(() => expect(new URL(socket("/exec")!.url).searchParams.getAll("cmd")).toEqual(["/bin/bash"]));
+    expect(localStorage.getItem("kowan-console-shell")).toBe("/bin/bash");
+    await user.click(screen.getByRole("combobox", { name: "Shell" }));
+    await user.click(await screen.findByRole("option", { name: "Custom command" }));
+    await user.type(screen.getByRole("textbox", { name: "Custom command" }), "/usr/bin/fish -l");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() => expect(new URL(socket("/exec")!.url).searchParams.getAll("cmd")).toEqual(["/usr/bin/fish", "-l"]));
   });
 
   it("asks to start a stopped container", () => {

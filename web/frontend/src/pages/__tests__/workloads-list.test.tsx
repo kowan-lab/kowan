@@ -47,8 +47,9 @@ describe("workloads list", () => {
     const shop = screen.getAllByRole("row").find((r) => within(r).queryByRole("link", { name: "shop" }))!;
     expect(within(shop).getByText("Running")).toBeInTheDocument();
     expect(within(shop).getByText("3h")).toBeInTheDocument();
-    expect(within(shop).getByText("8080:80")).toHaveAttribute("title", expect.stringMatching(/Host port 8080 → container port 80\/tcp/));
-    expect(within(shop).getByTitle("2 containers: 2 running")).toBeInTheDocument();
+    await user.hover(within(shop).getByText("8080:80"));
+    expect(await screen.findByRole("tooltip", {}, { timeout: 3_000 })).toHaveTextContent(/Host port 8080 → container port 80\/tcp/);
+    await user.unhover(within(shop).getByText("8080:80"));
     // Sort by name, then the other way.
     const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).queryByRole("link")?.textContent).filter(Boolean);
     await user.click(screen.getByRole("button", { name: "Workload" }));
@@ -56,6 +57,21 @@ describe("workloads list", () => {
     const asc = names();
     await user.click(screen.getByRole("button", { name: "Workload" }));
     expect(names()).toEqual([...asc].reverse());
+  });
+
+  it("filters by state and searches names, containers and images", async () => {
+    localStorage.setItem("kowan-workloads-view", "table");
+    const { user } = renderApp("/workloads");
+    await screen.findByRole("columnheader", { name: "Workload" }, { timeout: 10_000 });
+    const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).queryByRole("link")?.textContent).filter(Boolean);
+    await user.type(screen.getByRole("searchbox", { name: "Search workloads" }), "postgres");
+    await waitFor(() => expect(currentPath()).toContain("q=postgres"));
+    expect(names()).toEqual(["shop"]); // found by its db container's image
+    await user.clear(screen.getByRole("searchbox", { name: "Search workloads" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by state" }));
+    await user.click(await screen.findByRole("option", { name: "Degraded" }));
+    await waitFor(() => expect(currentPath()).toContain("state=Degraded"));
+    expect(names()).toEqual(["nightly-job"]); // exited with code 1
   });
 
   it("nests a discovered swarm stack: stack, services, containers", async () => {

@@ -7,10 +7,10 @@ import { downloadInventory, prune } from "../api/client";
 import { useContainerUpdates } from "../lib/updates";
 import { formatBytes } from "../utils";
 import { notify } from "../ui/toast";
-import { Menu, Skeleton } from "@/ui/kit";
+import { Menu, Select, Skeleton, TextInput, Tooltip } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
 import { useHostName } from "../lib/hostsQuery";
-import { ageSeconds, appHref, containerCount, containersSummary, isReplaced, kindShort, liveFirst, portText, portTitle, servicesOf, splitLabel, useApps, type App, type AppContainer, type AppPort } from "../lib/apps";
+import { ageSeconds, appHref, containerCount, containersSummary, isReplaced, kindShort, liveFirst, matchesSearch, portText, portTitle, servicesOf, splitLabel, stateOf, useApps, type App, type AppContainer, type AppPort } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import { useFeatures } from "../lib/features";
@@ -83,7 +83,14 @@ export default function Workloads() {
   const tab: Tab = rawTab === "managed" || rawTab === "discovered" ? rawTab : "all";
   // In All, Kowan deployments come first, then what was started elsewhere.
   const inTab = useMemo(() => (tab === "managed" ? managedApps : tab === "discovered" ? discoveredApps : [...managedApps, ...discoveredApps]), [tab, managedApps, discoveredApps]);
-  const list = useMemo(() => inTab.filter(FILTERS.find((f) => f.id === filter)!.match), [inTab, filter]);
+  const stateFilter = params.get("state") ?? "";
+  const search = params.get("q") ?? "";
+  // States present in this tab, for the state filter's options.
+  const states = useMemo(() => [...new Set(inTab.map((a) => stateOf(a.label)))].sort(), [inTab]);
+  const list = useMemo(
+    () => inTab.filter((a) => FILTERS.find((f) => f.id === filter)!.match(a) && (!stateFilter || stateOf(a.label) === stateFilter) && matchesSearch(a, search)),
+    [inTab, filter, stateFilter, search],
+  );
   const nContainers = (apps ?? []).reduce((s, a) => s + a.total, 0);
   const hostOnline = (id: string) => hosts.find((h) => h.id === id)?.online ?? true;
   const offlineHosts = all ? hosts.filter((h) => !h.online) : hosts.filter((h) => h.id === hostId && !h.online);
@@ -267,6 +274,26 @@ export default function Workloads() {
             </button>
           );
         })}
+        <div className="ml-auto flex flex-wrap items-center gap-[8px]">
+          <Select
+            aria-label="Filter by state"
+            size="sm"
+            width={170}
+            value={stateFilter || "all"}
+            onChange={(v) => setParam("state", !v || v === "all" ? null : v)}
+            options={[{ value: "all", label: "Any state" }, ...states.map((st) => ({ value: st, label: st }))]}
+          />
+          <TextInput
+            aria-label="Search workloads"
+            type="search"
+            size="sm"
+            width={220}
+            iconLeft="search-rounded"
+            placeholder="Search name, container, image"
+            value={search}
+            onChange={(e) => setParam("q", e.target.value || null)}
+          />
+        </div>
       </div>
     </div>
   );
@@ -309,8 +336,18 @@ export default function Workloads() {
       );
   } else if (!list.length) {
     body = (
-      <Empty title="No workloads match" text={`Nothing in this tab on ${scopeName} matches this filter.`}>
-        <Btn onClick={() => setParam("filter", null)}>Clear filter</Btn>
+      <Empty title="No workloads match" text={`Nothing in this tab on ${scopeName} matches ${search ? `"${search}"` : "this filter"}.`}>
+        <Btn
+          onClick={() =>
+            setParams((p) => {
+              const n = new URLSearchParams(p);
+              for (const k of ["filter", "state", "q"]) n.delete(k);
+              return n;
+            }, { replace: true })
+          }
+        >
+          Clear filters
+        </Btn>
       </Empty>
     );
   } else if (view === "table") {
@@ -410,9 +447,9 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
           <span className="font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">no data</span>
         ) : (
           <>
-            <span className="inline-flex" title={containersSummary(current)}>
-              <StateSquares tones={current.map((c) => c.tone)} titles={current.map((c) => `${c.name}: ${c.label}`)} />
-            </span>
+            <Tooltip content={containersSummary(current)}>
+              <span className="inline-flex"><StateSquares tones={current.map((c) => c.tone)} /></span>
+            </Tooltip>
             <span className="ml-[6px] font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">
               {a.desired ? `${a.up}/${a.desired} up` : "no containers"}
             </span>
@@ -420,7 +457,9 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
         )}
       </div>
       <div className="flex flex-wrap gap-[6px] px-[16px] pt-[12px]">
-        {ports.slice(0, 6).map((p) => <span key={`${p.publicPort}/${p.protocol}`} title={portTitle(p)}><Tag>{portText(p)}</Tag></span>)}
+        {ports.slice(0, 6).map((p) => (
+          <Tooltip key={`${p.publicPort}/${p.protocol}`} content={portTitle(p)}><span><Tag>{portText(p)}</Tag></span></Tooltip>
+        ))}
         {ports.length > 6 && <Tag>+{ports.length - 6}</Tag>}
       </div>
       <div className="mt-auto flex items-center gap-[8px] p-[14px_16px]">
@@ -429,7 +468,7 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
           {a.updates > 0 ? (
             <Pill tone="a">Update · {a.updates}</Pill>
           ) : a.unchecked.length ? (
-            <span className={LBL} title={a.unchecked.join("\n")}>Not checked</span>
+            <Tooltip content={<span className="whitespace-pre-line">{a.unchecked.join("\n")}</span>}><span className={LBL}>Not checked</span></Tooltip>
           ) : (
             <span className={LBL}>Up to date</span>
           )}
@@ -539,7 +578,9 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
         {stateCells(c.label, c.tone)}
         <td className={TD} />
         {showHost && <td className={TD}>{hostName(c.hostId)}</td>}
-        <td className={cn(TD, "max-w-[280px] truncate font-mono text-muted-foreground", isReplaced(c) && "opacity-70")} title={c.container.image}>{c.container.image}</td>
+        <td className={cn(TD, "max-w-[280px] truncate font-mono text-muted-foreground", isReplaced(c) && "opacity-70")}>
+          <Tooltip content={c.container.image}><span>{c.container.image}</span></Tooltip>
+        </td>
         <td className={cn(TD, "font-mono text-muted-foreground")}><Ports ports={portsOfContainers([c])} /></td>
         <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
         <td className={cn(TD, "text-right")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -602,16 +643,18 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                   </td>
                   {stateCells(a.label, a.tone)}
                   <td className={TD}>
-                    <span className="inline-flex flex-nowrap" title={containersSummary(current)}><StateSquares tones={current.map((c) => c.tone)} /></span>
+                    <Tooltip content={containersSummary(current)}><span className="inline-flex flex-nowrap"><StateSquares tones={current.map((c) => c.tone)} /></span></Tooltip>
                   </td>
                   {showHost && <td className={TD}><HostChip name={hostName(host)} online={hostOnline(host)} /></td>}
-                  <td className={cn(TD, "w-[1%] font-mono")} title={isManaged(a) ? "Managed by Kowan" : "Not managed by Kowan"}>{kindShort(a)}</td>
+                  <td className={cn(TD, "w-[1%] font-mono")}>
+                    <Tooltip content={isManaged(a) ? "Managed by Kowan" : "Not managed by Kowan"}><span>{kindShort(a)}</span></Tooltip>
+                  </td>
                   <td className={cn(TD, "font-mono")}><Ports ports={a.ports} /></td>
                   <td className={TD}>
                     {a.updates ? (
                       <Pill tone="a">Update · {a.updates}</Pill>
                     ) : a.unchecked.length ? (
-                      <span className="text-muted-foreground" title={a.unchecked.join("\n")}>Not checked</span>
+                      <Tooltip content={<span className="whitespace-pre-line">{a.unchecked.join("\n")}</span>}><span className="text-muted-foreground">Not checked</span></Tooltip>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -664,7 +707,7 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                           </td>
                           {stateCells(svc.label, svc.tone)}
                           <td className={TD}>
-                            <span className="inline-flex flex-nowrap" title={containersSummary(live)}><StateSquares tones={live.map((c) => c.tone)} /></span>
+                            <Tooltip content={containersSummary(live)}><span className="inline-flex flex-nowrap"><StateSquares tones={live.map((c) => c.tone)} /></span></Tooltip>
                           </td>
                           {showHost && <td className={TD} />}
                           <td className={cn(TD, "max-w-[280px] truncate font-mono text-muted-foreground")}>{(svc.containers.find((c) => !isReplaced(c)) ?? svc.containers[0])?.container.image}</td>
@@ -709,9 +752,13 @@ function Ports({ ports }: { ports: AppPort[] }) {
   return (
     <span className="inline-flex gap-x-[8px]">
       {shown.map((p) => (
-        <span key={`${p.publicPort}/${p.protocol}`} title={portTitle(p)}>{portText(p)}</span>
+        <Tooltip key={`${p.publicPort}/${p.protocol}`} content={portTitle(p)}><span>{portText(p)}</span></Tooltip>
       ))}
-      {rest.length > 0 && <span className="text-muted-foreground" title={rest.map(portTitle).join("\n")}>+{rest.length}</span>}
+      {rest.length > 0 && (
+        <Tooltip content={<span className="whitespace-pre-line">{rest.map((p) => `${portText(p)} · ${portTitle(p)}`).join("\n")}</span>}>
+          <span className="text-muted-foreground">+{rest.length}</span>
+        </Tooltip>
+      )}
     </span>
   );
 }

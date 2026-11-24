@@ -241,7 +241,22 @@ export function splitLabel(label: string): [string, string] {
 
 /** "8080:80", with "/udp" when not TCP: how compose writes a published port. */
 export function portText(p: Pick<AppPort, "publicPort" | "privatePort" | "protocol">): string {
-  return `${p.publicPort}:${p.privatePort}${p.protocol && p.protocol !== "tcp" ? `/${p.protocol}` : ""}`;
+  // The same number on both sides is written once, as before ("8790").
+  const pair = p.publicPort === p.privatePort ? `${p.publicPort}` : `${p.publicPort}:${p.privatePort}`;
+  return `${pair}${p.protocol && p.protocol !== "tcp" ? `/${p.protocol}` : ""}`;
+}
+
+/** The state word of a workload or container, for the state filter: "Running", "Degraded"... */
+export function stateOf(label: string): string {
+  return splitLabel(label)[0].split(" · ")[0];
+}
+
+/** Whether a workload matches a search: its name, project, containers or images. */
+export function matchesSearch(a: App, q: string): boolean {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  const hay = [a.name, a.project ?? "", ...a.containers.flatMap((c) => [c.name, c.container.image])];
+  return hay.some((h) => h.toLowerCase().includes(t));
 }
 
 /** What a published port means, for its tooltip. */

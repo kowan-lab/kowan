@@ -361,7 +361,8 @@ describe("workload table helpers", () => {
 
   it("writes ports as compose does and sums up containers", () => {
     expect(portText({ publicPort: 8080, privatePort: 80, protocol: "tcp" })).toBe("8080:80");
-    expect(portText({ publicPort: 53, privatePort: 53, protocol: "udp" })).toBe("53:53/udp");
+    expect(portText({ publicPort: 53, privatePort: 53, protocol: "udp" })).toBe("53/udp"); // the same number once
+    expect(portText({ publicPort: 8790, privatePort: 8790, protocol: "tcp" })).toBe("8790");
     const ac = (state: string) => ({ container: { state } }) as never;
     expect(containersSummary([ac("running"), ac("running"), ac("exited")])).toBe("3 containers: 2 running, 1 exited");
     expect(containersSummary([])).toBe("No containers");
