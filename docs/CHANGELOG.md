@@ -2,6 +2,11 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.27 — 2026-11-24
+
+- **A tidier workload table.** A lone container is one row, with nothing to unfold. State and age have their own columns, and the table sorts by workload, state, age, containers, host or kind. Kind is narrower, ports read `host:container` with what they mean on hover (three inline, the rest in a tooltip), and the container squares tell how many there are and in what state.
+- **Cards no longer say "internal only"** for a workload without published ports.
+
 ## 0.1.26 — 2026-11-24
 
 - **A swarm stack migrated to Compose deploys.** Kowan no longer copies the swarm's own `ingress` and `docker_gwbridge` networks into the compose file it rebuilds, which made `compose up` fail with "network ingress not manually attachable".

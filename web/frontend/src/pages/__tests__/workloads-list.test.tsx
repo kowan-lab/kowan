@@ -38,6 +38,26 @@ describe("workloads list", () => {
     await waitFor(() => expect(currentPath()).toMatch(/^\/containers\//));
   });
 
+  it("shows a lone container flat, state and age apart, ports as host:container, and sorts", async () => {
+    localStorage.setItem("kowan-workloads-view", "table");
+    const { user } = renderApp("/workloads");
+    await screen.findByRole("columnheader", { name: "Workload" }, { timeout: 10_000 });
+    // nightly-job is a lone container: no group to unfold.
+    expect(screen.queryByRole("button", { name: /containers of nightly-job/i })).toBeNull();
+    const shop = screen.getAllByRole("row").find((r) => within(r).queryByRole("link", { name: "shop" }))!;
+    expect(within(shop).getByText("Running")).toBeInTheDocument();
+    expect(within(shop).getByText("3h")).toBeInTheDocument();
+    expect(within(shop).getByText("8080:80")).toHaveAttribute("title", expect.stringMatching(/Host port 8080 → container port 80\/tcp/));
+    expect(within(shop).getByTitle("2 containers: 2 running")).toBeInTheDocument();
+    // Sort by name, then the other way.
+    const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).queryByRole("link")?.textContent).filter(Boolean);
+    await user.click(screen.getByRole("button", { name: "Workload" }));
+    expect(screen.getByRole("columnheader", { name: "Workload" })).toHaveAttribute("aria-sort", "ascending");
+    const asc = names();
+    await user.click(screen.getByRole("button", { name: "Workload" }));
+    expect(names()).toEqual([...asc].reverse());
+  });
+
   it("nests a discovered swarm stack: stack, services, containers", async () => {
     const swarm = (name: string, svc: string) => ({
       ...containers[2], id: name.padEnd(64, "0"), names: [`/${name}`], image: `${svc}:1`, state: "running", status: "Up 1 hour",

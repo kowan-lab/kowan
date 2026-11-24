@@ -2,6 +2,7 @@
 // highlighting; formatting; safe redirects; container origin; small maps.
 import { describe, expect, it } from "vitest";
 import type { Deployment } from "../../types";
+import { ageSeconds, containersSummary, portText, splitLabel } from "../apps";
 import { appHref, appId, appIdForContainer, buildApps, kindShort, nameOf, parseAppId, resourceName, servicesOf, statusAge, superseded, composeServices } from "../apps";
 import { buildNeeds } from "../../components/overview/NeedsYou";
 import { changesNothing } from "../../components/shell/useDockerEvents";
@@ -347,5 +348,22 @@ describe("docker events that reload the lists", () => {
     expect(changesNothing("container", "health_status")).toBe(false);
     expect(changesNothing("image", "pull")).toBe(false);
     expect(changesNothing("container", undefined)).toBe(false);
+  });
+});
+
+describe("workload table helpers", () => {
+  it("splits a state from its age and reads ages", () => {
+    expect(splitLabel("Running · 13m")).toEqual(["Running", "13m"]);
+    expect(splitLabel("Degraded · 5/6")).toEqual(["Degraded · 5/6", ""]);
+    expect(splitLabel("Stopped")).toEqual(["Stopped", ""]);
+    expect([ageSeconds("13m"), ageSeconds("2mo"), ageSeconds("now"), ageSeconds("5/6")]).toEqual([780, 5184000, 0, null]);
+  });
+
+  it("writes ports as compose does and sums up containers", () => {
+    expect(portText({ publicPort: 8080, privatePort: 80, protocol: "tcp" })).toBe("8080:80");
+    expect(portText({ publicPort: 53, privatePort: 53, protocol: "udp" })).toBe("53:53/udp");
+    const ac = (state: string) => ({ container: { state } }) as never;
+    expect(containersSummary([ac("running"), ac("running"), ac("exited")])).toBe("3 containers: 2 running, 1 exited");
+    expect(containersSummary([])).toBe("No containers");
   });
 });

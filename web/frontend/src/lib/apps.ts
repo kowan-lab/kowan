@@ -46,7 +46,7 @@ export interface AppContainer {
   update?: ContainerUpdateStatus;
 }
 
-interface AppPort {
+export interface AppPort {
   publicPort: number;
   privatePort: number;
   protocol: string;
@@ -219,6 +219,43 @@ export function statusAge(status: string): string {
   const n = /\d+/.test(m[1]) ? Number(/\d+/.exec(m[1])![0]) : 1;
   const unit = { minute: "m", hour: "h", day: "d", week: "w", month: "mo", year: "y" }[m[2] as "minute"];
   return `${n}${unit}`;
+}
+
+const AGE_SECONDS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, mo: 2592000, y: 31536000 };
+
+/** "13m" -> 780, "now" -> 0; null for anything that is not an age ("5/6"). */
+export function ageSeconds(age: string): number | null {
+  if (age === "now") return 0;
+  const m = /^(\d+)(mo|s|m|h|d|w|y)$/.exec(age);
+  return m ? Number(m[1]) * AGE_SECONDS[m[2]] : null;
+}
+
+/** A pill label split into its state and its age: "Running · 13m" ->
+ *  ["Running", "13m"]; a count stays with the state ("Degraded · 5/6", ""). */
+export function splitLabel(label: string): [string, string] {
+  const i = label.lastIndexOf(" · ");
+  if (i < 0) return [label, ""];
+  const tail = label.slice(i + 3);
+  return ageSeconds(tail) === null ? [label, ""] : [label.slice(0, i), tail];
+}
+
+/** "8080:80", with "/udp" when not TCP: how compose writes a published port. */
+export function portText(p: Pick<AppPort, "publicPort" | "privatePort" | "protocol">): string {
+  return `${p.publicPort}:${p.privatePort}${p.protocol && p.protocol !== "tcp" ? `/${p.protocol}` : ""}`;
+}
+
+/** What a published port means, for its tooltip. */
+export function portTitle(p: AppPort): string {
+  return `Host port ${p.publicPort} → container port ${p.privatePort}/${p.protocol || "tcp"}${p.public ? ", on every interface" : ", on localhost only"}${p.container ? ` (${p.container})` : ""}`;
+}
+
+/** "3 containers: 2 running, 1 exited", for the tooltip of the state squares. */
+export function containersSummary(cs: AppContainer[]): string {
+  if (!cs.length) return "No containers";
+  const by = new Map<string, number>();
+  for (const c of cs) by.set(c.container.state || "unknown", (by.get(c.container.state || "unknown") ?? 0) + 1);
+  const parts = [...by.entries()].sort((a, b) => b[1] - a[1]).map(([st, n]) => `${n} ${st}`);
+  return `${cs.length} container${cs.length === 1 ? "" : "s"}: ${parts.join(", ")}`;
 }
 
 function healthOf(status: string): AppContainer["health"] {

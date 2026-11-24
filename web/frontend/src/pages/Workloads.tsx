@@ -10,7 +10,7 @@ import { notify } from "../ui/toast";
 import { Menu, Skeleton } from "@/ui/kit";
 import { useHost, isAllHosts } from "../HostContext";
 import { useHostName } from "../lib/hostsQuery";
-import { appHref, containerCount, isReplaced, kindShort, liveFirst, servicesOf, useApps, type App, type AppContainer } from "../lib/apps";
+import { ageSeconds, appHref, containerCount, containersSummary, isReplaced, kindShort, liveFirst, portText, portTitle, servicesOf, splitLabel, useApps, type App, type AppContainer, type AppPort } from "../lib/apps";
 import { BtnLink, Btn, Crumbs, HostChip, LBL, Pill, SectHead, StateSquares, Tag } from "../components/apps/ui";
 import ContainerActionsMenu from "../components/apps/ContainerActionsMenu";
 import { useFeatures } from "../lib/features";
@@ -410,7 +410,9 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
           <span className="font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">no data</span>
         ) : (
           <>
-            <StateSquares tones={current.map((c) => c.tone)} titles={current.map((c) => `${c.name}: ${c.label}`)} />
+            <span className="inline-flex" title={containersSummary(current)}>
+              <StateSquares tones={current.map((c) => c.tone)} titles={current.map((c) => `${c.name}: ${c.label}`)} />
+            </span>
             <span className="ml-[6px] font-mono text-[12px] leading-[16px] font-medium text-muted-foreground">
               {a.desired ? `${a.up}/${a.desired} up` : "no containers"}
             </span>
@@ -418,7 +420,7 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
         )}
       </div>
       <div className="flex flex-wrap gap-[6px] px-[16px] pt-[12px]">
-        {ports.length ? ports.slice(0, 6).map((p) => <Tag key={`${p.publicPort}/${p.protocol}`}>:{p.publicPort}</Tag>) : <Tag>internal only</Tag>}
+        {ports.slice(0, 6).map((p) => <span key={`${p.publicPort}/${p.protocol}`} title={portTitle(p)}><Tag>{portText(p)}</Tag></span>)}
         {ports.length > 6 && <Tag>+{ports.length - 6}</Tag>}
       </div>
       <div className="mt-auto flex items-center gap-[8px] p-[14px_16px]">
@@ -462,13 +464,61 @@ function AppCard({ app: a, hostName }: { app: App; hostName: string }) {
 const TH = "h-[36px] px-[12px] text-left font-mono text-[12px] leading-none font-semibold tracking-[0.06em] whitespace-nowrap text-muted-foreground uppercase bg-card first:pl-[16px] last:pr-[16px]";
 const TD = "h-[40px] px-[12px] align-middle text-[13px] leading-[18px] whitespace-nowrap first:pl-[16px] last:pr-[16px]";
 
+type SortKey = "name" | "state" | "since" | "containers" | "host" | "kind";
+const TONE_ORDER: Record<string, number> = { r: 0, a: 1, n: 2, g: 3 };
+
 function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; showHost: boolean; hostName: (id: string) => string; hostOnline: (id: string) => boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // No sort keeps the list's own order: problems first.
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const toggle = (key: string) => setOpen((o) => ({ ...o, [key]: !o[key] }));
   const go = (to: string) => navigate(to);
   const onRowKey = (e: KeyboardEvent, to: string) => {
     if (e.key === "Enter" && e.target === e.currentTarget) go(to);
+  };
+  const sorted = useMemo(() => {
+    if (!sort) return apps;
+    const val = (a: App): string | number => {
+      const [state, age] = splitLabel(a.label);
+      switch (sort.key) {
+        case "name": return a.name.toLowerCase();
+        case "state": return `${TONE_ORDER[a.tone] ?? 9}${state}`;
+        // A workload with no age (stopped, degraded) sorts after the others.
+        case "since": return ageSeconds(age) ?? Number.MAX_SAFE_INTEGER;
+        case "containers": return a.containers.filter((c) => !isReplaced(c)).length;
+        case "host": return hostName(a.hostIds[0] ?? "").toLowerCase();
+        case "kind": return kindShort(a);
+      }
+    };
+    return [...apps].sort((x, y) => {
+      const a = val(x), b = val(y);
+      return (a < b ? -1 : a > b ? 1 : 0) * sort.dir;
+    });
+  }, [apps, sort, hostName]);
+  const head = (key: SortKey, label: string) => {
+    const on = sort?.key === key;
+    return (
+      <th className={TH} aria-sort={on ? (sort!.dir === 1 ? "ascending" : "descending") : "none"}>
+        <button
+          type="button"
+          className="inline-flex items-center gap-[4px] uppercase outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--signal)]"
+          onClick={() => setSort(on && sort!.dir === -1 ? null : { key, dir: on ? -1 : 1 })}
+        >
+          {label}
+          {on && <ChevronDown className={cn("size-[12px]", sort!.dir === 1 && "rotate-180")} strokeWidth={2} aria-hidden />}
+        </button>
+      </th>
+    );
+  };
+  const stateCells = (label: string, tone: App["tone"]) => {
+    const [state, age] = splitLabel(label);
+    return (
+      <>
+        <td className={TD}><Pill tone={tone}>{state}</Pill></td>
+        <td className={cn(TD, "font-mono text-muted-foreground")}>{age || "—"}</td>
+      </>
+    );
   };
   const containerRow = (c: AppContainer, visible: boolean, depth: 1 | 2) => {
     const to = `/containers/${c.container.id}?host=${encodeURIComponent(c.hostId)}`;
@@ -486,11 +536,11 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
           <span aria-hidden className="mr-[8px] inline-block align-[0px]"><StateSquares tones={[c.tone]} size={8} /></span>
           {c.name}
         </td>
-        <td className={TD}><Pill tone={c.tone}>{c.label}</Pill></td>
+        {stateCells(c.label, c.tone)}
         <td className={TD} />
-        {showHost && <td className={TD} />}
-        <td className={cn(TD, "font-mono text-muted-foreground", isReplaced(c) && "opacity-70")}>{c.container.image}</td>
-        <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts([c])}</td>
+        {showHost && <td className={TD}>{hostName(c.hostId)}</td>}
+        <td className={cn(TD, "max-w-[280px] truncate font-mono text-muted-foreground", isReplaced(c) && "opacity-70")} title={c.container.image}>{c.container.image}</td>
+        <td className={cn(TD, "font-mono text-muted-foreground")}><Ports ports={portsOfContainers([c])} /></td>
         <td className={TD}>{c.update?.updateAvailable ? <Pill tone="a">Update</Pill> : null}</td>
         <td className={cn(TD, "text-right")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           {visible && <ContainerActionsMenu container={c.container} hostId={c.hostId} name={c.name} managed />}
@@ -503,20 +553,24 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
       <table className="w-full">
         <thead>
           <tr>
-            <th className={TH}>Workload</th>
-            <th className={TH}>State</th>
-            <th className={TH}>Containers</th>
-            {showHost && <th className={TH}>Host</th>}
-            <th className={TH}>Kind</th>
+            {head("name", "Workload")}
+            {head("state", "State")}
+            {head("since", "Since")}
+            {head("containers", "Containers")}
+            {showHost && head("host", "Host")}
+            {head("kind", "Kind")}
             <th className={TH}>Ports</th>
             <th className={TH}>Updates</th>
             <th className={TH}>Needs you</th>
           </tr>
         </thead>
         <tbody>
-          {apps.map((a) => {
+          {sorted.map((a) => {
             const isOpen = !!open[a.id];
             const host = a.hostIds[0] ?? "";
+            const current = a.containers.filter((c) => !isReplaced(c));
+            // A lone container is its own row: nothing to unfold.
+            const single = a.kind === "container" && a.containers.length <= 1;
             return (
               <Fragment key={a.id}>
                 <tr
@@ -526,34 +580,33 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                   onKeyDown={(e) => onRowKey(e, appHref(a))}
                 >
                   <td className={TD}>
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      aria-label={`${isOpen ? "Hide" : "Show"} containers of ${a.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggle(a.id);
-                      }}
-                      className="mr-[6px] inline-flex size-[20px] items-center justify-center align-[-5px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--signal)]"
-                    >
-                      <ChevronRight className={cn("size-[16px] transition-transform duration-[120ms] motion-reduce:transition-none", isOpen && "rotate-90")} strokeWidth={1.5} aria-hidden />
-                    </button>
+                    {single ? (
+                      <span aria-hidden className="mr-[6px] inline-block size-[20px] align-[-5px]" />
+                    ) : (
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-label={`${isOpen ? "Hide" : "Show"} containers of ${a.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle(a.id);
+                        }}
+                        className="mr-[6px] inline-flex size-[20px] items-center justify-center align-[-5px] text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--signal)]"
+                      >
+                        <ChevronRight className={cn("size-[16px] transition-transform duration-[120ms] motion-reduce:transition-none", isOpen && "rotate-90")} strokeWidth={1.5} aria-hidden />
+                      </button>
+                    )}
                     <Link to={appHref(a)} className="font-semibold text-foreground no-underline hover:underline" onClick={(e) => e.stopPropagation()}>
                       {a.name}
                     </Link>
                   </td>
-                  <td className={TD}><Pill tone={a.tone}>{a.label}</Pill></td>
+                  {stateCells(a.label, a.tone)}
                   <td className={TD}>
-                    <span className="inline-flex flex-nowrap"><StateSquares tones={a.containers.filter((c) => !isReplaced(c)).map((c) => c.tone)} /></span>
+                    <span className="inline-flex flex-nowrap" title={containersSummary(current)}><StateSquares tones={current.map((c) => c.tone)} /></span>
                   </td>
                   {showHost && <td className={TD}><HostChip name={hostName(host)} online={hostOnline(host)} /></td>}
-                  <td className={TD}>
-                    <span className="inline-flex items-center gap-[8px] whitespace-nowrap">
-                      <span className="font-mono">{kindShort(a)}</span>
-                      <Tag className={isManaged(a) ? "text-foreground" : undefined}>{isManaged(a) ? "Managed" : "Not managed"}</Tag>
-                    </span>
-                  </td>
-                  <td className={cn(TD, "font-mono")}>{a.ports.filter((p) => p.public).map((p) => `:${p.publicPort}`).join(" ") || "—"}</td>
+                  <td className={cn(TD, "w-[1%] font-mono")} title={isManaged(a) ? "Managed by Kowan" : "Not managed by Kowan"}>{kindShort(a)}</td>
+                  <td className={cn(TD, "font-mono")}><Ports ports={a.ports} /></td>
                   <td className={TD}>
                     {a.updates ? (
                       <Pill tone="a">Update · {a.updates}</Pill>
@@ -574,12 +627,13 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                     them but keeps them in the column-width pass, so expanding a
                     workload never resizes the table. A stack nests a second level:
                     its services, each opening onto its containers. */}
-                {(() => {
+                {!single && (() => {
                   const services = servicesOf(a);
                   if (!services) return liveFirst(a.containers).map((c) => containerRow(c, isOpen, 1));
                   return services.map((svc) => {
                     const key = `${a.id}::${svc.name}`;
                     const svcOpen = isOpen && !!open[key];
+                    const live = svc.containers.filter((c) => !isReplaced(c));
                     return (
                       <Fragment key={key}>
                         <tr
@@ -608,13 +662,13 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
                             {svc.name}
                             <span className="ml-[10px] text-[12px] text-muted-foreground">{containerCount(svc.containers)}</span>
                           </td>
-                          <td className={TD}><Pill tone={svc.tone}>{svc.label}</Pill></td>
+                          {stateCells(svc.label, svc.tone)}
                           <td className={TD}>
-                            <span className="inline-flex flex-nowrap"><StateSquares tones={svc.containers.filter((c) => !isReplaced(c)).map((c) => c.tone)} /></span>
+                            <span className="inline-flex flex-nowrap" title={containersSummary(live)}><StateSquares tones={live.map((c) => c.tone)} /></span>
                           </td>
                           {showHost && <td className={TD} />}
-                          <td className={cn(TD, "font-mono text-muted-foreground")}>{(svc.containers.find((c) => !isReplaced(c)) ?? svc.containers[0])?.container.image}</td>
-                          <td className={cn(TD, "font-mono text-muted-foreground")}>{publicPorts(svc.containers)}</td>
+                          <td className={cn(TD, "max-w-[280px] truncate font-mono text-muted-foreground")}>{(svc.containers.find((c) => !isReplaced(c)) ?? svc.containers[0])?.container.image}</td>
+                          <td className={cn(TD, "font-mono text-muted-foreground")}><Ports ports={portsOfContainers(svc.containers)} /></td>
                           <td className={TD}>{svc.containers.some((c) => c.update?.updateAvailable) ? <Pill tone="a">Update</Pill> : null}</td>
                           <td className={TD} />
                         </tr>
@@ -632,8 +686,32 @@ function AppsTable({ apps, showHost, hostName, hostOnline }: { apps: App[]; show
   );
 }
 
-/** ":80 :443": the distinct public ports of some containers, or "—". */
-function publicPorts(cs: AppContainer[]): string {
-  const ports = cs.flatMap((c) => (c.container.ports ?? []).filter((p) => p.publicPort).map((p) => p.publicPort));
-  return [...new Set(ports)].sort((a, b) => a - b).map((p) => `:${p}`).join(" ") || "—";
+/** The published ports of some containers, as App ports. */
+function portsOfContainers(cs: AppContainer[]): AppPort[] {
+  const seen = new Map<string, AppPort>();
+  for (const c of cs) {
+    for (const p of c.container.ports ?? []) {
+      if (!p.publicPort) continue;
+      const proto = p.type || "tcp";
+      const key = `${p.publicPort}/${proto}`;
+      if (!seen.has(key)) seen.set(key, { publicPort: p.publicPort, privatePort: p.privatePort, protocol: proto, public: !p.ip || p.ip === "0.0.0.0" || p.ip === "::", container: c.name });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.publicPort - b.publicPort);
+}
+
+/** "8080:80 8443:443" (host:container), each with what it means on hover. */
+function Ports({ ports }: { ports: AppPort[] }) {
+  if (!ports.length) return <>—</>;
+  // A few inline keep the row one line high; the rest are in a tooltip.
+  const shown = ports.slice(0, 3);
+  const rest = ports.slice(3);
+  return (
+    <span className="inline-flex gap-x-[8px]">
+      {shown.map((p) => (
+        <span key={`${p.publicPort}/${p.protocol}`} title={portTitle(p)}>{portText(p)}</span>
+      ))}
+      {rest.length > 0 && <span className="text-muted-foreground" title={rest.map(portTitle).join("\n")}>+{rest.length}</span>}
+    </span>
+  );
 }
