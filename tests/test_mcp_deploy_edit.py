@@ -23,6 +23,7 @@ class TestUpdateDeployment(MCPCase):
         out, _ = await self.tool("update_deployment", "operator", deployment="shop", baseRevision=base, compose=new,
                                  note="nginx 1.28", deploy=False)
         self.assertEqual((out["revision"], out["changed"]), (base + 1, True))
+        self.assertIn("not deployed", out["note"])  # deploy=false says so
         stored = self.svc.store.get_deployment(dep["id"])
         self.assertIn("nginx:1.28", stored.compose)
         self.assertIn("real-secret", stored.compose)

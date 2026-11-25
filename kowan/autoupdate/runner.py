@@ -765,7 +765,7 @@ class AutoUpdater:
         if deployments is None:
             return engine.OUTCOME_FAILED, "deployment service unavailable", scan_counts, {}
         try:
-            await deployments.redeploy(dep.id)
+            await deployments.redeploy_and_wait(dep.id)
         except Exception as err:  # noqa: BLE001
             redeploy_err = str(err)
         else:

@@ -198,6 +198,8 @@ def register(reg: ToolRegistry) -> None:
         new = rows[0]["number"] if rows else 0
         return {"deployment": out.name, "revision": new, "changed": new != current, "status": out.status,
                 "note": "no change: the configuration was already this" if new == current
+                else "saved as a new revision, not deployed (deploy=false): deploy it when ready"
+                if args.get("deploy", True) is False
                 else "saved as a new revision; a running deployment redeploys in the background (get_deployment follows it)"}
 
     @reg.tool(

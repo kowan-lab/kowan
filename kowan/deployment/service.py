@@ -358,6 +358,15 @@ class DeploymentService:
         task.add_done_callback(self._on_deploy_done)
         return dep
 
+    async def redeploy_and_wait(self, dep_id: str) -> None:
+        """Redeploy and wait for the result, holding the deployment's slot like a
+        dispatched deploy: no reconcile or second deploy runs on top of it (two
+        overlapping ``compose up`` trip over each other's containers). Raises
+        :class:`Conflict` when a deploy is already running, else what the
+        redeploy raised."""
+        await self.dispatch_deploy(dep_id, redeploy=True)
+        await self._tasks[dep_id]
+
     def _on_deploy_done(self, task: "asyncio.Task") -> None:
         """Drop the finished task and surface an unexpected crash in the log. The
         terminal deployed/error status is written by :meth:`deploy` itself; here we

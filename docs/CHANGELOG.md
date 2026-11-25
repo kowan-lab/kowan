@@ -2,6 +2,14 @@
 
 Each release lists first what changes for you; stability fixes and internal work are under "Other changes".
 
+## 0.1.29 — 2026-11-25
+
+- **An automatic update no longer runs on top of another deploy.** Auto-update redeployed a workload directly, so a reconcile or a click could start a second `compose up` at the same time, and the two tripped over each other's containers. It now takes the deployment's turn like any other deploy.
+
+### Other changes
+
+- **MCP `update_deployment` with `deploy=false`** now says the revision was saved and not deployed.
+
 ## 0.1.28 — 2026-11-24
 
 - **Search and filter workloads by state.** The workload list has a search box (name, container, image) and a state filter; both stay in the address.

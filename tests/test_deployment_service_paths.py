@@ -308,6 +308,28 @@ class TestWaitingTasks(ServiceCase):
         self.assertEqual(await self.s.waiting_tasks("d3"), [])
 
 
+class TestRedeployAndWait(ServiceCase):
+    async def test_holds_the_slot_and_waits(self):
+        # Auto-update redeploys through this: never on top of a running deploy.
+        self.save(dep())
+        gate = asyncio.Event()
+
+        async def slow(_dep_id):
+            await gate.wait()
+        with mock.patch.object(self.s, "redeploy", side_effect=slow):
+            first = asyncio.ensure_future(self.s.redeploy_and_wait("d1"))
+            await asyncio.sleep(0)
+            with self.assertRaises(Conflict):
+                await self.s.redeploy_and_wait("d1")
+            with self.assertRaises(Conflict):
+                await self.s.dispatch_deploy("d1")  # nor does a reconcile or a click
+            gate.set()
+            await first
+        with mock.patch.object(self.s, "redeploy", side_effect=RuntimeError("compose up failed")):
+            with self.assertRaisesRegex(RuntimeError, "compose up failed"):
+                await self.s.redeploy_and_wait("d1")
+
+
 class TestLifecycle(ServiceCase):
     async def test_destroy_paths(self):
         mine = Container(id="c1", names=["/app"], labels={"kowan.deployment.id": "d1"})
